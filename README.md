@@ -25,6 +25,7 @@ Read these in order (about an hour in total):
 | 7 | [Later phases](docs/07-later-phases.md) | What comes after testing starts, up to launch and Phase 2 |
 | 8 | [Open questions](docs/08-open-questions.md) | Decisions still pending, who owns each one, and the default we build on until answered |
 | 9 | [Screen inventory](docs/09-screen-inventory.md) | All 76 blueprint screens with priority and status |
+| 10 | [Backend plan](docs/10-backend-plan.md) | The chosen stack (Fastify, Drizzle, Better Auth, pg-boss), schema, API routes, jobs, web wiring, build order and verification |
 
 Reference material in [`docs/reference/`](docs/reference/):
 

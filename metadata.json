@@ -1,6 +1,0 @@
-{
-  "name": "Qorloop - Marketplace & Catalogue Management",
-  "description": "Enterprise product catalogue management and automated stock & price reconciliation across quick-commerce marketplaces like Talabat, Snoonu, Rafeeq, and Keeta.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

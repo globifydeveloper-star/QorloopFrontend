@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
+import { matchView, pathFor } from '../routes/paths';
 import {
   INITIAL_CATEGORIES,
   INITIAL_OUTPUT_FILES,
@@ -91,9 +94,7 @@ interface AppContextType {
 
   /** Marketplace pre-selected when a report is opened from the dashboard. */
   marketplaceFilter: MarketplaceId | null;
-  // Session (demo sign-in screen)
-  isAuthenticated: boolean;
-  login: () => void;
+  /** Signs out on the server and returns to the sign-in page. */
   logout: () => void;
 }
 
@@ -103,8 +104,14 @@ const withSeededPrices = (list: Product[]): Product[] =>
   list.map((p) => (PRODUCT_PRICE_SEED[p.id] ? { ...p, ...PRODUCT_PRICE_SEED[p.id] } : p));
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedProductId, setSelectedProductId] = useState<string>('987654');
+  // Real URLs: the current screen comes from the address bar. `navigate(view)` below keeps the old call sites working.
+  const location = useLocation();
+  const router = useNavigate();
+  const auth = useAuth();
+  const matched = matchView(location.pathname);
+  const currentView: ViewType = matched?.view ?? 'dashboard';
+  const [pickedProductId, setSelectedProductId] = useState<string>('987654');
+  const selectedProductId = matched?.view === 'product-detail' && matched.id ? matched.id : pickedProductId;
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('snacks-confectionery');
   const [selectedBranch, setSelectedBranch] = useState<string>('Doha Fresh Markets');
   const [products, setProducts] = useState<Product[]>(() =>
@@ -122,29 +129,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   const [compareReference, setCompareReference] = useState<CompareReference>('marketplace');
   const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceId | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem('qorloop-session') === '1';
-    } catch {
-      return false;
-    }
-  });
-  const login = () => {
-    try {
-      sessionStorage.setItem('qorloop-session', '1');
-    } catch {
-      /* ignore */
-    }
-    setIsAuthenticated(true);
-    setCurrentView('dashboard');
-  };
   const logout = () => {
-    try {
-      sessionStorage.removeItem('qorloop-session');
-    } catch {
-      /* ignore */
-    }
-    setIsAuthenticated(false);
+    void auth.logout().then(() => router('/login', { replace: true }));
   };
 
   const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
@@ -174,7 +160,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (options?.preselectedUpload) setUploadModalPreselectedSource(options.preselectedUpload);
     if (options?.id) setSelectedProductId(options.id);
     setMarketplaceFilter(options?.marketplaceFilter ?? null);
-    setCurrentView(view);
+    router(pathFor(view, options?.productId ?? options?.id));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -371,8 +357,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         bulkUpdatePrices,
         importMarketplacePrices,
         marketplaceFilter,
-        isAuthenticated,
-        login,
         logout,
       }}
     >

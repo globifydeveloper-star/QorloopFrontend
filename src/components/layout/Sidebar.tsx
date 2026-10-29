@@ -10,28 +10,36 @@ import {
   Settings,
   HelpCircle,
   LogOut,
+  Users,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ViewType } from '../../types';
-import { useDemo } from '../../demo';
+import { useAuth } from '../../auth/AuthContext';
+import { ROLE_LABELS } from '../../api/types';
+import { VIEW_PERMISSION } from '../../routes/paths';
 import logo from '../../assets/qorloop-logo.png';
 
 type NavItem = { label: string; view: ViewType; icon: React.ElementType; count?: number; countTone?: 'brand' | 'muted' };
 
 export const Sidebar: React.FC = () => {
   const { currentView, navigate, logout } = useApp();
-  const { state, summary, attention } = useDemo();
-
-  const mismatchTotal = Object.values(summary).reduce((n, s) => n + (s.hasData ? s.total : 0), 0);
-  const liveMarketplaces = state.marketplaces.filter((m) => m.enabled).length;
+  const { me, can } = useAuth();
+  const tenantName = me?.tenant.name ?? '';
+  const userName = me?.user.name ?? '';
+  const roleLabel = me ? ROLE_LABELS[me.role] : '';
+  // Navigation follows the permissions the server returned for this session. The server still enforces them.
+  const allowed = (view: ViewType) => {
+    const needed = VIEW_PERMISSION[view];
+    return !needed || can(needed);
+  };
 
   const sections: { title: string; items: NavItem[] }[] = [
     {
       title: 'Main',
       items: [
         { label: 'Dashboard', view: 'dashboard', icon: LayoutDashboard },
-        { label: 'Uploads', view: 'uploads', icon: Upload, count: attention.length || undefined, countTone: 'muted' },
-        { label: 'Reports', view: 'reports', icon: BarChart2, count: mismatchTotal || undefined, countTone: 'brand' },
+        { label: 'Uploads', view: 'uploads', icon: Upload },
+        { label: 'Reports', view: 'reports', icon: BarChart2 },
       ],
     },
     {
@@ -100,7 +108,7 @@ export const Sidebar: React.FC = () => {
     );
   };
 
-  const initials = state.currentUser.name
+  const initials = userName
     .split(' ')
     .map((w) => w[0])
     .join('')
@@ -118,7 +126,7 @@ export const Sidebar: React.FC = () => {
         {/* Workspace */}
         <div className="mx-1 mb-3 flex items-center gap-2.5 rounded-xl border border-[#8CFFE7]/15 bg-white/[0.06] px-3 py-2.5">
           <div className="w-[30px] h-[30px] shrink-0 rounded-lg bg-gradient-to-br from-[#00D9A9] to-[#027864] text-[#031E1B] text-[13px] font-extrabold flex items-center justify-center">
-            {state.tenant.name
+            {tenantName
               .split(' ')
               .map((w) => w[0])
               .join('')
@@ -126,20 +134,18 @@ export const Sidebar: React.FC = () => {
               .toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-white truncate">{state.tenant.name}</div>
-            <div className="text-[11px] text-[#8FB8B0] truncate">
-              {liveMarketplaces} marketplaces live
-            </div>
+            <div className="text-[13px] font-semibold text-white truncate">{tenantName}</div>
+            <div className="text-[11px] text-[#8FB8B0] truncate">{roleLabel}</div>
           </div>
         </div>
 
-        {sections.map((sec) => (
+        {sections.filter((sec) => sec.items.some((i) => allowed(i.view))).map((sec) => (
           <div key={sec.title}>
             <div className="px-3 pt-3.5 pb-1.5 text-[10.5px] font-bold uppercase tracking-[1.2px] text-[#5F8F86]">
               {sec.title}
             </div>
             <nav className="space-y-0.5">
-              {sec.items.map((item) => (
+              {sec.items.filter((item) => allowed(item.view)).map((item) => (
                 <NavButton key={item.label} item={item} />
               ))}
             </nav>
@@ -149,7 +155,8 @@ export const Sidebar: React.FC = () => {
 
       {/* Bottom */}
       <div className="pt-3 mt-6 border-t border-[#8CFFE7]/10 space-y-0.5">
-        <NavButton item={{ label: 'Settings', view: 'settings', icon: Settings }} />
+        {allowed('team') && <NavButton item={{ label: 'Team', view: 'team', icon: Users }} />}
+        {allowed('settings') && <NavButton item={{ label: 'Settings', view: 'settings', icon: Settings }} />}
         <NavButton item={{ label: 'Help & onboarding', view: 'onboarding', icon: HelpCircle }} />
 
         <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5">
@@ -157,8 +164,8 @@ export const Sidebar: React.FC = () => {
             {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-white truncate">{state.currentUser.name}</div>
-            <div className="text-[11px] text-[#8FB8B0] truncate">{state.currentUser.role}</div>
+            <div className="text-[13px] font-semibold text-white truncate">{userName}</div>
+            <div className="text-[11px] text-[#8FB8B0] truncate">{roleLabel}</div>
           </div>
           <button onClick={logout} title="Sign out" className="p-1 rounded-md text-[#7FA8A0] hover:text-white hover:bg-white/10">
             <LogOut className="w-4 h-4" />

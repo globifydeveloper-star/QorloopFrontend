@@ -18,7 +18,8 @@ export type ViewType =
   | 'onboarding'
   | 'settings'
   | 'column-mapping'
-  | 'new-products';
+  | 'new-products'
+  | 'team';
 
 export type MarketplaceId = 'talabat' | 'snoonu' | 'rafeeq' | 'keeta';
 

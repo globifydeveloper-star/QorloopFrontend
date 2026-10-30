@@ -12,6 +12,12 @@ export interface ColumnMappingPanelProps {
   onCancel?: () => void;
   saveButtonLabel?: string;
   compact?: boolean;
+  /** Qorloop fields to map. Defaults to the demo's ERP/marketplace field lists; real uploads pass the backend's. */
+  fields?: { key: string; label: string; required: boolean }[];
+  /** When false the mapping name is optional (an empty name means "don't save this layout"). */
+  requireTemplateName?: boolean;
+  /** Required field keys nothing was matched to; each gets a hint until a column is picked. */
+  missingRequired?: string[];
 }
 
 export const ColumnMappingPanel: React.FC<ColumnMappingPanelProps> = ({
@@ -25,8 +31,11 @@ export const ColumnMappingPanel: React.FC<ColumnMappingPanelProps> = ({
   onCancel,
   saveButtonLabel = 'Save mapping',
   compact = false,
+  fields: fieldsProp,
+  requireTemplateName = true,
+  missingRequired = [],
 }) => {
-  const fields = useMemo(() => (source === 'erp' ? ERP_FIELDS : MARKETPLACE_FIELDS), [source]);
+  const fields = useMemo(() => fieldsProp ?? (source === 'erp' ? ERP_FIELDS : MARKETPLACE_FIELDS), [fieldsProp, source]);
 
   const [mapping, setMapping] = useState<Record<string, string>>(() => initialMapping);
   const [templateName, setTemplateName] = useState(initialTemplateName);
@@ -37,8 +46,10 @@ export const ColumnMappingPanel: React.FC<ColumnMappingPanelProps> = ({
 
   const previewRows = rows.slice(0, 5);
 
+  const nameOk = !requireTemplateName || Boolean(templateName.trim());
+
   const handleSave = () => {
-    if (!allRequiredMapped || !templateName.trim()) return;
+    if (!allRequiredMapped || !nameOk) return;
     onSave(mapping, templateName);
   };
 
@@ -63,6 +74,11 @@ export const ColumnMappingPanel: React.FC<ColumnMappingPanelProps> = ({
                 <tr key={field.key} className="hover:bg-gray-50/70">
                   <td className="py-2.5 px-4 font-medium text-gray-900">
                     {field.label}
+                    {!chosenHeader && missingRequired.includes(field.key) && (
+                      <div className="text-[11px] font-normal text-red-600 mt-0.5">
+                        Not found in this file automatically. Pick the column that holds it.
+                      </div>
+                    )}
                   </td>
                   <td className="py-2.5 px-4">
                     {field.required ? (
@@ -97,7 +113,7 @@ export const ColumnMappingPanel: React.FC<ColumnMappingPanelProps> = ({
       {/* Template Name */}
       <div className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-xs space-y-1.5">
         <label className="block text-[11px] font-bold uppercase tracking-wider text-gray-700">
-          File mapping name
+          File mapping name{!requireTemplateName && <span className="normal-case font-normal text-gray-400"> (optional)</span>}
         </label>
         <input
           type="text"
@@ -174,7 +190,7 @@ export const ColumnMappingPanel: React.FC<ColumnMappingPanelProps> = ({
         <button
           type="button"
           onClick={handleSave}
-          disabled={!allRequiredMapped || !templateName.trim()}
+          disabled={!allRequiredMapped || !nameOk}
           className="px-4 py-1.5 text-xs font-semibold text-white bg-[#027864] rounded-lg hover:bg-[#02604F] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs"
         >
           {saveButtonLabel}

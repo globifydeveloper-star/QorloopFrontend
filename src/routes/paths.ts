@@ -1,4 +1,5 @@
 import type { ViewType } from '../types';
+import { realUploadsEnabled } from '../lib/features';
 
 /**
  * Real URLs for every screen. The existing views still call `navigate('<view>')`; AppContext translates that
@@ -57,7 +58,10 @@ export function matchView(pathname: string): { view: ViewType; id?: string } | n
  * Screens that read and write the real backend. Everything else still shows sample data from the demo
  * store until its endpoints exist; the shell says so on those screens instead of pretending.
  */
-export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>(['team']);
+export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
+  'team',
+  ...(realUploadsEnabled() ? (['uploads', 'upload-review', 'column-mapping'] as const) : []),
+]);
 
 /** UI hint only (the server decides): permission a role needs to see each screen in the navigation. */
 export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {

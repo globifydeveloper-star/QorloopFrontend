@@ -12,11 +12,13 @@ import {
   Tag,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../auth/AuthContext';
 import { useDemo, latestUpload, relative } from '../../demo';
 import type { MarketplaceId } from '../../demo';
 
 export const DashboardView: React.FC = () => {
   const { navigate, openUploadModal, showToast } = useApp();
+  const canUpload = useAuth().can('uploads.upload');
   const { state, summary, attention } = useDemo();
   const enabledMpIds = state.marketplaces.filter((m) => m.enabled).map((m) => m.id);
 
@@ -62,7 +64,7 @@ export const DashboardView: React.FC = () => {
         navigate('new-products');
         break;
       case 'upload':
-        openUploadModal(item.action.source as MarketplaceId | 'erp');
+        if (canUpload) openUploadModal(item.action.source as MarketplaceId | 'erp');
         break;
       case 'missing':
         navigate('catalogue');
@@ -101,13 +103,15 @@ export const DashboardView: React.FC = () => {
               <RotateCw className="w-4 h-4" />
               <span>Run comparison</span>
             </button>
-            <button
-              onClick={() => openUploadModal()}
-              className="q-glow-btn inline-flex items-center gap-2 h-10 px-4 text-[13px] font-semibold rounded-[10px] transition-transform hover:-translate-y-px"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Upload file</span>
-            </button>
+            {canUpload && (
+              <button
+                onClick={() => openUploadModal()}
+                className="q-glow-btn inline-flex items-center gap-2 h-10 px-4 text-[13px] font-semibold rounded-[10px] transition-transform hover:-translate-y-px"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Upload file</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -186,13 +190,15 @@ export const DashboardView: React.FC = () => {
                 </div>
               )}
             </div>
-            <button
-              onClick={() => openUploadModal('erp')}
-              className="mt-4 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
-            >
-              <Upload className="w-3 h-3 text-gray-500" />
-              <span>Upload</span>
-            </button>
+            {canUpload && (
+              <button
+                onClick={() => openUploadModal('erp')}
+                className="mt-4 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+              >
+                <Upload className="w-3 h-3 text-gray-500" />
+                <span>Upload</span>
+              </button>
+            )}
           </div>
 
           {/* Marketplace Cards */}
@@ -209,7 +215,7 @@ export const DashboardView: React.FC = () => {
                   <p className="text-[11px] text-gray-500 mt-1">
                     {s.lastUpload ? `Updated ${relative(s.lastUpload.uploadedAt, state.now)}` : 'No file yet'}
                   </p>
-                  {!s.hasData && (
+                  {!s.hasData && canUpload && (
                     <button
                       onClick={() => openUploadModal(mpId)}
                       className="text-[11px] text-[#027864] hover:underline mt-1 font-medium block text-left"
@@ -224,13 +230,15 @@ export const DashboardView: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <button
-                  onClick={() => openUploadModal(mpId)}
-                  className="mt-4 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
-                >
-                  <Upload className="w-3 h-3 text-gray-500" />
-                  <span>Upload</span>
-                </button>
+                {canUpload && (
+                  <button
+                    onClick={() => openUploadModal(mpId)}
+                    className="mt-4 w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg transition-colors"
+                  >
+                    <Upload className="w-3 h-3 text-gray-500" />
+                    <span>Upload</span>
+                  </button>
+                )}
               </div>
             );
           })}
@@ -251,8 +259,8 @@ export const DashboardView: React.FC = () => {
               return (
                 <div
                   key={mpId}
-                  onClick={() => openUploadModal(mpId)}
-                  className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col justify-between cursor-pointer hover:border-gray-300 transition-all shadow-xs group"
+                  onClick={canUpload ? () => openUploadModal(mpId) : undefined}
+                  className={`bg-white border border-gray-200 rounded-xl p-4 flex flex-col justify-between ${canUpload ? 'cursor-pointer' : ''} hover:border-gray-300 transition-all shadow-xs group`}
                 >
                   <div className="flex items-center justify-between text-xs font-semibold text-gray-900">
                     <span>{s.name}</span>

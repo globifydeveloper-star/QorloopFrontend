@@ -2,8 +2,10 @@ import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { useDemo } from '../../demo';
 import { ColumnMappingPanel } from '../common/ColumnMappingPanel';
+import { realUploadsEnabled } from '../../lib/features';
+import { RealColumnMappingView } from '../uploads/RealColumnMappingView';
 
-export const ColumnMappingView: React.FC = () => {
+const DemoColumnMappingView: React.FC = () => {
   const { navigate, showToast } = useApp();
   const { pendingMapping, completeMapping, cancelMapping } = useDemo();
 
@@ -83,3 +85,5 @@ export const ColumnMappingView: React.FC = () => {
     </div>
   );
 };
+
+export const ColumnMappingView: React.FC = () => (realUploadsEnabled() ? <RealColumnMappingView /> : <DemoColumnMappingView />);

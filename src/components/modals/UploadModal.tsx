@@ -3,8 +3,11 @@ import { X, Upload, Info, FileSpreadsheet } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useDemo, SAMPLE_FILES } from '../../demo';
 import type { MarketplaceId, SourceId } from '../../demo';
+import { useAuth } from '../../auth/AuthContext';
+import { realUploadsEnabled } from '../../lib/features';
+import { RealUploadModal } from '../uploads/RealUploadModal';
 
-export const UploadModal: React.FC = () => {
+const DemoUploadModal: React.FC = () => {
   const { isUploadModalOpen, closeUploadModal, uploadModalPreselectedSource, navigate, showToast } = useApp();
   const { state, uploadFile, uploadSample } = useDemo();
 
@@ -316,4 +319,11 @@ export const UploadModal: React.FC = () => {
       </div>
     </div>
   );
+};
+
+/** Real /api/uploads flow when VITE_REAL_UPLOADS=true, the demo store otherwise. Not shown to roles without uploads.upload. */
+export const UploadModal: React.FC = () => {
+  const { can } = useAuth();
+  if (!can('uploads.upload')) return null;
+  return realUploadsEnabled() ? <RealUploadModal /> : <DemoUploadModal />;
 };

@@ -6,6 +6,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../auth/AuthContext';
 import { MarketplaceBadge } from '../common/MarketplaceBadge';
 import { MarketplaceId } from '../../types';
 import { MARKETPLACE_IDS, REFERENCE_LABELS, checkProductPrices } from '../../lib/pricing';
@@ -31,6 +32,7 @@ export const GenerateFilesView: React.FC = () => {
     compareReference,
     setCompareReference,
   } = useApp();
+  const { can } = useAuth();
 
   const [selectedMarketplaces, setSelectedMarketplaces] = useState<Record<MarketplaceId, boolean>>({
     talabat: true,
@@ -246,12 +248,14 @@ export const GenerateFilesView: React.FC = () => {
                       <span>
                         Upload a Keeta file to see mismatches and generate an output file.
                       </span>
-                      <button
-                        onClick={() => openUploadModal('keeta')}
-                        className="text-[#027864] font-semibold hover:underline"
-                      >
-                        Upload Keeta file
-                      </button>
+                      {can('uploads.upload') && (
+                        <button
+                          onClick={() => openUploadModal('keeta')}
+                          className="text-[#027864] font-semibold hover:underline"
+                        >
+                          Upload Keeta file
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

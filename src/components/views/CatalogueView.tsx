@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../auth/AuthContext';
 import { ProductImage } from '../common/ProductImage';
 import { PriceSourceChip } from '../common/PriceSourceChip';
 import { BulkPriceModal } from '../modals/BulkPriceModal';
@@ -21,6 +22,7 @@ import { formatDiff, formatQar } from '../../lib/pricing';
 
 export const CatalogueView: React.FC = () => {
   const { products, navigate, openUploadModal, showToast, getMarketplacePrice } = useApp();
+  const { can } = useAuth();
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'inactive' | 'new'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(true);
@@ -96,13 +98,15 @@ export const CatalogueView: React.FC = () => {
             <span>Bulk price update</span>
           </button>
 
-          <button
-            onClick={() => openUploadModal('erp')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-xs"
-          >
-            <Upload className="w-3.5 h-3.5 text-gray-500" />
-            <span>Import from ERP</span>
-          </button>
+          {can('uploads.upload') && (
+            <button
+              onClick={() => openUploadModal('erp')}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-xs"
+            >
+              <Upload className="w-3.5 h-3.5 text-gray-500" />
+              <span>Import from ERP</span>
+            </button>
+          )}
 
           <button
             onClick={() => navigate('new-product')}

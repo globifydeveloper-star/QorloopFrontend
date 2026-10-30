@@ -6,8 +6,10 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useDemo, money } from '../../demo';
+import { realUploadsEnabled } from '../../lib/features';
+import { RealUploadReviewView } from '../uploads/RealUploadReviewView';
 
-export const UploadReviewView: React.FC = () => {
+const DemoUploadReviewView: React.FC = () => {
   const { navigate, showToast } = useApp();
   const { pendingReview, confirmReview, discardReview, state } = useDemo();
   const [activeTab, setActiveTab] = useState<'price' | 'stock' | 'availability' | 'new' | 'missing' | 'unmatched' | 'errors'>('price');
@@ -467,3 +469,6 @@ const DetailRow: React.FC<{ label: string; value: string }> = ({ label, value })
     <span className="font-medium text-gray-900 text-right max-w-[60%] truncate">{value}</span>
   </div>
 );
+
+/** In real mode this never calls the demo applyReview: the backend has no apply endpoint yet. */
+export const UploadReviewView: React.FC = () => (realUploadsEnabled() ? <RealUploadReviewView /> : <DemoUploadReviewView />);

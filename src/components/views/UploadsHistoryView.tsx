@@ -3,6 +3,9 @@ import { Upload, ArrowRight, FileSpreadsheet, CheckCircle2, Clock } from 'lucide
 import { useApp } from '../../context/AppContext';
 import { useDemo, dateTime } from '../../demo';
 import type { SourceId } from '../../demo';
+import { useAuth } from '../../auth/AuthContext';
+import { realUploadsEnabled } from '../../lib/features';
+import { RealUploadsHistoryView } from '../uploads/RealUploadsHistoryView';
 
 const SOURCE_LABELS: Record<SourceId, string> = {
   erp: 'ERP (RetailOne)',
@@ -12,9 +15,10 @@ const SOURCE_LABELS: Record<SourceId, string> = {
   keeta: 'Keeta',
 };
 
-export const UploadsHistoryView: React.FC = () => {
+const DemoUploadsHistoryView: React.FC = () => {
   const { navigate, openUploadModal } = useApp();
   const { state, pendingReview } = useDemo();
+  const { can } = useAuth();
 
   const getSourceLabel = (src: SourceId) => {
     return SOURCE_LABELS[src] || src;
@@ -30,13 +34,15 @@ export const UploadsHistoryView: React.FC = () => {
             History of ERP and marketplace file imports
           </p>
         </div>
-        <button
-          onClick={() => openUploadModal()}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#027864] hover:bg-[#02604F] text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
-        >
-          <Upload className="w-4 h-4" />
-          <span>Upload file</span>
-        </button>
+        {can('uploads.upload') && (
+          <button
+            onClick={() => openUploadModal()}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#027864] hover:bg-[#02604F] text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Upload file</span>
+          </button>
+        )}
       </div>
 
       {/* Pending review callout */}
@@ -149,3 +155,5 @@ export const UploadsHistoryView: React.FC = () => {
     </div>
   );
 };
+
+export const UploadsHistoryView: React.FC = () => (realUploadsEnabled() ? <RealUploadsHistoryView /> : <DemoUploadsHistoryView />);

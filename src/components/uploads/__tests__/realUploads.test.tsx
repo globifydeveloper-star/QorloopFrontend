@@ -195,6 +195,115 @@ describe('rejected / failed', () => {
   });
 });
 
+describe('download errors (.xlsx)', () => {
+  const NAME = 'Download errors (.xlsx)';
+  let xlsxReply: () => Response | Promise<Response>;
+  let detail: UploadDetail;
+  let errorsTotal: number;
+  let clicked: { href: string; download: string }[];
+  beforeEach(() => {
+    detail = rec('needs_review', { summary });
+    errorsTotal = 2;
+    xlsxReply = () => new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { 'Content-Disposition': 'attachment; filename="talabat-errors.xlsx"' } });
+    handler = url => {
+      if (url === '/api/uploads/up_1') return json(200, { data: detail });
+      if (url.startsWith('/api/uploads/up_1/review')) return json(200, { data: { upload: detail, tab: 'price', page: 1, pageSize: 50, total: 0, errorCount: 0, rows: [] } });
+      if (url.startsWith('/api/uploads/up_1/errors?')) return json(200, { data: { page: 1, total: errorsTotal, errors: errorsTotal ? [{ row: 3, column: 'Price', value: 'x', reason: 'Not a number' }] : [] } });
+      return undefined;
+    };
+    // fetch is wired through handler, except the xlsx which may be deferred.
+    fetchMock.mockImplementation((u: string, i: RequestInit = {}) =>
+      String(u) === '/api/uploads/up_1/errors.xlsx' ? Promise.resolve(xlsxReply()) : Promise.resolve(handler(String(u), i) ?? json(404, { error: { code: 'NOT_FOUND', message: 'nope' } })));
+    clicked = [];
+    // jsdom has no object URLs.
+    URL.createObjectURL = vi.fn(() => 'blob:qorloop/1');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) { clicked.push({ href: this.href, download: this.download }); });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete (URL as Partial<typeof URL>).createObjectURL;
+    delete (URL as Partial<typeof URL>).revokeObjectURL;
+  });
+  const open = async () => {
+    renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
+    await screen.findByText(/Row errors \(/);
+  };
+
+  it('is hidden at zero errors', async () => {
+    detail = rec('needs_review', { summary: { ...summary, rowsWithErrors: 0 } });
+    errorsTotal = 0;
+    await open();
+    expect(screen.queryByRole('button', { name: NAME })).toBeNull();
+  });
+
+  it('is shown for a rejected upload whose message mentions invalid rows, and hidden without uploads.view', async () => {
+    detail = rec('rejected', { errorMessage: 'The file has 12 invalid rows.' });
+    errorsTotal = 0;
+    await open();
+    expect(screen.getByRole('button', { name: NAME })).toBeTruthy();
+    cleanup();
+    perms.delete('uploads.view');
+    await open();
+    expect(screen.queryByRole('button', { name: NAME })).toBeNull();
+  });
+
+  it('downloads through a temporary object URL and an <a download> with the server file name, then revokes it', async () => {
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: NAME }));
+    await waitFor(() => expect(clicked).toEqual([{ href: 'blob:qorloop/1', download: 'talabat-errors.xlsx' }]));
+    expect((URL.createObjectURL as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBeInstanceOf(Blob);
+    await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:qorloop/1'));
+    expect(document.querySelector('a[download]')).toBeNull();
+    expect(calls(u => u === '/api/uploads/up_1/errors.xlsx')[0][1]).toMatchObject({ credentials: 'include' });
+  });
+
+  it('is disabled and says "Preparing…" while the file is being prepared', async () => {
+    let finish!: (r: Response) => void;
+    xlsxReply = () => new Promise<Response>(r => { finish = r; });
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: NAME }));
+    const busy = await screen.findByRole('button', { name: 'Preparing…' }) as HTMLButtonElement;
+    expect(busy.disabled).toBe(true);
+    finish(new Response(new Uint8Array([1]), { status: 200 }));
+    expect(((await screen.findByRole('button', { name: NAME })) as HTMLButtonElement).disabled).toBe(false);
+    expect(clicked[0].download).toBe('row-errors.xlsx');
+  });
+
+  it('a 401 takes the session-expired path', async () => {
+    const { onSessionExpired } = await import('../../../api/client');
+    const expired = vi.fn();
+    const off = onSessionExpired(expired);
+    xlsxReply = () => json(401, { error: { code: 'UNAUTHENTICATED', message: 'Session expired or invalid' } });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: NAME }));
+    await waitFor(() => expect(expired).toHaveBeenCalledTimes(1));
+    expect(clicked).toHaveLength(0);
+    off();
+  });
+
+  it('a 404 shows the specific message and logs the original error', async () => {
+    xlsxReply = () => json(404, { error: { code: 'NOT_FOUND', message: 'Upload not found' } });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await open();
+    fireEvent.click(screen.getByRole('button', { name: NAME }));
+    expect((await screen.findByText(/Could not download the errors/)).textContent).toBe('Could not download the errors: Upload not found');
+    expect(log).toHaveBeenCalledWith('[uploads] downloading the errors file failed', expect.objectContaining({ status: 404 }));
+    expect(clicked).toHaveLength(0);
+  });
+
+  it('notes the 5,000 cap only when more than 5,000 errors are shown', async () => {
+    errorsTotal = 5000;
+    await open();
+    expect(screen.queryByText('The file lists up to 5,000 errors')).toBeNull();
+    cleanup();
+    errorsTotal = 5001;
+    await open();
+    expect(screen.getByText('The file lists up to 5,000 errors')).toBeTruthy();
+  });
+});
+
 describe('status polling', () => {
   it('polls every 2 s while processing (showing step/progress) and stops once settled', async () => {
     let n = 0;

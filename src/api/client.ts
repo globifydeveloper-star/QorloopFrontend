@@ -79,15 +79,33 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   }
 
   const text = await res.text();
-  let json: unknown;
-  try { json = text ? JSON.parse(text) : undefined; } catch { json = undefined; }
-
-  if (!res.ok) {
-    const body = (json ?? {}) as Partial<ApiErrorBody>;
-    const msg = body.error?.message;
-    const message = Array.isArray(msg) ? msg.join(' ') : msg ?? `Request failed (${res.status})`;
-    if (res.status === 401 && !opts.expectUnauthorized) sessionExpiredListeners.forEach(fn => fn());
-    throw new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined);
-  }
+  const json = parseJson(text);
+  if (!res.ok) throw failure(res, json, opts.expectUnauthorized);
   return ((json as { data?: T } | undefined)?.data ?? (json as T)) as T;
+}
+
+/** GET a binary file (cookies sent, body read as a Blob). Non-2xx is handled exactly like api(), including 401. */
+export async function apiBlob(path: string, signal?: AbortSignal): Promise<{ blob: Blob; headers: Headers }> {
+  let res: Response;
+  try {
+    res = await fetch(BASE + path, { method: 'GET', credentials: 'include', signal });
+  } catch (e) {
+    if ((e as Error).name === 'AbortError') throw e;
+    throw new ApiError(0, 'NETWORK', 'We could not reach the server. Check your connection and try again.');
+  }
+  // Error bodies are JSON ({ error: { code, message } }) when the backend sends them; anything else gets a generic message.
+  if (!res.ok) throw failure(res, parseJson(await res.text()));
+  return { blob: await res.blob(), headers: res.headers };
+}
+
+function parseJson(text: string): unknown {
+  try { return text ? JSON.parse(text) : undefined; } catch { return undefined; }
+}
+
+function failure(res: Response, json: unknown, expectUnauthorized?: boolean): ApiError {
+  const body = (json ?? {}) as Partial<ApiErrorBody>;
+  const msg = body.error?.message;
+  const message = Array.isArray(msg) ? msg.join(' ') : msg ?? `Request failed (${res.status})`;
+  if (res.status === 401 && !expectUnauthorized) sessionExpiredListeners.forEach(fn => fn());
+  return new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined);
 }

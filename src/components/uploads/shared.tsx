@@ -148,6 +148,21 @@ export const ConfirmDialog: React.FC<{
   </div>
 );
 
+/** Hands a downloaded Blob to the browser as a file: temporary object URL + <a download>, then the URL is revoked. */
+export function saveBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  try { a.click(); } finally {
+    a.remove();
+    // Revoke on the next tick so the browser has started the download.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+}
+
 /** Renders a parsed file value for display. */
 export const cell = (v: unknown): string =>
   v === null || v === undefined ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);

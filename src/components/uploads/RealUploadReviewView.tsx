@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Info } from 'lucide-react';
+import { Download, Info } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import { uploadsApi } from '../../api/uploads';
+import { ApiError } from '../../api/client';
+import { ERRORS_XLSX_LIMIT, uploadsApi } from '../../api/uploads';
 import { REVIEW_TABS, UPLOAD_ERRORS_PAGE_SIZE } from '../../api/types';
 import type { ChangeType, ChangeValue, ReviewRow, ReviewTab, UploadDetail, UploadSummary, UploadRowError, ValueChange } from '../../api/types';
 import {
   ConfirmDialog, DISCARDABLE, FailureNotice, SOURCE_LABELS, StatusBadge, StatusProgress, UPLOADS_LIST_KEY, cell, errorText,
-  formatBytes, uploadKey, useUploadStatus,
+  formatBytes, saveBlob, uploadKey, useUploadStatus,
 } from './shared';
 
 const TAB_LABELS: Record<ReviewTab, string> = {
@@ -126,7 +127,7 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
           {upload.status === 'needs_review' && <ReviewTabs id={upload.id} />}
-          {(upload.status === 'needs_review' || upload.status === 'rejected' || upload.status === 'failed') && <RowErrors id={upload.id} />}
+          {(upload.status === 'needs_review' || upload.status === 'rejected' || upload.status === 'failed') && <RowErrors upload={upload} />}
         </div>
 
         <div className="space-y-2">
@@ -283,16 +284,27 @@ const OldNew: React.FC<{ field: ChangeKey; change: ValueChange | undefined }> = 
 const describeData = (data: Record<string, unknown>) =>
   Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => `${k}: ${cell(v)}`).join(' · ');
 
-const RowErrors: React.FC<{ id: string }> = ({ id }) => {
+/** A rejected upload's message that points at bad rows (as opposed to e.g. "no header row"). */
+const MENTIONS_INVALID_ROWS = /invalid rows?|rows? (with|had|have) errors|row errors/i;
+
+const RowErrors: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
+  const { id } = upload;
+  const { can } = useAuth();
   const [page, setPage] = useState(1);
   const q = useQuery({ queryKey: ['uploads', 'errors', id, page], queryFn: () => uploadsApi.errors(id, page), placeholderData: keepPreviousData, retry: false });
   const pages = q.data ? Math.max(1, Math.ceil(q.data.total / UPLOAD_ERRORS_PAGE_SIZE)) : 1;
+  const shownCount = q.data?.total ?? upload.summary?.rowsWithErrors ?? 0;
+  const hasErrors = (upload.summary?.rowsWithErrors ?? 0) > 0 || (q.data?.total ?? 0) > 0
+    || (upload.status === 'rejected' && MENTIONS_INVALID_ROWS.test(upload.errorMessage ?? ''));
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <h2 className="px-4 py-3 border-b border-gray-100 text-xs font-bold uppercase tracking-wider text-gray-900">
-        Row errors{q.data ? ` (${q.data.total})` : ''}
-      </h2>
+      <div className="px-4 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">
+          Row errors{q.data ? ` (${q.data.total})` : ''}
+        </h2>
+        {hasErrors && can('uploads.view') && <DownloadErrors id={id} capped={shownCount > ERRORS_XLSX_LIMIT} />}
+      </div>
       {q.isError ? (
         <p role="alert" className="p-4 text-xs text-red-600">{errorText(q.error)}</p>
       ) : !q.data ? (
@@ -305,6 +317,40 @@ const RowErrors: React.FC<{ id: string }> = ({ id }) => {
           <Pager page={page} pages={pages} total={q.data.total} onPage={setPage} />
         </>
       )}
+    </div>
+  );
+};
+
+const DownloadErrors: React.FC<{ id: string; capped: boolean }> = ({ id, capped }) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const download = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { blob, fileName } = await uploadsApi.downloadErrors(id);
+      saveBlob(blob, fileName);
+    } catch (e) {
+      console.error('[uploads] downloading the errors file failed', e);
+      // A 401 has already sent the app to the session-expired screen (client.ts); the message is for everything else.
+      setError(`Could not download the errors: ${e instanceof ApiError ? e.message : errorText(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={() => void download()}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#027864] bg-white border border-[#027864]/40 rounded-lg hover:bg-[#E3FAF3] disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <Download className="w-3.5 h-3.5" />
+        {busy ? 'Preparing…' : 'Download errors (.xlsx)'}
+      </button>
+      {capped && <p className="text-[11px] text-gray-500">The file lists up to {ERRORS_XLSX_LIMIT.toLocaleString('en-US')} errors</p>}
+      {error && <p role="alert" className="text-[11px] text-red-600">{error}</p>}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { ApiError, api } from './client';
+import { ApiError, api, apiBlob } from './client';
 import type {
   CreateUploadRequest, CreateUploadResponse, CreatedUpload, ReviewTab, SaveMappingRequest, UploadDetail, UploadErrorsPage,
   UploadRecord, UploadReviewPage, UploadStatus, UploadTarget,
@@ -34,7 +34,28 @@ export const uploadsApi = {
   saveMapping: (id: string, body: SaveMappingRequest) =>
     api<UploadRecord>(`/api/uploads/${enc(id)}/mapping`, { method: 'POST', body }),
   discard: (id: string) => api<UploadRecord>(`/api/uploads/${enc(id)}/discard`, { method: 'POST' }),
+  /** The row errors as an .xlsx (the backend caps it at ERRORS_XLSX_LIMIT rows). */
+  downloadErrors: async (id: string): Promise<{ blob: Blob; fileName: string }> => {
+    const { blob, headers } = await apiBlob(`/api/uploads/${enc(id)}/errors.xlsx`);
+    return { blob, fileName: fileNameFrom(headers.get('Content-Disposition')) ?? 'row-errors.xlsx' };
+  },
 };
+
+/** Rows the errors.xlsx export holds at most. */
+export const ERRORS_XLSX_LIMIT = 5000;
+
+/** File name from a Content-Disposition header: RFC 5987 `filename*=UTF-8''…` first, then `filename="…"`. */
+export function fileNameFrom(header: string | null): string | undefined {
+  if (!header) return undefined;
+  const star = /filename\*\s*=\s*(?:[\w-]+)?'[^']*'([^;]+)/i.exec(header);
+  if (star) {
+    try { return clean(decodeURIComponent(star[1].trim().replace(/^"|"$/g, ''))); } catch { /* fall through */ }
+  }
+  const plain = /filename\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^;]+))/i.exec(header);
+  return plain ? clean((plain[1] ?? plain[2]).replace(/\\(.)/g, '$1').trim()) : undefined;
+}
+// Never let a header choose a folder.
+const clean = (name: string) => name.replace(/[/\\]/g, '_') || undefined;
 
 /** Statuses after which the backend will not move on by itself: polling stops here. */
 export const isSettled = (s: UploadStatus | undefined) => s !== undefined && s !== 'uploading' && s !== 'processing';

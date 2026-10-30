@@ -112,6 +112,46 @@ describe('uploadsApi: success paths', () => {
   });
 });
 
+describe('uploadsApi.downloadErrors', () => {
+  const xlsx = (headers: Record<string, string> = {}) =>
+    new Response(new Uint8Array([0x50, 0x4b, 3, 4]), { status: 200, headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', ...headers } });
+
+  it('GETs errors.xlsx with cookies and returns the Blob with the Content-Disposition file name', async () => {
+    fetchMock.mockResolvedValue(xlsx({ 'Content-Disposition': 'attachment; filename="talabat-errors.xlsx"' }));
+    const { blob, fileName } = await uploadsApi.downloadErrors('up_1');
+    expect(call().url).toBe('/api/uploads/up_1/errors.xlsx');
+    expect(call().init).toMatchObject({ method: 'GET', credentials: 'include' });
+    expect(fileName).toBe('talabat-errors.xlsx');
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(new Uint8Array([0x50, 0x4b, 3, 4]));
+  });
+
+  it('falls back to row-errors.xlsx, prefers filename*, and strips folders', async () => {
+    fetchMock.mockResolvedValueOnce(xlsx());
+    expect((await uploadsApi.downloadErrors('up_1')).fileName).toBe('row-errors.xlsx');
+    fetchMock.mockResolvedValueOnce(xlsx({ 'Content-Disposition': `attachment; filename="a.xlsx"; filename*=UTF-8''%D9%85%D9%84%D9%81-errors.xlsx` }));
+    expect((await uploadsApi.downloadErrors('up_1')).fileName).toBe('ملف-errors.xlsx');
+    fetchMock.mockResolvedValueOnce(xlsx({ 'Content-Disposition': 'attachment; filename="../x/b-errors.xlsx"' }));
+    expect((await uploadsApi.downloadErrors('up_1')).fileName).toBe('.._x_b-errors.xlsx');
+  });
+
+  it('401 announces an expired session; 404 is an ApiError with the backend message', async () => {
+    const listener = vi.fn();
+    const off = onSessionExpired(listener);
+    fetchMock.mockResolvedValueOnce(fail(401, 'UNAUTHENTICATED', 'Session expired or invalid'));
+    await expect(uploadsApi.downloadErrors('up_1')).rejects.toMatchObject({ status: 401 });
+    expect(listener).toHaveBeenCalledTimes(1);
+    fetchMock.mockResolvedValueOnce(fail(404, 'NOT_FOUND', 'Upload not found'));
+    await expect(uploadsApi.downloadErrors('up_1')).rejects.toMatchObject({ status: 404, code: 'NOT_FOUND', message: 'Upload not found' });
+    expect(listener).toHaveBeenCalledTimes(1);
+    off();
+  });
+
+  it('a non-JSON error body gets a generic message with the status', async () => {
+    fetchMock.mockResolvedValue(new Response('<html>Bad gateway</html>', { status: 502 }));
+    await expect(uploadsApi.downloadErrors('up_1')).rejects.toMatchObject({ status: 502, message: 'Request failed (502)' });
+  });
+});
+
 describe('uploadsApi: errors', () => {
   it('400 validation exposes field errors', async () => {
     fetchMock.mockResolvedValue(fail(400, 'VALIDATION_ERROR', 'Validation failed', [{ path: 'size', message: 'File must be at most 25 MB' }]));

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { realCatalogueEnabled } from '../../lib/features';
+import { RealCategoryDetailView } from '../catalogue/RealCategoryDetailView';
 import {
   ChevronDown,
   Upload,
@@ -16,7 +18,7 @@ import { ProductImage } from '../common/ProductImage';
 import { MarketplaceBadge } from '../common/MarketplaceBadge';
 import { useDemo } from '../../demo';
 
-export const CategoryDetailView: React.FC = () => {
+const DemoCategoryDetailView: React.FC = () => {
   const { selectedCategoryId, navigate, showToast } = useApp();
   const { state } = useDemo();
   const categories = state.categories;
@@ -501,3 +503,6 @@ export const CategoryDetailView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/products and /api/categories when VITE_REAL_CATALOGUE=true, the demo store otherwise. */
+export const CategoryDetailView: React.FC = () => (realCatalogueEnabled() ? <RealCategoryDetailView /> : <DemoCategoryDetailView />);

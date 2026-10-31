@@ -31,6 +31,9 @@ import { TemplatesView } from './components/views/TemplatesView';
 import { SettingsView } from './components/views/SettingsView';
 import { UploadsHistoryView } from './components/views/UploadsHistoryView';
 import { CategoryMappingView } from './components/views/CategoryMappingView';
+import { CategoriesView } from './components/views/CategoriesView';
+import { CategoryDetailView } from './components/views/CategoryDetailView';
+import { realCatalogueEnabled } from './lib/features';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 /** The signed-in application. Sample-data screens stay available but are labelled until their endpoints exist. */
@@ -76,6 +79,11 @@ const MainContent: React.FC = () => {
       case 'new-products':
       case 'new-product':
         return <NewProductsView />;
+      // The category screens are reachable only on the real catalogue; the demo build keeps its old routing.
+      case 'categories':
+        return realCatalogueEnabled() ? <CategoriesView /> : <DashboardView />;
+      case 'category-detail':
+        return realCatalogueEnabled() ? <CategoryDetailView /> : <DashboardView />;
       case 'reports':
       case 'reports-stock':
         return <StockMismatchesView />;

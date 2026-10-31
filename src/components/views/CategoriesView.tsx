@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { realCatalogueEnabled } from '../../lib/features';
+import { RealCategoriesView } from '../catalogue/RealCategoriesView';
 import {
   Search,
   Upload,
@@ -9,7 +11,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { useDemo } from '../../demo';
 
-export const CategoriesView: React.FC = () => {
+const DemoCategoriesView: React.FC = () => {
   const { navigate, showToast } = useApp();
   const { state } = useDemo();
   const categories = state.categories;
@@ -276,3 +278,6 @@ export const CategoriesView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/products and /api/categories when VITE_REAL_CATALOGUE=true, the demo store otherwise. */
+export const CategoriesView: React.FC = () => (realCatalogueEnabled() ? <RealCategoriesView /> : <DemoCategoriesView />);

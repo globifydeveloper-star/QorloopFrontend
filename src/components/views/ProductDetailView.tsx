@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { realCatalogueEnabled } from '../../lib/features';
+import { RealProductDetailView } from '../catalogue/RealProductDetailView';
 import {
   Copy,
   Plus,
@@ -18,7 +20,7 @@ import { PriceSourceChip } from '../common/PriceSourceChip';
 import { BulkPriceModal } from '../modals/BulkPriceModal';
 import { formatDiff, formatQar } from '../../lib/pricing';
 
-export const ProductDetailView: React.FC = () => {
+const DemoProductDetailView: React.FC = () => {
   const { products, selectedProductId, updateProduct, deleteProduct, navigate, showToast, getMarketplacePrice } =
     useApp();
   const [activeTab, setActiveTab] = useState<'status' | 'details' | 'category' | 'markups' | 'history'>('status');
@@ -655,3 +657,6 @@ export const ProductDetailView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/products and /api/categories when VITE_REAL_CATALOGUE=true, the demo store otherwise. */
+export const ProductDetailView: React.FC = () => (realCatalogueEnabled() ? <RealProductDetailView /> : <DemoProductDetailView />);

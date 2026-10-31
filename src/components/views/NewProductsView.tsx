@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { realCatalogueEnabled } from '../../lib/features';
+import { RealNewProductsView } from '../catalogue/RealNewProductsView';
 import {
   Sparkles,
   CheckCircle2,
@@ -30,7 +32,7 @@ const SAMPLE_ARABIC: Record<string, { ar: string; cat: string }> = {
   'Pedigree Adult Chicken 3kg': { ar: 'بيديجري للكلاب البالغة دجاج 3 كجم', cat: 'pet-care' },
 };
 
-export const NewProductsView: React.FC = () => {
+const DemoNewProductsView: React.FC = () => {
   const { navigate, showToast } = useApp();
   const { state, updateProduct, activateProducts } = useDemo();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -284,3 +286,6 @@ export const NewProductsView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/products and /api/categories when VITE_REAL_CATALOGUE=true, the demo store otherwise. */
+export const NewProductsView: React.FC = () => (realCatalogueEnabled() ? <RealNewProductsView /> : <DemoNewProductsView />);

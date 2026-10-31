@@ -1,5 +1,5 @@
 import type { ViewType } from '../types';
-import { realUploadsEnabled } from '../lib/features';
+import { realCatalogueEnabled, realUploadsEnabled } from '../lib/features';
 
 /**
  * Real URLs for every screen. The existing views still call `navigate('<view>')`; AppContext translates that
@@ -61,6 +61,7 @@ export function matchView(pathname: string): { view: ViewType; id?: string } | n
 export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   'team',
   ...(realUploadsEnabled() ? (['uploads', 'upload-review', 'column-mapping'] as const) : []),
+  ...(realCatalogueEnabled() ? (['catalogue', 'product-detail', 'new-products', 'categories', 'category-detail'] as const) : []),
 ]);
 
 /** UI hint only (the server decides): permission a role needs to see each screen in the navigation. */
@@ -68,6 +69,7 @@ export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {
   uploads: 'uploads.view', 'upload-review': 'uploads.view', 'column-mapping': 'uploads.map',
   'reports-stock': 'reports.view', 'reports-price-discrepancies': 'reports.view',
   catalogue: 'products.view', 'product-detail': 'products.view', 'new-products': 'products.view',
+  categories: 'products.view', 'category-detail': 'products.view',
   markups: 'pricing.view', 'category-mapping': 'categories.manage', templates: 'uploads.view',
   'outputs-generate': 'files.view', settings: 'settings.view', team: 'team.view',
 };

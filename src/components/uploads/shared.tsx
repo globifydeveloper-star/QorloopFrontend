@@ -19,6 +19,8 @@ export const STATUS_LABELS: Record<UploadStatus, string> = {
   processing: 'Processing',
   needs_mapping: 'Needs mapping',
   needs_review: 'Needs review',
+  applying: 'Applying',
+  applied: 'Applied',
   rejected: 'Rejected',
   failed: 'Failed',
   discarded: 'Discarded',
@@ -57,8 +59,9 @@ export const StatusBadge: React.FC<{ status: UploadStatus }> = ({ status }) => {
     status === 'needs_review' || status === 'needs_mapping' ? 'bg-amber-50 text-amber-700 border-amber-200'
       : status === 'rejected' || status === 'failed' ? 'bg-red-50 text-red-700 border-red-200'
         : status === 'discarded' ? 'bg-gray-100 text-gray-600 border-gray-200'
-          : 'bg-blue-50 text-blue-700 border-blue-200';
-  const Icon = status === 'uploading' || status === 'processing' ? Loader2
+          : status === 'applied' ? 'bg-[#E3FAF3] text-[#027864] border-[#027864]/30'
+            : 'bg-blue-50 text-blue-700 border-blue-200';
+  const Icon = status === 'uploading' || status === 'processing' || status === 'applying' ? Loader2
     : status === 'rejected' || status === 'failed' ? XCircle
       : status === 'discarded' ? null : status === 'needs_review' || status === 'needs_mapping' ? Clock : CheckCircle2;
   return (
@@ -127,10 +130,12 @@ export const ConfirmDialog: React.FC<{
   title: string;
   confirmLabel: string;
   busy?: boolean;
+  /** `danger` (red) for destructive actions; `primary` (brand green) otherwise. */
+  tone?: 'danger' | 'primary';
   onConfirm: () => void;
   onClose: () => void;
   children: React.ReactNode;
-}> = ({ title, confirmLabel, busy, onConfirm, onClose, children }) => (
+}> = ({ title, confirmLabel, busy, tone = 'danger', onConfirm, onClose, children }) => (
   <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4" onMouseDown={e => e.target === e.currentTarget && onClose()} onKeyDown={e => e.key === 'Escape' && onClose()}>
     <div role="dialog" aria-modal="true" aria-label={title} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
       <div className="flex items-start justify-between">
@@ -140,7 +145,7 @@ export const ConfirmDialog: React.FC<{
       <div className="mt-3 text-sm text-gray-600">{children}</div>
       <div className="mt-5 flex justify-end gap-2">
         <button onClick={onClose} className="h-9 px-4 rounded-lg text-sm font-semibold border border-gray-300 bg-white hover:bg-gray-50">Cancel</button>
-        <button autoFocus disabled={busy} onClick={onConfirm} className="h-9 px-4 rounded-lg text-sm font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50">
+        <button autoFocus disabled={busy} onClick={onConfirm} className={`h-9 px-4 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${tone === 'primary' ? 'bg-[#027864] hover:bg-[#02604F]' : 'bg-red-600 hover:bg-red-700'}`}>
           {busy ? 'Working…' : confirmLabel}
         </button>
       </div>

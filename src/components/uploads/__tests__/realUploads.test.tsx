@@ -101,7 +101,7 @@ describe('review page (real mode)', () => {
     expect(value('Unmatched rows')).toBe('1');
   });
 
-  it('renders old -> new values per backend tab, and a disabled "Not available yet" apply', async () => {
+  it('renders old -> new values per backend tab', async () => {
     renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
     expect((await screen.findByTestId('change-price')).textContent).toBe('10.00→12.50');
     expect(screen.getAllByRole('tab').map(t => t.textContent?.replace(/ \(\d+\)$/, ''))).toEqual(
@@ -119,11 +119,6 @@ describe('review page (real mode)', () => {
     expect(await screen.findByText('Price and stock')).toBeTruthy();
     expect(screen.getByTestId('change-price').textContent).toBe('1.00→2.00');
     expect(screen.getByTestId('change-stock').textContent).toBe('4→8');
-
-    const apply = screen.getByRole('button', { name: 'Confirm and apply' }) as HTMLButtonElement;
-    expect(apply.disabled).toBe(true);
-    expect(screen.getByText(/Not available yet\./)).toBeTruthy();
-    expect(calls(u => /apply|confirm/.test(u))).toHaveLength(0);
   });
 
   it('shows row errors and pages them at the fixed 200 per page', async () => {
@@ -159,10 +154,135 @@ describe('review page (real mode)', () => {
   });
 });
 
+describe('confirm and apply (real mode)', () => {
+  /** What GET /api/uploads/up_1 answers; the test moves it along as the backend would. */
+  let detail: UploadDetail;
+  let applyReply: () => Response | Promise<Response>;
+  let afterApply: UploadDetail[];
+  beforeEach(() => {
+    perms.add('uploads.apply');
+    detail = rec('needs_review', { summary });
+    afterApply = [];
+    applyReply = () => json(200, { data: rec('applying', { summary, step: 'Writing prices', progress: 30 }) });
+    handler = url => {
+      if (url === '/api/uploads/up_1') {
+        if (calls(u => u.endsWith('/apply')).length > 0 && afterApply.length) detail = afterApply.length > 1 ? afterApply.shift()! : afterApply[0];
+        return json(200, { data: detail });
+      }
+      if (url.startsWith('/api/uploads/up_1/review')) return json(200, { data: { upload: detail, tab: 'price', page: 1, pageSize: 50, total: 0, errorCount: 0, rows: [] } });
+      if (url.startsWith('/api/uploads/up_1/errors')) return json(200, { data: { page: 1, total: 0, errors: [] } });
+      return undefined;
+    };
+    fetchMock.mockImplementation((u: string, i: RequestInit = {}) =>
+      String(u) === '/api/uploads/up_1/apply' && i.method === 'POST'
+        ? Promise.resolve(applyReply())
+        : Promise.resolve(handler(String(u), i) ?? json(404, { error: { code: 'NOT_FOUND', message: 'nope' } })));
+  });
+  const applies = () => calls((u, m) => u === '/api/uploads/up_1/apply' && m === 'POST');
+  const open = async () => {
+    renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
+    return screen.findByRole('button', { name: 'Confirm and apply' });
+  };
+
+  it('is hidden without uploads.apply', async () => {
+    perms.delete('uploads.apply');
+    renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
+    await screen.findByText('Rows read');
+    expect(screen.queryByRole('button', { name: 'Confirm and apply' })).toBeNull();
+    expect(screen.queryByText(/Not available yet/)).toBeNull();
+  });
+
+  it('asks first, listing the counts about to be applied and that it cannot be undone', async () => {
+    fireEvent.click(await open());
+    const dialog = within(screen.getByRole('dialog', { name: 'Apply these changes?' }));
+    const count = (label: string) => dialog.getByText(label).nextElementSibling?.textContent;
+    expect(count('New products')).toBe('4');
+    expect(count('Price changes')).toBe('3');
+    expect(count('Stock changes')).toBe('5');
+    expect(count('Missing from file')).toBe('6');
+    expect(dialog.getByText('This cannot be undone.')).toBeTruthy();
+    fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(applies()).toHaveLength(0);
+  });
+
+  it('POSTs apply with the CSRF header, shows progress while applying, then returns to the Dashboard', async () => {
+    document.cookie = 'qorloop.csrf=tok; path=/';
+    afterApply = [rec('applying', { summary, step: 'Writing prices', progress: 60 }), rec('applied', { summary, appliedAt: '2026-10-30T09:00:00.000Z' })];
+    fireEvent.click(await open());
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply changes' }));
+    await waitFor(() => expect(applies()).toHaveLength(1));
+    expect((applies()[0][1] as RequestInit).headers).toMatchObject({ 'X-CSRF-Token': 'tok' });
+    expect(await screen.findByText('Writing prices')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Confirm and apply' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Discard upload' })).toBeNull();
+    const getsBefore = calls(u => u === '/api/uploads/up_1').length;
+
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/'), { timeout: 3500 });
+    expect(calls(u => u === '/api/uploads/up_1').length).toBeGreaterThan(getsBefore);
+    expect(app.showToast).toHaveBeenCalledWith('Changes from talabat.xlsx were applied to the catalogue.');
+    expect(applies()).toHaveLength(1);
+    document.cookie = 'qorloop.csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+  }, 10_000);
+
+  it('a failed (rolled back) apply shows the backend message and Retry, which asks again and re-sends', async () => {
+    afterApply = [rec('needs_review', { summary, errorMessage: 'Price for row 12 is below cost.' })];
+    fireEvent.click(await open());
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply changes' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('The changes could not be applied');
+    expect(alert.textContent).toContain('Price for row 12 is below cost.');
+    expect(alert.textContent).toContain('rolled back');
+    expect(screen.getByTestId('where').textContent).toBe('/uploads/review?upload=up_1');
+
+    fireEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply changes' }));
+    await waitFor(() => expect(applies()).toHaveLength(2));
+  });
+
+  it('a rejected POST (e.g. 409) shows its message in the dialog and can be sent again', async () => {
+    applyReply = () => json(409, { error: { code: 'INVALID_STATE', message: 'Upload is not awaiting review' } });
+    fireEvent.click(await open());
+    const dialog = within(screen.getByRole('dialog'));
+    fireEvent.click(dialog.getByRole('button', { name: 'Apply changes' }));
+    expect((await dialog.findByRole('alert')).textContent).toBe('Upload is not awaiting review');
+    fireEvent.click(dialog.getByRole('button', { name: 'Apply changes' }));
+    await waitFor(() => expect(applies()).toHaveLength(2));
+  });
+
+  it('a double click sends one request', async () => {
+    let finish!: (r: Response) => void;
+    applyReply = () => new Promise<Response>(r => { finish = r; });
+    fireEvent.click(await open());
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply changes' });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    expect((await screen.findByRole('button', { name: 'Working…' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Working…' }));
+    expect(applies()).toHaveLength(1);
+    finish(json(200, { data: rec('applying', { summary }) }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(applies()).toHaveLength(1);
+  });
+
+  it('an applied upload is a read-only summary', async () => {
+    detail = rec('applied', { summary, appliedAt: '2026-10-30T09:00:00.000Z' });
+    renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
+    expect(await screen.findByText(/These changes were applied to the catalogue on /)).toBeTruthy();
+    expect(screen.getByText('Rows read')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Confirm and apply' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Discard upload' })).toBeNull();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(calls(u => u.includes('/review') || u.includes('/errors'))).toHaveLength(0);
+    // Opening an applied upload does not bounce to the Dashboard.
+    expect(screen.getByTestId('where').textContent).toBe('/uploads/review?upload=up_1');
+  });
+});
+
 describe('discard availability by status', () => {
   const cases: [UploadStatus, boolean][] = [
     ['uploading', true], ['needs_mapping', true], ['needs_review', true], ['rejected', true], ['failed', true],
-    ['processing', false], ['discarded', false],
+    ['processing', false], ['discarded', false], ['applying', false], ['applied', false],
   ];
   it.each(cases)('%s -> discard shown: %s', async (status, shown) => {
     handler = url => {
@@ -382,6 +502,14 @@ describe('history (real mode)', () => {
     expect(screen.getByRole('link', { name: 'Review' }).getAttribute('href')).toBe('/uploads/review?upload=up_2');
     expect(screen.getByText('Storage timed out.')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Upload file/ })).toBeTruthy();
+  });
+
+  it('shows an applied upload as Applied, with Details and no Discard', async () => {
+    handler = url => (url === '/api/uploads' ? json(200, { data: [rec('applied', { appliedAt: '2026-10-30T09:00:00.000Z' })] }) : undefined);
+    renderAt('/uploads', <UploadsHistoryView />);
+    expect((await screen.findByRole('link', { name: 'Details' })).getAttribute('href')).toBe('/uploads/review?upload=up_1');
+    expect(screen.getByText('Applied')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Discard/ })).toBeNull();
   });
 
   it('hides Upload without uploads.upload and Map columns without uploads.map', async () => {

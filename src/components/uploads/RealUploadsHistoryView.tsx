@@ -78,7 +78,7 @@ export const RealUploadsHistoryView: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">{up.contains === 'full' ? 'Full catalogue' : 'Partial update'}</td>
                     <td className="px-6 py-4 min-w-[180px]">
-                      {up.status === 'processing' ? <StatusProgress upload={up} /> : <StatusBadge status={up.status} />}
+                      {up.status === 'processing' || up.status === 'applying' ? <StatusProgress upload={up} /> : <StatusBadge status={up.status} />}
                       {failureCopy(up) && (
                         <p className="mt-1 text-[11px] text-red-700 max-w-[260px] whitespace-normal">{up.errorMessage || failureCopy(up)!.title}</p>
                       )}

@@ -104,10 +104,20 @@ describe('uploadsApi: success paths', () => {
     expect(call().url).toBe('/api/uploads/a%2Fb%3Fc');
   });
 
-  it('only uploading/processing keep polling', () => {
+  it('apply is a POST to the documented path with CSRF and no body', async () => {
+    fetchMock.mockResolvedValue(json(200, { data: { ...record, status: 'applying' } }));
+    expect((await uploadsApi.apply('up_1')).status).toBe('applying');
+    expect(call().url).toBe('/api/uploads/up_1/apply');
+    expect(call().init).toMatchObject({ method: 'POST', credentials: 'include' });
+    expect(call().headers['X-CSRF-Token']).toBe('tok');
+    expect(call().init.body).toBeUndefined();
+  });
+
+  it('only uploading/processing/applying keep polling', () => {
     expect(isSettled('uploading')).toBe(false);
     expect(isSettled('processing')).toBe(false);
-    for (const s of ['needs_mapping', 'needs_review', 'rejected', 'failed', 'discarded'] as const) expect(isSettled(s)).toBe(true);
+    expect(isSettled('applying')).toBe(false);
+    for (const s of ['needs_mapping', 'needs_review', 'applied', 'rejected', 'failed', 'discarded'] as const) expect(isSettled(s)).toBe(true);
     expect(isSettled(undefined)).toBe(false);
   });
 });

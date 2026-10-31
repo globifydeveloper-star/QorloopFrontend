@@ -33,6 +33,11 @@ export const uploadsApi = {
   errors: (id: string, page = 1) => api<UploadErrorsPage>(`/api/uploads/${enc(id)}/errors`, { query: { page } }),
   saveMapping: (id: string, body: SaveMappingRequest) =>
     api<UploadRecord>(`/api/uploads/${enc(id)}/mapping`, { method: 'POST', body }),
+  /**
+   * Starts writing a needs_review upload to the catalogue (needs uploads.apply). Replies with the upload in `applying`;
+   * poll get() until `applied`, or `needs_review` with errorMessage (failed and rolled back).
+   */
+  apply: (id: string) => api<UploadRecord>(`/api/uploads/${enc(id)}/apply`, { method: 'POST' }),
   discard: (id: string) => api<UploadRecord>(`/api/uploads/${enc(id)}/discard`, { method: 'POST' }),
   /** The row errors as an .xlsx (the backend caps it at ERRORS_XLSX_LIMIT rows). */
   downloadErrors: async (id: string): Promise<{ blob: Blob; fileName: string }> => {
@@ -58,7 +63,8 @@ export function fileNameFrom(header: string | null): string | undefined {
 const clean = (name: string) => name.replace(/[/\\]/g, '_') || undefined;
 
 /** Statuses after which the backend will not move on by itself: polling stops here. */
-export const isSettled = (s: UploadStatus | undefined) => s !== undefined && s !== 'uploading' && s !== 'processing';
+export const isSettled = (s: UploadStatus | undefined) =>
+  s !== undefined && s !== 'uploading' && s !== 'processing' && s !== 'applying';
 
 /** Poll interval for GET /api/uploads/:id while the backend is working. */
 export const UPLOAD_POLL_MS = 2000;

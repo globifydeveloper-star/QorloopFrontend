@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Info } from 'lucide-react';
+import { CheckCircle2, Download } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { useApp } from '../../context/AppContext';
 import { ApiError } from '../../api/client';
 import { ERRORS_XLSX_LIMIT, uploadsApi } from '../../api/uploads';
 import { REVIEW_TABS, UPLOAD_ERRORS_PAGE_SIZE } from '../../api/types';
@@ -44,11 +45,20 @@ const SUMMARY_COUNTS: { key: keyof UploadSummary; label: string; tone?: (n: numb
   { key: 'unmatched', label: 'Unmatched rows', tone: n => (n > 0 ? 'text-amber-600' : undefined) },
 ];
 
+/** Counts the apply confirmation lists: what is about to change in the catalogue. */
+const APPLY_COUNTS: { key: keyof UploadSummary; label: string }[] = [
+  { key: 'newProducts', label: 'New products' },
+  { key: 'priceChanges', label: 'Price changes' },
+  { key: 'stockChanges', label: 'Stock changes' },
+  { key: 'missingFromFile', label: 'Missing from file' },
+];
+
 const PAGE_SIZE = 50;
 
 /**
  * Upload detail page: live status while processing, the review tabs once the backend reaches needs_review, and the
- * row errors. Applying changes is not possible yet: the backend has no apply endpoint.
+ * row errors. "Confirm and apply" POSTs /apply, polls while `applying`, and returns to the Dashboard once `applied`;
+ * an applied upload is a read-only summary.
  */
 export const RealUploadReviewView: React.FC = () => {
   const [params] = useSearchParams();
@@ -63,9 +73,44 @@ export const RealUploadReviewView: React.FC = () => {
 
 const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
   const { can } = useAuth();
+  const { showToast } = useApp();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [confirming, setConfirming] = useState(false);
+  const [confirmingApply, setConfirmingApply] = useState(false);
+  // Set synchronously while the POST is in flight, so a double click cannot send a second one (the mutation's
+  // isPending only shows up after a render).
+  const applyInFlight = useRef(false);
+  // This page sent the apply, so reaching `applied` returns to the Dashboard (opening an applied upload does not).
+  const appliedHere = useRef(false);
+  const apply = useMutation({
+    mutationFn: () => uploadsApi.apply(upload.id),
+    onSuccess: rec => {
+      setConfirmingApply(false);
+      qc.setQueryData<UploadDetail>(uploadKey(upload.id), old => ({ ...old, ...rec }));
+      // Refetch so polling picks up from the new status.
+      void qc.invalidateQueries({ queryKey: uploadKey(upload.id) });
+      void qc.invalidateQueries({ queryKey: UPLOADS_LIST_KEY });
+    },
+    onSettled: () => { applyInFlight.current = false; },
+  });
+  const startApply = () => {
+    if (applyInFlight.current) return;
+    applyInFlight.current = true;
+    appliedHere.current = true;
+    apply.mutate();
+  };
+  const openApply = () => { apply.reset(); setConfirmingApply(true); };
+
+  useEffect(() => {
+    if (upload.status !== 'applied' || !appliedHere.current) return;
+    appliedHere.current = false;
+    showToast(`Changes from ${upload.fileName} were applied to the catalogue.`);
+    navigate('/');
+    // Only a status change matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upload.status]);
+
   const discard = useMutation({
     mutationFn: () => uploadsApi.discard(upload.id),
     onSuccess: async () => {
@@ -74,7 +119,9 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
       void qc.invalidateQueries({ queryKey: UPLOADS_LIST_KEY });
     },
   });
-  const canDiscard = can('uploads.discard') && DISCARDABLE.has(upload.status);
+  const canDiscard = can('uploads.discard') && DISCARDABLE.has(upload.status) && !apply.isPending;
+  const canApply = can('uploads.apply') && upload.status === 'needs_review';
+  const rolledBack = upload.status === 'needs_review' && Boolean(upload.errorMessage);
   const summary = upload.summary;
 
   return (
@@ -104,6 +151,38 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
 
       {upload.status === 'discarded' && <p className="text-sm text-gray-600">This upload was discarded. Nothing from it was applied.</p>}
 
+      {upload.status === 'applying' && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+          <StatusProgress upload={upload} />
+          <p className="text-xs text-gray-600">Applying the changes to the catalogue. You can leave this page; the upload keeps going.</p>
+        </div>
+      )}
+
+      {upload.status === 'applied' && (
+        <p className="p-4 bg-[#E3FAF3] border border-[#027864]/20 rounded-xl text-sm text-[#02604F] flex items-start gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            These changes were applied to the catalogue{upload.appliedAt ? ` on ${new Date(upload.appliedAt).toLocaleString()}` : ''}.
+            This upload is now read-only.
+          </span>
+        </p>
+      )}
+
+      {rolledBack && (
+        <div role="alert" className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-900 flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <p className="font-semibold">The changes could not be applied</p>
+            <p>{upload.errorMessage}</p>
+            <p className="text-xs text-red-800">Everything from this attempt was rolled back, so the catalogue has not changed.</p>
+          </div>
+          {canApply && (
+            <button type="button" onClick={openApply} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shrink-0">
+              Retry
+            </button>
+          )}
+        </div>
+      )}
+
       {summary && (
         <div className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">Summary</h2>
@@ -131,21 +210,15 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
         </div>
 
         <div className="space-y-2">
-          {upload.status === 'needs_review' && (
-            <div className="space-y-1.5">
-              <button
-                type="button"
-                disabled
-                aria-describedby="apply-unavailable"
-                className="w-full py-2.5 text-xs font-bold text-white bg-[#027864] rounded-lg opacity-50 cursor-not-allowed"
-              >
-                Confirm and apply
-              </button>
-              <p id="apply-unavailable" className="flex items-start gap-1.5 text-[11px] text-gray-600">
-                <Info className="w-3.5 h-3.5 shrink-0 mt-px text-blue-600" />
-                <span><b>Not available yet.</b> Applying reviewed changes to the catalogue is not supported by the server yet. Nothing has been changed.</span>
-              </p>
-            </div>
+          {canApply && (
+            <button
+              type="button"
+              onClick={openApply}
+              disabled={apply.isPending}
+              className="w-full py-2.5 text-xs font-bold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirm and apply
+            </button>
           )}
           {canDiscard && (
             <button
@@ -166,6 +239,24 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
         <ConfirmDialog title="Discard this upload?" confirmLabel="Discard" busy={discard.isPending} onConfirm={() => discard.mutate()} onClose={() => setConfirming(false)}>
           <p><span className="font-medium text-gray-900">{upload.fileName}</span> will be marked as discarded. Nothing from it will be applied, and this cannot be undone.</p>
           {discard.isError && <p role="alert" className="mt-2 text-xs text-red-600">{errorText(discard.error)}</p>}
+        </ConfirmDialog>
+      )}
+
+      {confirmingApply && (
+        <ConfirmDialog title="Apply these changes?" confirmLabel="Apply changes" tone="primary" busy={apply.isPending} onConfirm={startApply} onClose={() => setConfirmingApply(false)}>
+          <p>The following changes from <span className="font-medium text-gray-900">{upload.fileName}</span> will be written to the catalogue:</p>
+          {summary && (
+            <dl className="mt-3 divide-y divide-gray-100 border border-gray-200 rounded-lg">
+              {APPLY_COUNTS.filter(c => c.key !== 'missingFromFile' || summary.contains === 'full').map(c => (
+                <div key={c.key} className="flex items-center justify-between px-3 py-2">
+                  <dt>{c.label}</dt>
+                  <dd className="font-semibold text-gray-900">{(summary[c.key] as number).toLocaleString()}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <p className="mt-3 font-semibold text-gray-900">This cannot be undone.</p>
+          {apply.isError && <p role="alert" className="mt-2 text-xs text-red-600">{errorText(apply.error)}</p>}
         </ConfirmDialog>
       )}
     </Shell>

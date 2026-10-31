@@ -65,7 +65,12 @@ export interface ApiErrorBody {
 export type UploadSource = 'erp' | 'talabat' | 'snoonu' | 'rafeeq' | 'keeta';
 export const UPLOAD_SOURCES: readonly UploadSource[] = ['erp', 'talabat', 'snoonu', 'rafeeq', 'keeta'];
 export type UploadContains = 'full' | 'partial';
-export type UploadStatus = 'uploading' | 'processing' | 'needs_mapping' | 'needs_review' | 'rejected' | 'failed' | 'discarded';
+/**
+ * `applying`: POST /apply was accepted and the changes are being written. It ends in `applied` (appliedAt set), or back
+ * in `needs_review` with errorMessage set when the apply failed and was rolled back.
+ */
+export type UploadStatus =
+  | 'uploading' | 'processing' | 'needs_mapping' | 'needs_review' | 'applying' | 'applied' | 'rejected' | 'failed' | 'discarded';
 /** The backend accepts 1 byte .. 25 MB (exact bytes). */
 export const UPLOAD_MAX_BYTES = 25 * 1024 * 1024;
 

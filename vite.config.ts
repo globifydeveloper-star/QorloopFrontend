@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -23,5 +24,7 @@ export default defineConfig(({ mode }) => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
+    // Every VITE_REAL_* flag starts off in every test, whatever .env.local says (see vitest.setup.ts).
+    test: { setupFiles: ['./vitest.setup.ts'] },
   };
 });

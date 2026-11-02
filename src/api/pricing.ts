@@ -6,6 +6,8 @@ import type { CategoryName } from './products';
  *   packages/shared/src/contracts.ts (priceRule, updatePricingSettings, categoryPriceRule, categoryPriceRuleKey, productOffer, adoptPrices)
  *   packages/core/src/pricing.ts (PRICE_RULE_ORDER, chain statuses), packages/core/src/price-adoption.ts (modes, skip reasons)
  *   apps/api/src/pricing/pricing.service.ts, pricing.data.ts and price-adoption.ts (responses)
+ *   inline edit and bulk changes: contracts.ts (inlinePrice, inlinePriceRemove, bulkPricePreview, bulkPriceApply),
+ *   core price-change.ts (limits, actions, block reasons), bulk-pricing.ts and docs/decisions/013-bulk-price-changes.md
  */
 
 const enc = encodeURIComponent;
@@ -148,6 +150,171 @@ export type AdoptPreview = Omit<AdoptCounts, 'adopted' | 'conflicts'> & {
   rows: AdoptRow[];
 };
 
+// ── Inline price edit of one product, seen from one marketplace (PUT/DELETE /api/pricing/products/:id) ──
+// Mirrors contracts.ts inlinePrice / inlinePriceRemove and pricing.data.ts marketplacePricingView (ADR 013).
+
+/** The highest price an inline or bulk change may set (core price-change.ts PRICE_CHANGE_MAX). */
+export const PRICE_CHANGE_MAX = 100_000;
+/** Inline percent: over the ERP price, rounded by the store's rounding step. */
+export const INLINE_PERCENT_MIN = -90;
+export const INLINE_PERCENT_MAX = 1000;
+
+export type InlinePriceMode = 'fixed' | 'percent';
+
+export interface InlinePriceRequest {
+  /** Must be enabled for the store: the price is validated, computed and shown on it. */
+  marketplaceId: PricingMarketplaceId;
+  mode: InlinePriceMode;
+  /** fixed: 0 < value <= 100,000 QAR; percent: -90..1000. At most 3 decimals. */
+  value: number;
+  /** rule.updatedAt as last seen; null = "I saw no rule"; omitted = no check. A different current rule answers 409. */
+  expectedRuleUpdatedAt?: string | null;
+}
+
+export interface InlinePriceRemoveQuery {
+  marketplaceId: PricingMarketplaceId;
+  /** rule.updatedAt as last seen (no null on a query string: omit it when there was no rule). */
+  expectedRuleUpdatedAt?: string;
+}
+
+/** The answer of both inline calls: the product's price on marketplaceId before and after, and on every enabled marketplace. */
+export interface InlinePricing {
+  productId: string;
+  marketplaceId: PricingMarketplaceId;
+  erpPrice: number;
+  /** The price on marketplaceId before this request. */
+  previous: MarketplacePrice;
+  /** The price on marketplaceId now (the per-marketplace step included). */
+  resolved: MarketplacePrice;
+  /** The product's own rule; its updatedAt is the next expectedRuleUpdatedAt. */
+  rule: (PriceRule & { updatedAt: string }) | null;
+  /** The rule order for marketplaceId. */
+  chain: PriceChainStep[];
+  /** The price on every enabled marketplace: a product rule applies to all of them. */
+  marketplaces: { marketplaceId: PricingMarketplaceId; price: number; source: PriceSource }[];
+  /** false when the rule was already this one (or, on DELETE, there was none). */
+  changed: boolean;
+}
+
+// ── Bulk price changes (POST /api/pricing/bulk/preview and /apply; pricing.bulk) ──
+// Mirrors contracts.ts bulkSelection / bulkAction / bulkPricePreview / bulkPriceApply, core price-change.ts and
+// apps/api/src/pricing/bulk-pricing.ts (responses).
+
+/** Products one bulk change may touch, whatever the outcome (BULK_PRICE_LIMIT). */
+export const BULK_PRICE_LIMIT = 5_000;
+/** Explicit ids per request (the API's 32 KB body limit); larger selections use a filter. */
+export const BULK_PRODUCT_IDS_MAX = 500;
+export const BULK_PERCENT_INCREASE_MAX = 1000;
+export const BULK_PERCENT_DECREASE_MAX = 90;
+/** none keeps whole fils (0.001 QAR); otherwise the nearest step, halves up. */
+export const BULK_ROUNDINGS = ['none', '0.05', '0.25'] as const;
+export type BulkRounding = (typeof BULK_ROUNDINGS)[number];
+
+export const BULK_ACTION_TYPES = [
+  'set_fixed', 'increase_percent', 'decrease_percent', 'increase_amount', 'decrease_amount', 'match_marketplace', 'match_erp',
+] as const;
+export type BulkActionType = (typeof BULK_ACTION_TYPES)[number];
+
+export type BulkAction =
+  | { type: 'set_fixed'; price: number }
+  | { type: 'increase_percent' | 'decrease_percent'; percent: number; rounding: BulkRounding }
+  | { type: 'increase_amount' | 'decrease_amount'; amount: number; rounding: BulkRounding }
+  | { type: 'match_marketplace' }
+  | { type: 'match_erp' };
+
+/** A recon status of the stored row on the operation's marketplace, or price_mismatch for the reference. */
+export type BulkReconFilter = 'price_mismatch' | 'in_sync' | 'mismatch' | 'not_listed' | 'missing_from_erp' | 'new' | 'no_data';
+
+export type BulkSelection =
+  /** Explicit products (ticked rows): 1..500; unknown ids count as blocked not_found, inactive ones as not_active. */
+  | { productIds: string[] }
+  /** Every ACTIVE product matching all given conditions ({} = every active product); at most BULK_PRICE_LIMIT. */
+  | { filter: {
+    /** The product list's search. */
+    q?: string;
+    categoryId?: string;
+    subcategoryId?: string;
+    listed?: boolean;
+    reconStatus?: BulkReconFilter;
+    reference?: CompareReferenceDefault;
+  } };
+
+export interface BulkPriceRequest {
+  marketplaceId: PricingMarketplaceId;
+  selection: BulkSelection;
+  action: BulkAction;
+}
+
+export interface BulkApplyRequest extends BulkPriceRequest {
+  /** One per intended change (8-100 of A-Za-z0-9_-): the same key and body answers the first result again. */
+  idempotencyKey: string;
+  /** From the preview: 409 when the re-planned writes differ. */
+  previewToken?: string;
+}
+
+export const BULK_BLOCK_REASONS = [
+  'not_found', 'not_active', 'offer_active', 'no_listing', 'non_positive_listing_price', 'non_positive_erp_price',
+  'price_not_positive', 'price_too_high', 'unverifiable',
+] as const;
+export type BulkBlockReason = (typeof BULK_BLOCK_REASONS)[number];
+
+export interface BulkCounts {
+  /** willChange + unchanged + blocked. */
+  selected: number;
+  willChange: number;
+  unchanged: number;
+  blocked: number;
+  /** Only reasons with a count; message is plain words from the server. */
+  blockedReasons: { reason: BulkBlockReason; message: string; count: number }[];
+  /** Changed products whose price also moves on another enabled marketplace (a product rule applies to all). */
+  otherMarketplaces: { marketplaceId: PricingMarketplaceId; products: number }[];
+}
+
+export interface BulkPriceRow {
+  productId: string;
+  nameEn: string;
+  barcode: string;
+  marketplaceId: PricingMarketplaceId;
+  /** Resolved price on marketplaceId now. */
+  oldPrice: number;
+  oldSource: PriceSource;
+  newPrice: number;
+  newSource: PriceSource;
+  /** newPrice - oldPrice. */
+  difference: number;
+  previousRule: PriceRule | null;
+  /** null = the product rule is removed (match_erp). */
+  rule: PriceRule | null;
+}
+
+export interface BulkPreview extends BulkCounts {
+  marketplaceId: PricingMarketplaceId;
+  action: BulkAction;
+  selection: BulkSelection;
+  /** Only with a reconStatus filter: the reference it read. */
+  reference?: CompareReferenceDefault;
+  limit: number;
+  largestIncrease: BulkPriceRow | null;
+  largestDecrease: BulkPriceRow | null;
+  /** The first changes (at most 10), in product list order. */
+  rows: BulkPriceRow[];
+  /** Send it with apply. */
+  previewToken: string;
+}
+
+export interface BulkApplyResult extends BulkCounts {
+  /** The 'pricing.bulk_applied' audit event. */
+  operationId: string;
+  /** true: this idempotency key was already applied; nothing was written again. */
+  replayed: boolean;
+  appliedAt: string;
+  /** Rules created (the product had none). */
+  created: number;
+  replaced: number;
+  /** Rules removed (match_erp). */
+  removed: number;
+}
+
 export const pricingApi = {
   settings: (signal?: AbortSignal) => api<PricingSettings>('/api/pricing/settings', { signal }),
   updateSettings: (body: UpdatePricingSettings) => api<PricingSettings>('/api/pricing/settings', { method: 'PUT', body }),
@@ -166,4 +333,16 @@ export const pricingApi = {
   deleteProductRule: (id: string) => api<ProductPricingView>(`/api/products/${enc(id)}/price-rule`, { method: 'DELETE' }),
   setOffer: (id: string, offer: ProductOfferInput) => api<ProductPricingView>(`/api/products/${enc(id)}/offer`, { method: 'PUT', body: offer }),
   deleteOffer: (id: string) => api<ProductPricingView>(`/api/products/${enc(id)}/offer`, { method: 'DELETE' }),
+  /** pricing.edit. Active products only; 400 for a disabled marketplace, a running offer or a price out of range; 409 stale. */
+  setInlinePrice: (id: string, body: InlinePriceRequest) =>
+    api<InlinePricing>(`/api/pricing/products/${enc(id)}`, { method: 'PUT', body }),
+  /** pricing.edit. Removes the product's own rule; with no rule it answers changed: false. */
+  removeInlinePrice: (id: string, q: InlinePriceRemoveQuery) =>
+    api<InlinePricing>(`/api/pricing/products/${enc(id)}`, {
+      method: 'DELETE', query: { marketplaceId: q.marketplaceId, expectedRuleUpdatedAt: q.expectedRuleUpdatedAt },
+    }),
+  /** pricing.bulk. Writes nothing. */
+  bulkPreview: (body: BulkPriceRequest) => api<BulkPreview>('/api/pricing/bulk/preview', { method: 'POST', body }),
+  /** pricing.bulk. Re-planned from current data; a replay of the same key and body answers replayed: true. */
+  bulkApply: (body: BulkApplyRequest) => api<BulkApplyResult>('/api/pricing/bulk/apply', { method: 'POST', body }),
 };

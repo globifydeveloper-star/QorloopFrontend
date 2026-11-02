@@ -13,9 +13,11 @@ describe('real URLs for every screen', () => {
     expect(matchView('/nope')).toBeNull();
     expect(matchView('/signup')).toBeNull();
   });
-  // CONNECTED_VIEWS is computed at load time from VITE_REAL_UPLOADS (a developer's .env.local may set it), so pin it.
+  // CONNECTED_VIEWS is computed at load time from the VITE_REAL_* flags (a developer's .env.local may set any), so pin them all.
   const connectedWith = async (flag: string) => {
     vi.stubEnv('VITE_REAL_UPLOADS', flag);
+    vi.stubEnv('VITE_REAL_CATALOGUE', '');
+    vi.stubEnv('VITE_REAL_RECON', '');
     vi.resetModules();
     try { return [...(await import('../paths')).CONNECTED_VIEWS]; } finally { vi.unstubAllEnvs(); vi.resetModules(); }
   };
@@ -24,5 +26,16 @@ describe('real URLs for every screen', () => {
     expect(await connectedWith('true')).toEqual(['team', 'uploads', 'upload-review', 'column-mapping']);
     expect(CONNECTED_VIEWS.has('team')).toBe(true);
     expect(VIEW_PERMISSION.team).toBe('team.view');
+  });
+  it('VITE_REAL_RECON marks the dashboard and the stock and price reports connected', async () => {
+    const connected = async (recon: string) => {
+      vi.stubEnv('VITE_REAL_UPLOADS', '');
+      vi.stubEnv('VITE_REAL_CATALOGUE', '');
+      vi.stubEnv('VITE_REAL_RECON', recon);
+      vi.resetModules();
+      try { return [...(await import('../paths')).CONNECTED_VIEWS]; } finally { vi.unstubAllEnvs(); vi.resetModules(); }
+    };
+    expect(await connected('')).toEqual(['team']);
+    expect(await connected('true')).toEqual(['team', 'dashboard', 'reports', 'reports-stock', 'reports-price-discrepancies']);
   });
 });

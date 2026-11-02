@@ -1,4 +1,6 @@
 import React from 'react';
+import { RealDashboardView } from '../recon/RealDashboardView';
+import { realReconEnabled } from '../../lib/features';
 import {
   RotateCw,
   Upload,
@@ -16,7 +18,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useDemo, latestUpload, relative } from '../../demo';
 import type { MarketplaceId } from '../../demo';
 
-export const DashboardView: React.FC = () => {
+const DemoDashboardView: React.FC = () => {
   const { navigate, openUploadModal, showToast } = useApp();
   const canUpload = useAuth().can('uploads.upload');
   const { state, summary, attention } = useDemo();
@@ -369,3 +371,6 @@ export const DashboardView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/recon when VITE_REAL_RECON=true, the demo store otherwise. */
+export const DashboardView: React.FC = () => (realReconEnabled() ? <RealDashboardView /> : <DemoDashboardView />);

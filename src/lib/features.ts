@@ -8,3 +8,7 @@ export const realUploadsEnabled = (): boolean => import.meta.env.VITE_REAL_UPLOA
 
 /** Catalogue, product detail, new products and categories use /api/products and /api/categories. Default off. */
 export const realCatalogueEnabled = (): boolean => import.meta.env.VITE_REAL_CATALOGUE === 'true';
+
+/** Dashboard and the Stock / Price reports use /api/recon (summary, rows, recompute). Default off. */
+export const realReconEnabled = (): boolean => import.meta.env.VITE_REAL_RECON === 'true';
+

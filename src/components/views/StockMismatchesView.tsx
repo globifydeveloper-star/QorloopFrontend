@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { RealReconReportView } from '../recon/RealReconReportView';
+import { realReconEnabled } from '../../lib/features';
 import {
   Download,
   Search,
@@ -28,7 +30,7 @@ const MP_NAMES: Record<MarketplaceId, string> = {
   keeta: 'Keeta',
 };
 
-export const StockMismatchesView: React.FC = () => {
+const DemoStockMismatchesView: React.FC = () => {
   const { navigate } = useApp();
   const { state, summary } = useDemo();
 
@@ -358,3 +360,6 @@ export const StockMismatchesView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/recon when VITE_REAL_RECON=true, the demo store otherwise. */
+export const StockMismatchesView: React.FC = () => (realReconEnabled() ? <RealReconReportView kind="stock" /> : <DemoStockMismatchesView />);

@@ -1,4 +1,6 @@
 import React, { useMemo, useState } from 'react';
+import { RealReconReportView } from '../recon/RealReconReportView';
+import { realReconEnabled } from '../../lib/features';
 import {
   Download,
   Sparkles,
@@ -31,7 +33,7 @@ const MP_HEADER: Record<MarketplaceId, { bg: string; text: string; letter: strin
   keeta: { bg: 'bg-[#FFD200]', text: 'text-black', letter: 'K' },
 };
 
-export const PriceDiscrepanciesView: React.FC = () => {
+const DemoPriceDiscrepanciesView: React.FC = () => {
   const {
     navigate,
     showToast,
@@ -397,3 +399,6 @@ export const PriceDiscrepanciesView: React.FC = () => {
     </div>
   );
 };
+
+/** Real /api/recon when VITE_REAL_RECON=true, the demo store otherwise. */
+export const PriceDiscrepanciesView: React.FC = () => (realReconEnabled() ? <RealReconReportView kind="price" /> : <DemoPriceDiscrepanciesView />);

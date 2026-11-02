@@ -415,7 +415,10 @@ describe('bulk price change', () => {
     expect(bodyOf(calls(is('POST', '/api/pricing/bulk/preview'))[0])).toEqual({
       marketplaceId: 'talabat', selection: { productIds: ['p1', '2'] }, action: { type: 'increase_percent', percent: 5, rounding: '0.05' },
     });
-    expect(preview.getByText(/Increase by 5 % \(round to 0\.05\)/)).toBeTruthy();
+    // The heading names the action in plain words; the warnings below it stay.
+    expect(preview.getByRole('heading', { name: 'Increase by 5%, rounded to 0.05' })).toBeTruthy();
+    expect(preview.getByText(/Preview on/).textContent).toBe('Preview on Talabat: 2 products selected. Nothing has been changed yet.');
+    expect(preview.getByRole('region', { name: 'Other marketplaces' }).textContent).toContain("This also changes prices on other marketplaces. A product's own price rule applies on every marketplace");
     expect([preview.getByTestId('bulk-selected'), preview.getByTestId('bulk-will-change'), preview.getByTestId('bulk-unchanged'), preview.getByTestId('bulk-blocked')].map(e => e.textContent))
       .toEqual(['2', '1', '0', '1']);
     expect(within(preview.getByRole('region', { name: 'Blocked products' })).getByText('Not active (only active products can be priced)').closest('li')!.textContent)
@@ -432,6 +435,7 @@ describe('bulk price change', () => {
     fireEvent.click(dialog.getByRole('button', { name: 'Change 1 product…' }));
     const confirm = within(screen.getByRole('dialog', { name: 'Change prices' }));
     expect(confirm.getByTestId('confirm-count').textContent).toBe('1 product');
+    expect(confirm.getByTestId('confirm-count').closest('p')!.textContent).toBe('This changes the price of 1 product: increase by 5%, rounded to 0.05, priced on Talabat.');
 
     // First try: the answer is lost.
     fireEvent.click(confirm.getByRole('button', { name: 'Change 1 product' }));
@@ -644,6 +648,7 @@ describe('bulk price change: only price mismatches', () => {
     expect(bodyOf(calls(is('POST', '/api/pricing/bulk/preview'))[0])).toEqual({
       marketplaceId: 'keeta', selection: { filter: { listed: true, reconStatus: 'price_mismatch', reference: 'erp' } }, action: { type: 'match_marketplace' },
     });
+    expect(preview.getByRole('heading', { name: 'Match the Keeta price' })).toBeTruthy();
     expect(preview.getByTestId('preview-mismatch-only').textContent).toBe('Only products listed on Keeta with a price mismatch against the ERP price, as of the last comparison.');
   });
 

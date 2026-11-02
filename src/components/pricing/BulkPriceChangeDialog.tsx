@@ -11,7 +11,7 @@ import { REFERENCE_LABELS, expectRecompute, marketplaceName } from '../recon/sha
 import { FieldError, PriceSourceChip, inputCls, invalidatePriced, ruleText } from './shared';
 import { changeErrors, count, priceText, signedPrice } from './priceChange';
 import {
-  BULK_ACTION_LABELS, BULK_ROUNDING_LABELS, BULK_START, actionText, bulkReducer, bulkValueKind, buildBulkRequest, newIdempotencyKey,
+  BULK_ACTION_LABELS, BULK_ROUNDING_LABELS, BULK_START, actionPhrase, actionText, bulkReducer, bulkValueKind, buildBulkRequest, newIdempotencyKey,
   productsText, selectionCount, selectionCountText, selectionProblem, type BulkForm, type MismatchCount, type SelectionCount,
 } from './bulkChange';
 import { namesText, usePricingMarketplaces } from './InlinePriceEditor';
@@ -262,7 +262,7 @@ export const BulkPriceChangeDialog: React.FC<{
           onConfirm={() => void runApply()}
         >
           <p>
-            This changes the price of <b data-testid="confirm-count">{productsText(state.preview.willChange)}</b>: {actionText(state.preview.action, marketplaceName(state.preview.marketplaceId)).toLowerCase()}, priced on {marketplaceName(state.preview.marketplaceId)}.
+            This changes the price of <b data-testid="confirm-count">{productsText(state.preview.willChange)}</b>: {actionPhrase(state.preview.action, marketplaceName(state.preview.marketplaceId))}, priced on {marketplaceName(state.preview.marketplaceId)}.
           </p>
           <p className="mt-2">The new prices apply on every marketplace. {state.preview.unchanged + state.preview.blocked > 0 && `${productsText(state.preview.unchanged + state.preview.blocked)} stay as they are.`}</p>
           {applying && <p role="status" className="mt-2 text-xs text-gray-700">Applying… This can take up to a minute. Keep this window open.</p>}
@@ -335,14 +335,18 @@ const PreviewResult: React.FC<{ preview: BulkPreview; faded?: boolean }> = ({ pr
   const others = p.otherMarketplaces.filter(o => o.products > 0);
   return (
     <div role="region" aria-label="Preview" className={`space-y-5 ${faded ? 'opacity-60' : ''}`}>
-      <p className="text-xs text-gray-600">
-        Preview for <b>{name}</b>: {actionText(p.action, name)}. {productsText(p.selected)} selected. Nothing has been changed yet.
-      </p>
-      {'filter' in p.selection && p.selection.filter.reconStatus === 'price_mismatch' && (
-        <p data-testid="preview-mismatch-only" className="text-xs text-gray-600">
-          Only products listed on {name} with a price mismatch against the {REFERENCE_LABELS[p.reference ?? 'marketplace']}, as of the last comparison.
+      <div className="space-y-1">
+        {/* The action in plain words, from what the server previewed (its defaults filled in). */}
+        <h3 data-testid="preview-heading" className="text-sm font-bold text-gray-900">{actionText(p.action, name)}</h3>
+        <p className="text-xs text-gray-600">
+          Preview on <b>{name}</b>: {productsText(p.selected)} selected. Nothing has been changed yet.
         </p>
-      )}
+        {'filter' in p.selection && p.selection.filter.reconStatus === 'price_mismatch' && (
+          <p data-testid="preview-mismatch-only" className="text-xs text-gray-600">
+            Only products listed on {name} with a price mismatch against the {REFERENCE_LABELS[p.reference ?? 'marketplace']}, as of the last comparison.
+          </p>
+        )}
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Selected" value={p.selected} testId="bulk-selected" />
         <Stat label="Will change" value={p.willChange} testId="bulk-will-change" />

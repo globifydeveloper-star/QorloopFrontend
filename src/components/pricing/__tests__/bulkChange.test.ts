@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../api/client';
 import type { BulkApplyResult, BulkPreview, BulkPriceRequest } from '../../../api/pricing';
 import {
-  BULK_START, actionText, buildBulkRequest, bulkReducer, newIdempotencyKey, selectionCount, selectionCountText, selectionProblem, type BulkForm, type BulkState,
+  BULK_START, actionPhrase, actionText, buildBulkRequest, bulkReducer, newIdempotencyKey, selectionCount, selectionCountText, selectionProblem, type BulkForm, type BulkState,
 } from '../bulkChange';
 import { changeErrors, priceText, readInlineValue, signedPrice } from '../priceChange';
 
@@ -162,10 +162,16 @@ describe('bulk request: limits before the API', () => {
   });
 
   it('describes the action in words', () => {
-    expect(actionText({ type: 'increase_percent', percent: 5, rounding: '0.05' }, 'Talabat')).toBe('Increase by 5 % (round to 0.05)');
-    expect(actionText({ type: 'decrease_amount', amount: 0.5, rounding: 'none' }, 'Talabat')).toBe('Decrease by 0.50 QAR');
+    expect(actionText({ type: 'increase_percent', percent: 5, rounding: '0.25' }, 'Talabat')).toBe('Increase by 5%, rounded to 0.25');
+    expect(actionText({ type: 'decrease_percent', percent: 12.5, rounding: 'none' }, 'Talabat')).toBe('Decrease by 12.5%, not rounded');
+    expect(actionText({ type: 'increase_amount', amount: 2, rounding: '0.05' }, 'Talabat')).toBe('Increase by 2.00 QAR, rounded to 0.05');
+    expect(actionText({ type: 'decrease_amount', amount: 0.5, rounding: 'none' }, 'Talabat')).toBe('Decrease by 0.50 QAR, not rounded');
     expect(actionText({ type: 'set_fixed', price: 6.325 }, 'Talabat')).toBe('Set a fixed price of 6.325 QAR');
     expect(actionText({ type: 'match_marketplace' }, 'Snoonu')).toBe('Match the Snoonu price');
+    expect(actionText({ type: 'match_erp' }, 'Snoonu')).toBe('Go back to the ERP price rules (remove the product price rule)');
+    // Inside a sentence only the first letter is lowered.
+    expect(actionPhrase({ type: 'match_marketplace' }, 'Snoonu')).toBe('match the Snoonu price');
+    expect(actionPhrase({ type: 'set_fixed', price: 5 }, 'Snoonu')).toBe('set a fixed price of 5.00 QAR');
   });
 });
 

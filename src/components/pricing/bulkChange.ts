@@ -167,18 +167,29 @@ export function buildBulkRequest(f: BulkForm): BuiltRequest {
   };
 }
 
-/** "Increase by 5 % (round to 0.05)", "Set a fixed price of 12.50 QAR", "Match the Talabat price". */
+const roundedText = (r: BulkRounding) => (r === 'none' ? ', not rounded' : `, rounded to ${r}`);
+
+/**
+ * The action in plain words, as the preview's heading: "Increase by 5%, rounded to 0.25", "Decrease by 0.50 QAR, not
+ * rounded", "Set a fixed price of 12.50 QAR", "Match the Talabat price".
+ */
 export function actionText(a: BulkAction, marketplace: string): string {
   switch (a.type) {
     case 'set_fixed': return `Set a fixed price of ${priceText(a.price)} QAR`;
     case 'increase_percent': case 'decrease_percent':
-      return `${a.type === 'increase_percent' ? 'Increase' : 'Decrease'} by ${a.percent} %${a.rounding === 'none' ? '' : ` (${BULK_ROUNDING_LABELS[a.rounding].toLowerCase()})`}`;
+      return `${a.type === 'increase_percent' ? 'Increase' : 'Decrease'} by ${a.percent}%${roundedText(a.rounding)}`;
     case 'increase_amount': case 'decrease_amount':
-      return `${a.type === 'increase_amount' ? 'Increase' : 'Decrease'} by ${priceText(a.amount)} QAR${a.rounding === 'none' ? '' : ` (${BULK_ROUNDING_LABELS[a.rounding].toLowerCase()})`}`;
+      return `${a.type === 'increase_amount' ? 'Increase' : 'Decrease'} by ${priceText(a.amount)} QAR${roundedText(a.rounding)}`;
     case 'match_marketplace': return `Match the ${marketplace} price`;
     case 'match_erp': return 'Go back to the ERP price rules (remove the product price rule)';
   }
 }
+
+/** The same words inside a sentence: only the first letter lowered, so "Talabat" and "QAR" keep their capitals. */
+export const actionPhrase = (a: BulkAction, marketplace: string) => {
+  const t = actionText(a, marketplace);
+  return t.charAt(0).toLowerCase() + t.slice(1);
+};
 
 export const productsText = (n: number) => plural(n, 'product', 'products');
 

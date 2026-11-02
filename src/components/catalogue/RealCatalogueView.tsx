@@ -4,7 +4,7 @@ import { FolderTree, Search, Sparkles, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import { PRODUCT_TABS, type ProductTab } from '../../api/products';
-import { indexCategories } from '../../api/categories';
+import { indexCategories, type Category } from '../../api/categories';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductList } from './shared';
@@ -12,10 +12,20 @@ import { realPricingEnabled } from '../../lib/features';
 import { money2 } from '../../lib/format';
 import { PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
+import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
 };
+const NONE: ReadonlySet<string> = new Set();
+
+/** 'Search "milk" · Dairy › Milk', or '' when the list is not filtered (the status tab is left out on purpose). */
+function describeFilter(q: string, categoryId: string | undefined, subcategoryId: string | undefined, names: Map<string, Category>): string {
+  const sub = subcategoryId ? names.get(subcategoryId) : undefined;
+  const cat = categoryId ? names.get(categoryId) : sub?.parentId ? names.get(sub.parentId) : undefined;
+  const where = sub ? `${cat?.nameEn ?? 'Category'} › ${sub.nameEn}` : cat ? cat.nameEn : subcategoryId || categoryId ? 'the chosen category' : '';
+  return [q ? `Search "${q}"` : '', where].filter(Boolean).join(' · ');
+}
 
 /** CAT-001: the catalogue from GET /api/products, with per-tab counts from the backend. */
 export const RealCatalogueView: React.FC = () => {
@@ -44,7 +54,21 @@ export const RealCatalogueView: React.FC = () => {
   // Inline price edit (pricing.edit): one row's editor open at a time, under the row.
   const canEditPrice = showPrice && can('pricing.edit');
   const [editing, setEditing] = useState<string | null>(null);
-  const columns = 6 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0);
+  // Bulk price change (pricing.bulk): ticked rows belong to the filter they were ticked under.
+  const canBulk = showPrice && can('pricing.bulk');
+  const filterKey = JSON.stringify(filter);
+  const [tick, setTick] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: filterKey, ids: new Set() });
+  const ticked = tick.key === filterKey ? tick.ids : NONE;
+  const toggle = (ids: string[], on: boolean) => setTick(() => {
+    const next = new Set(ticked);
+    for (const id of ids) { if (on) next.add(id); else next.delete(id); }
+    return { key: filterKey, ids: next };
+  });
+  const allTicked = items.length > 0 && items.every(p => ticked.has(p.id));
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const bulkFilter = { q: filter.q || undefined, categoryId: filter.categoryId, subcategoryId: filter.subcategoryId };
+  const filterSummary = describeFilter(filter.q, filter.categoryId, filter.subcategoryId, names);
+  const columns = 6 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canBulk ? 1 : 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -109,6 +133,22 @@ export const RealCatalogueView: React.FC = () => {
           </label>
         </div>
 
+        {canBulk && (
+          <div role="toolbar" aria-label="Bulk price change" className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
+            <span data-testid="ticked-count">
+              {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked` : 'Tick rows to change their prices together, or change every active product matching the filter.'}
+            </span>
+            <span className="flex items-center gap-2">
+              {ticked.size > 0 && (
+                <button type="button" onClick={() => setTick({ key: filterKey, ids: new Set() })} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white hover:bg-gray-50">Clear ticks</button>
+              )}
+              <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
+                Bulk price change…
+              </button>
+            </span>
+          </div>
+        )}
+
         {list.isPending ? (
           <LoadingState label="Loading products…" rows={8} />
         ) : list.isError && !list.data ? (
@@ -123,6 +163,11 @@ export const RealCatalogueView: React.FC = () => {
             <table className={`w-full text-left text-xs ${list.isPlaceholderData ? 'opacity-60' : ''}`}>
               <thead className="bg-[#F2F7F6] text-gray-500 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-100">
                 <tr>
+                  {canBulk && (
+                    <th className="pl-4 py-3 w-8">
+                      <input type="checkbox" aria-label="Tick every row shown" checked={allTicked} onChange={e => toggle(items.map(p => p.id), e.target.checked)} className="accent-[#027864]" />
+                    </th>
+                  )}
                   <th className="px-4 py-3">Barcode</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3 text-right">{showPrice ? 'ERP price (QAR)' : 'ERP price'}</th>
@@ -139,7 +184,12 @@ export const RealCatalogueView: React.FC = () => {
                   const sub = p.subcategoryId ? names.get(p.subcategoryId) : undefined;
                   return (
                     <React.Fragment key={p.id}>
-                    <tr className="hover:bg-gray-50">
+                    <tr className={ticked.has(p.id) ? 'bg-[#F2F7F6]' : 'hover:bg-gray-50'}>
+                      {canBulk && (
+                        <td className="pl-4 py-3">
+                          <input type="checkbox" aria-label={`Tick ${p.nameEn}`} checked={ticked.has(p.id)} onChange={e => toggle([p.id], e.target.checked)} className="accent-[#027864]" />
+                        </td>
+                      )}
                       <td className="px-4 py-3 font-mono text-[11px] text-gray-900 whitespace-nowrap">{p.barcode}</td>
                       <td className="px-4 py-3 min-w-[220px]">
                         <Link to={pathFor('product-detail', p.id)} className="font-semibold text-gray-900 hover:text-[#027864] hover:underline">{p.nameEn}</Link>
@@ -208,6 +258,18 @@ export const RealCatalogueView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {bulkOpen && (
+        <BulkPriceChangeDialog
+          tickedIds={[...ticked]}
+          filter={bulkFilter}
+          // The list's own count for this search and category: exactly the active products a filter selection takes.
+          filterActiveCount={list.isPlaceholderData ? undefined : counts?.active}
+          filterSummary={filterSummary}
+          onClose={() => setBulkOpen(false)}
+          onApplied={() => setTick({ key: filterKey, ids: new Set() })}
+        />
+      )}
     </div>
   );
 };

@@ -511,41 +511,22 @@ describe('product detail pricing', () => {
     expect(steps[3].textContent).toContain('+12.5 % of ERP price, round to 0.25');
     expect(steps[4].textContent).toContain('Different price per marketplace is off');
     expect(within(panel.getByRole('form', { name: 'Offer' })).getByTestId('offer-state').textContent).toBe('Running now');
-    expect(panel.getByText('Now: Fixed 12.00 QAR (changed 01 Nov 2026, 21:30)')).toBeTruthy();
+    // The product's own rule is shown by the price editor (and the chain's product step above).
+    expect(within(panel.getByRole('form', { name: 'Change the price' })).getByTestId('inline-current').textContent).toContain('Product price rule now: Fixed 12.00 QAR.');
     expect(screen.queryByRole('region', { name: 'Marketplace price rules' })).toBeNull(); // the old "Not available yet" card
   });
 
-  it('sets and removes the product rule, with API field errors under the field', async () => {
-    let reply: Response = fail(400, 'Validation failed', [{ path: 'value', message: 'Too small: expected number to be >=-90' }]);
-    handler = detailHandler((u, i) => {
-      if (is('PUT', '/api/products/p1/price-rule')(u, method(i))) return reply;
-      if (is('DELETE', '/api/products/p1/price-rule')(u, method(i))) {
-        return ok({ marketplacePrice: { price: 11, source: 'default' }, pricing: { ...VIEW.pricing, productRule: null, offer: null, chain: CHAIN.map(s => (s.source === 'default' ? { ...s, status: 'applied' } : s.source === 'product' ? { source: 'product', status: 'not_set' } : s)) } });
-      }
-      return undefined;
-    });
+  it('has no separate product rule form any more: the price editor and the offer are the only forms', async () => {
+    handler = detailHandler();
     renderAt('/catalogue/p1', <ProductDetailView />);
-    const form = within(await screen.findByRole('form', { name: 'Product price rule' }));
-    expect((form.getByLabelText('Price (QAR)') as HTMLInputElement).value).toBe('12');
-    fireEvent.change(form.getByLabelText('Rule'), { target: { value: 'percent' } });
-    fireEvent.change(form.getByLabelText('Percent (%)'), { target: { value: '-95' } });
-    fireEvent.click(form.getByRole('button', { name: 'Save rule' }));
-    await waitFor(() => expect(errorOf(form.getByLabelText('Percent (%)'))).toBe('Too small: expected number to be >=-90'));
-    expect(bodyOf(calls(is('PUT', '/api/products/p1/price-rule'))[0])).toEqual({ mode: 'percent', value: -95 });
-
-    reply = ok({ marketplacePrice: { price: 14, source: 'product' }, pricing: { ...VIEW.pricing, productRule: { mode: 'percent', value: 40, updatedAt: '2026-11-02T06:00:00.000Z' }, offer: null } });
-    fireEvent.change(form.getByLabelText('Percent (%)'), { target: { value: '40' } });
-    fireEvent.click(form.getByRole('button', { name: 'Save rule' }));
-    await waitFor(() => expect(screen.getByTestId('marketplace-price').textContent).toBe('14.00'));
-    expect(within(screen.getByRole('region', { name: 'Marketplace price' })).getAllByTestId('price-source')[0].textContent).toBe('Product rule');
-    expect(screen.getByText('Now: +40 % of ERP price (changed 02 Nov 2026, 09:00)')).toBeTruthy();
-    expect(app.showToast).toHaveBeenCalledWith('Product price rule saved', 'success');
-
-    fireEvent.click(within(screen.getByRole('form', { name: 'Product price rule' })).getByRole('button', { name: 'Remove rule' }));
-    await waitFor(() => expect(screen.getByTestId('marketplace-price').textContent).toBe('11.00'));
-    expect(calls(is('DELETE', '/api/products/p1/price-rule'))).toHaveLength(1);
-    expect(screen.getByText('No rule of its own: the category or default rule applies.')).toBeTruthy();
-    expect(within(screen.getByRole('form', { name: 'Product price rule' })).queryByRole('button', { name: 'Remove rule' })).toBeNull();
+    const panel = within(await screen.findByRole('region', { name: 'Marketplace price' }));
+    expect(panel.getAllByRole('form').map(f => f.getAttribute('aria-label'))).toEqual(['Change the price', 'Offer']);
+    expect(screen.queryByRole('form', { name: 'Product price rule' })).toBeNull();
+    expect(panel.queryByRole('button', { name: 'Save rule' })).toBeNull();
+    expect(panel.queryByRole('button', { name: 'Remove rule' })).toBeNull();
+    expect(panel.queryByLabelText('Rule')).toBeNull();
+    expect(calls((u, m) => m !== 'GET')).toHaveLength(0);
+    expect(calls(u => u.includes('/price-rule'))).toHaveLength(0);
   });
 
   it('sets an offer with Qatar-time dates, shows date errors under the field, and clears it', async () => {

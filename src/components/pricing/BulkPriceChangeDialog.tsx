@@ -139,7 +139,7 @@ export const BulkPriceChangeDialog: React.FC<{
               </fieldset>
 
               <fieldset disabled={state.phase === 'previewing'} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <legend className="sr-only">Change</legend>
+                <legend className="sr-only">Marketplace and change</legend>
                 <div>
                   <label htmlFor={`${uid}-mp`} className="block text-xs font-semibold text-gray-700">Marketplace</label>
                   <select id={`${uid}-mp`} value={marketplaceId ?? ''} disabled={markets.ids.length === 0} onChange={e => setChoice(e.target.value as PricingMarketplaceId)} aria-describedby={`${uid}-mp-hint`} className={`${inputCls()} mt-1`}>

@@ -14,6 +14,8 @@ import {
   round2,
 } from '../../lib/pricing';
 import { MarketplaceId, PriceMode, PriceRounding, PriceRule } from '../../types';
+import { realPricingEnabled } from '../../lib/features';
+import { RealPricingView } from '../pricing/RealPricingView';
 
 const MODE_OPTIONS: { id: PriceMode; label: string }[] = [
   { id: 'percent', label: 'Markup % on ERP' },
@@ -26,7 +28,10 @@ const CATEGORY_MODE_OPTIONS: { id: PriceMode; label: string }[] = [
   { id: 'fixed', label: 'Exact price (QAR)' },
 ];
 
-export const MarkupsView: React.FC = () => {
+/** Real /api/pricing when VITE_REAL_PRICING=true, the demo store otherwise. */
+export const MarkupsView: React.FC = () => (realPricingEnabled() ? <RealPricingView /> : <DemoMarkupsView />);
+
+const DemoMarkupsView: React.FC = () => {
   const {
     showToast,
     products,

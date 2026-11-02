@@ -18,6 +18,7 @@ describe('real URLs for every screen', () => {
     vi.stubEnv('VITE_REAL_UPLOADS', flag);
     vi.stubEnv('VITE_REAL_CATALOGUE', '');
     vi.stubEnv('VITE_REAL_RECON', '');
+    vi.stubEnv('VITE_REAL_PRICING', '');
     vi.resetModules();
     try { return [...(await import('../paths')).CONNECTED_VIEWS]; } finally { vi.unstubAllEnvs(); vi.resetModules(); }
   };
@@ -32,10 +33,21 @@ describe('real URLs for every screen', () => {
       vi.stubEnv('VITE_REAL_UPLOADS', '');
       vi.stubEnv('VITE_REAL_CATALOGUE', '');
       vi.stubEnv('VITE_REAL_RECON', recon);
+      vi.stubEnv('VITE_REAL_PRICING', '');
       vi.resetModules();
       try { return [...(await import('../paths')).CONNECTED_VIEWS]; } finally { vi.unstubAllEnvs(); vi.resetModules(); }
     };
     expect(await connected('')).toEqual(['team']);
     expect(await connected('true')).toEqual(['team', 'dashboard', 'reports', 'reports-stock', 'reports-price-discrepancies']);
+  });
+  it('VITE_REAL_PRICING marks the Marketplace Price screen connected', async () => {
+    vi.stubEnv('VITE_REAL_UPLOADS', '');
+    vi.stubEnv('VITE_REAL_CATALOGUE', '');
+    vi.stubEnv('VITE_REAL_RECON', '');
+    vi.stubEnv('VITE_REAL_PRICING', 'true');
+    vi.resetModules();
+    try {
+      expect([...(await import('../paths')).CONNECTED_VIEWS]).toEqual(['team', 'markups']);
+    } finally { vi.unstubAllEnvs(); vi.resetModules(); }
   });
 });

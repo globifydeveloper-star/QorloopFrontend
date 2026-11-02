@@ -1,5 +1,5 @@
 import type { ViewType } from '../types';
-import { realCatalogueEnabled, realReconEnabled, realUploadsEnabled } from '../lib/features';
+import { realCatalogueEnabled, realPricingEnabled, realReconEnabled, realUploadsEnabled } from '../lib/features';
 
 /**
  * Real URLs for every screen. The existing views still call `navigate('<view>')`; AppContext translates that
@@ -63,6 +63,7 @@ export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   ...(realUploadsEnabled() ? (['uploads', 'upload-review', 'column-mapping'] as const) : []),
   ...(realCatalogueEnabled() ? (['catalogue', 'product-detail', 'new-products', 'categories', 'category-detail'] as const) : []),
   ...(realReconEnabled() ? (['dashboard', 'reports', 'reports-stock', 'reports-price-discrepancies'] as const) : []),
+  ...(realPricingEnabled() ? (['markups'] as const) : []),
 ]);
 
 /** UI hint only (the server decides): permission a role needs to see each screen in the navigation. */

@@ -9,6 +9,8 @@ import { productsApi, type ProductDetail, type UpdateProductRequest } from '../.
 import { MARKETPLACE_NAMES } from '../../lib/pricing';
 import { matchView, pathFor } from '../../routes/paths';
 import { ErrorState, LoadingState } from '../common/States';
+import { realPricingEnabled } from '../../lib/features';
+import { ProductPricingPanel } from '../pricing/ProductPricingPanel';
 import {
   CATEGORIES_KEY, CONFLICT_TEXT, CategoryOptions, FieldError, NotAvailableYet, ProductStatusPill, isConflict, productErrors,
   productKey, qar, storeProduct, useCategoryTree,
@@ -30,6 +32,7 @@ export const RealProductDetailView: React.FC = () => {
     );
   }
   const p = q.data;
+  const pricing = realPricingEnabled();
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -50,11 +53,13 @@ export const RealProductDetailView: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Remounted whenever the server copy changes, so a reload replaces the draft. */}
           <EditForm key={`${p.id}:${p.updatedAt}`} product={p} onReload={() => void q.refetch()} reloading={q.isFetching} />
+          {/* The backend sends marketplacePrice and pricing only to roles with pricing.view. */}
+          {pricing && p.marketplacePrice && p.pricing && <ProductPricingPanel product={{ ...p, marketplacePrice: p.marketplacePrice, pricing: p.pricing }} />}
           <Listings product={p} />
         </div>
         <div className="space-y-6">
           <ErpData product={p} />
-          <NotAvailableYet title="Marketplace price rules" hint="Price rules for this product are not connected to the server yet." />
+          {!pricing && <NotAvailableYet title="Marketplace price rules" hint="Price rules for this product are not connected to the server yet." />}
           <NotAvailableYet title="Price discrepancies" hint="Discrepancy checks for this product are not connected to the server yet." />
           <NotAvailableYet title="Change history" hint="The change history is not connected to the server yet." />
         </div>

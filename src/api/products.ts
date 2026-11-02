@@ -1,4 +1,5 @@
 import { api } from './client';
+import type { MarketplacePrice, ProductPricing } from './pricing';
 
 /**
  * Products API (GET/PATCH /api/products…, POST /api/products/activate). Mirrors the backend's products module:
@@ -35,6 +36,8 @@ export interface ProductItem {
   status: ProductStatus;
   inLatestErpFile: boolean;
   updatedAt: string;
+  /** Present only for roles with pricing.view: the resolved Marketplace price and the rule step that chose it. */
+  marketplacePrice?: MarketplacePrice;
 }
 
 export type TabCounts = Record<ProductTab, number>;
@@ -77,6 +80,8 @@ export interface ProductDetail extends ProductItem {
   category: CategoryName | null;
   subcategory: CategoryName | null;
   listings: ProductListing[];
+  /** Present only for roles with pricing.view: the rule chain that explains marketplacePrice. */
+  pricing?: ProductPricing;
 }
 
 export interface UpdateProductRequest {

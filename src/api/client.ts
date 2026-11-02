@@ -47,7 +47,7 @@ export function readCookie(name: string): string | undefined {
 export const csrfToken = () => readCookie('__Host-qorloop.csrf') ?? readCookie('qorloop.csrf');
 
 interface Options {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   signal?: AbortSignal;

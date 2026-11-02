@@ -107,15 +107,7 @@ export function reconErrorText(e: unknown): string {
 
 // ───────── Formatting (times in Asia/Qatar, money to 2 decimals) ─────────
 
-const TZ = 'Asia/Qatar';
-const DATE_TIME = new Intl.DateTimeFormat('en-GB', {
-  timeZone: TZ, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
-});
-/** "01 Nov 2026, 21:30" in Asia/Qatar, whatever the browser's time zone. */
-export const qatarDateTime = (iso: string | null | undefined) => (iso ? DATE_TIME.format(new Date(iso)) : '—');
-
-/** Money cell: 2 decimals, no currency (the column header carries "QAR"). */
-export const money2 = (n: number | null | undefined) => (n === null || n === undefined || Number.isNaN(n) ? '—' : n.toFixed(2));
+export { money2, qatarDateTime } from '../../lib/format';
 
 /** actual − expected in integer fils (as the backend compares), shown signed with 2 decimals. */
 export function priceDifference(actual: number | null, expected: number | null): string {

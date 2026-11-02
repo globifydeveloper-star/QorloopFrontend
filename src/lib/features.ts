@@ -12,3 +12,8 @@ export const realCatalogueEnabled = (): boolean => import.meta.env.VITE_REAL_CAT
 /** Dashboard and the Stock / Price reports use /api/recon (summary, rows, recompute). Default off. */
 export const realReconEnabled = (): boolean => import.meta.env.VITE_REAL_RECON === 'true';
 
+/**
+ * Marketplace Price settings, category rules, the adopt-prices wizard, and the marketplace price / rule chain / product
+ * rule / offer on the real catalogue use /api/pricing and /api/products/:id/{price-rule,offer}. Default off.
+ */
+export const realPricingEnabled = (): boolean => import.meta.env.VITE_REAL_PRICING === 'true';

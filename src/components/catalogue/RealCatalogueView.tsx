@@ -8,6 +8,9 @@ import { indexCategories } from '../../api/categories';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductList } from './shared';
+import { realPricingEnabled } from '../../lib/features';
+import { money2 } from '../../lib/format';
+import { PriceSourceChip } from '../pricing/shared';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
@@ -35,6 +38,8 @@ export const RealCatalogueView: React.FC = () => {
   const items = list.data?.pages.flatMap(p => p.items) ?? [];
   const counts = list.data?.pages[0]?.counts;
   const filtered = Boolean(q || category);
+  // The backend adds marketplacePrice only for pricing.view.
+  const showPrice = realPricingEnabled() && can('pricing.view');
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -115,7 +120,8 @@ export const RealCatalogueView: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3">Barcode</th>
                   <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3 text-right">ERP price</th>
+                  <th className="px-4 py-3 text-right">{showPrice ? 'ERP price (QAR)' : 'ERP price'}</th>
+                  {showPrice && <th className="px-4 py-3">Marketplace price (QAR)</th>}
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Category</th>
@@ -133,7 +139,14 @@ export const RealCatalogueView: React.FC = () => {
                         {p.nameAr ? <div dir="rtl" lang="ar" className="text-[11px] text-gray-500 text-left">{p.nameAr}</div>
                           : <div className="text-[11px] text-amber-700">No Arabic name</div>}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono whitespace-nowrap">{qar(p.erpPrice)}</td>
+                      <td className="px-4 py-3 text-right font-mono whitespace-nowrap">{showPrice ? money2(p.erpPrice) : qar(p.erpPrice)}</td>
+                      {showPrice && (
+                        <td className="px-4 py-3 whitespace-nowrap" data-testid="marketplace-price">
+                          {p.marketplacePrice
+                            ? <span className="inline-flex items-center gap-2"><span className="font-mono">{money2(p.marketplacePrice.price)}</span><PriceSourceChip source={p.marketplacePrice.source} /></span>
+                            : <span className="text-gray-400">—</span>}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-right font-mono">{p.erpStock}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <ProductStatusPill status={p.status} />

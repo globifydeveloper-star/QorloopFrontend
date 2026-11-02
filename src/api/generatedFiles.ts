@@ -28,8 +28,10 @@ export interface FileSelection {
 export type PlainCell = string | number | boolean | null;
 
 export interface FilePreview {
-  /** Rows that will be in the file. */
+  /** Products in the file (each counted once). */
   productCount: number;
+  /** Data rows written; larger than productCount when a product appears on several rows of the marketplace file. */
+  rowsToWrite: number;
   priceChanges: number;
   availabilityChanges: number;
   /** Selected recon rows whose product is not in the marketplace's latest file; they are skipped. */
@@ -40,7 +42,10 @@ export interface FilePreview {
   firstRows: Record<string, PlainCell>[];
   /** The marketplace's latest applied upload, which the file is built from. */
   sourceFile: { name: string; uploadedAt: string };
-  /** Plain messages, e.g. "The marketplace file is 3 days old". */
+  /**
+   * Plain messages, e.g. "The marketplace file is 3 days old" or "N products appear on more than one row of the
+   * <Marketplace> file; all their rows are updated".
+   */
   warnings: string[];
   referenceUsed: ReconReference;
 }

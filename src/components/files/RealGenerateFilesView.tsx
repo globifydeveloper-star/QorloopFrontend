@@ -177,6 +177,16 @@ export const RealGenerateFilesView: React.FC = () => {
             <span>Prices in this file use the <b>{REFERENCE_LABELS[seen?.referenceUsed ?? ref]}</b>.</span>
           </div>
 
+          {seen && seen.warnings.length > 0 && (
+            <ul aria-label="Warnings" data-testid="preview-warnings" className="space-y-2">
+              {seen.warnings.map(w => (
+                <li key={w} role="alert" className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-900">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" aria-hidden /> {w}
+                </li>
+              ))}
+            </ul>
+          )}
+
           {actionError && <div role="alert" className="text-xs text-red-700">{actionError}</div>}
 
           <div className="flex flex-wrap items-center gap-3">
@@ -244,11 +254,14 @@ const PreviewPanel: React.FC<{ preview: FilePreview }> = ({ preview: p }) => {
   const columns = p.firstRows.length ? Object.keys(p.firstRows[0]!) : [];
   return (
     <div aria-label="Preview" role="region" className="border-t border-gray-100 pt-4 space-y-4">
-      {p.warnings.map(w => (
-        <div key={w} role="alert" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-xs text-amber-900">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden /> {w}
-        </div>
-      ))}
+      <div className="text-sm text-gray-900">
+        <div data-testid="preview-products" className="font-semibold">{p.productCount} {p.productCount === 1 ? 'product changes' : 'products change'}</div>
+        {p.rowsToWrite !== p.productCount && (
+          <div data-testid="preview-rows" className="text-xs text-gray-600">
+            {p.rowsToWrite} {p.rowsToWrite === 1 ? 'row' : 'rows'} will be written (some products appear on more than one row of the marketplace file)
+          </div>
+        )}
+      </div>
       <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {([['Products in the file', p.productCount, 'productCount'], ['Price changes', p.priceChanges, 'priceChanges'],
           ['Availability changes', p.availabilityChanges, 'availabilityChanges'], ['Not in the marketplace file', p.notInFile, 'notInFile']] as const).map(([label, value, id]) => (

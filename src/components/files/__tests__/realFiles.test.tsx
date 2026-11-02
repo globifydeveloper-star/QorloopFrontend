@@ -35,7 +35,7 @@ const SUMMARY: ReconSummary = {
   marketplaces: [mp('talabat'), mp('snoonu'), mp('keeta', { hasData: false, lastUploadAt: null })],
 };
 const PREVIEW: FilePreview = {
-  productCount: 14, priceChanges: 9, availabilityChanges: 4, notInFile: 2,
+  productCount: 14, rowsToWrite: 14, priceChanges: 9, availabilityChanges: 4, notInFile: 2,
   largestPriceChange: { name: 'Nescafe Classic 200g', from: 17.5, to: 19.8 },
   firstRows: [
     { 'Item ID': 'T-1', 'Item name': 'Nescafe Classic 200g', Price: 19.8, Available: true },
@@ -148,7 +148,7 @@ describe('generate files (OUT-001)', () => {
     expect(panel.getByTestId('preview-availabilityChanges').textContent).toBe('4');
     expect(panel.getByTestId('preview-notInFile').textContent).toBe('2');
     expect(panel.getByTestId('largest-change').textContent).toBe('Largest price change (QAR): Nescafe Classic 200g 17.50 → 19.80');
-    expect(panel.getByRole('alert').textContent).toContain('The marketplace file is 3 days old');
+    expect(screen.getByTestId('preview-warnings').textContent).toContain('The marketplace file is 3 days old');
     expect(panel.getByText(/talabat-export\.xlsx/).closest('div')!.textContent).toContain('30 Oct 2026, 09:00');
     expect(panel.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Item ID', 'Item name', 'Price', 'Available']);
     expect(panel.getAllByTestId('preview-row').map(r => r.textContent)).toEqual(['T-1Nescafe Classic 200g19.8true', 'T-2Almarai Milk 1L6.25false']);
@@ -165,6 +165,46 @@ describe('generate files (OUT-001)', () => {
     fireEvent.click(previewBtn());
     await screen.findByRole('region', { name: 'Preview' });
     expect(generateBtn()).toHaveProperty('disabled', false);
+  });
+
+  const previewWith = (over: Partial<FilePreview>) => {
+    handler = (u, i) => (isPreview(u, method(i)) ? ok({ ...PREVIEW, ...over }) : backend(u, i));
+  };
+  const DUPLICATES = '37 products appear on more than one row of the Snoonu file; all their rows are updated';
+
+  it('when rowsToWrite equals productCount it shows only the products count', async () => {
+    await previewed();
+    expect(screen.getByTestId('preview-products').textContent).toBe('14 products change');
+    expect(screen.queryByTestId('preview-rows')).toBeNull();
+  });
+
+  it('when rowsToWrite differs it also says how many rows will be written and why', async () => {
+    previewWith({ productCount: 14, rowsToWrite: 51 });
+    await previewed();
+    expect(screen.getByTestId('preview-products').textContent).toBe('14 products change');
+    expect(screen.getByTestId('preview-rows').textContent)
+      .toBe('51 rows will be written (some products appear on more than one row of the marketplace file)');
+  });
+
+  it('shows one warning prominently above the Generate button', async () => {
+    previewWith({ warnings: [DUPLICATES] });
+    await previewed();
+    const items = within(screen.getByTestId('preview-warnings')).getAllByRole('alert');
+    expect(items.map(w => w.textContent!.trim())).toEqual([DUPLICATES]);
+    // above the Generate button in document order
+    expect(screen.getByTestId('preview-warnings').compareDocumentPosition(generateBtn()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows every warning when there are several, and none when the list is empty', async () => {
+    previewWith({ warnings: ['The marketplace file is 3 days old', DUPLICATES] });
+    await previewed();
+    const items = within(screen.getByTestId('preview-warnings')).getAllByRole('alert');
+    expect(items.map(w => w.textContent!.trim())).toEqual(['The marketplace file is 3 days old', DUPLICATES]);
+    expect(screen.getByTestId('preview-warnings').compareDocumentPosition(generateBtn()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    cleanup();
+    previewWith({ warnings: [] });
+    await previewed();
+    expect(screen.queryByTestId('preview-warnings')).toBeNull();
   });
 
   it('sends the chosen reference and the banner names it', async () => {

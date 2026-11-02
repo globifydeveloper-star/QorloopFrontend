@@ -3,19 +3,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import type { ProductDetail } from '../../api/products';
-import { pricingApi, type MarketplacePrice, type PriceChainStep, type ProductPricing, type ProductPricingView } from '../../api/pricing';
+import { pricingApi, type MarketplacePrice, type ProductPricing, type ProductPricingView } from '../../api/pricing';
 import { fromQatarInput, money2, qatarDateTime, toQatarInput } from '../../lib/format';
 import { marketplaceName } from '../recon/shared';
 import { productKey } from '../catalogue/shared';
 import {
-  ChainStatusLabel, FieldError, OFFER_STATE_META, PriceSourceChip, ROUNDING_LABELS, RuleFields, SOURCE_META, draftOf, fieldErrors,
+  Chain, FieldError, OFFER_STATE_META, PriceSourceChip, RuleFields, draftOf, fieldErrors,
   inputCls, pricingErrorText, ruleFromDraft, ruleText, type RuleDraft,
 } from './shared';
+import { InlinePriceEditor } from './InlinePriceEditor';
 
 type Priced = ProductDetail & { marketplacePrice: MarketplacePrice; pricing: ProductPricing };
 
 /** The resolved marketplace price, the rule chain that explains it, and the product's own rule and offer (pricing.edit). */
-export const ProductPricingPanel: React.FC<{ product: Priced }> = ({ product: p }) => {
+export const ProductPricingPanel: React.FC<{ product: Priced; onReload: () => Promise<ProductDetail | undefined> }> = ({ product: p, onReload }) => {
   const { can } = useAuth();
   const editable = can('pricing.edit');
   const qc = useQueryClient();
@@ -48,6 +49,12 @@ export const ProductPricingPanel: React.FC<{ product: Priced }> = ({ product: p 
         </ul>
       )}
 
+      {editable && (
+        <div className="px-5 py-4 border-b border-gray-100">
+          <InlinePriceEditor product={p} onReload={onReload} />
+        </div>
+      )}
+
       <Chain chain={p.pricing.chain} />
 
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100 border-t border-gray-100">
@@ -58,44 +65,6 @@ export const ProductPricingPanel: React.FC<{ product: Priced }> = ({ product: p 
     </section>
   );
 };
-
-function stepDetail(s: PriceChainStep): string {
-  if (s.offer) {
-    const from = s.offer.validFrom ? `from ${qatarDateTime(s.offer.validFrom)}` : 'no start date';
-    const until = s.offer.validUntil ? `until ${qatarDateTime(s.offer.validUntil)}` : 'no end date';
-    return `Offer ${money2(s.offer.price)} QAR, ${from}, ${until}`;
-  }
-  if (s.rule) return `${ruleText(s.rule)}${s.rounding ? `, ${ROUNDING_LABELS[s.rounding].toLowerCase()}` : ''}`;
-  if (s.status === 'disabled') return 'Different price per marketplace is off';
-  return '—';
-}
-
-const Chain: React.FC<{ chain: PriceChainStep[] }> = ({ chain }) => (
-  <div role="region" aria-label="Price rule chain" className="overflow-x-auto">
-    <table className="w-full text-left text-xs">
-      <thead className="bg-[#F2F7F6] text-gray-500 uppercase font-semibold text-[10px] tracking-wider">
-        <tr>
-          <th className="px-5 py-2.5">Order</th>
-          <th className="px-5 py-2.5">Step</th>
-          <th className="px-5 py-2.5">Status</th>
-          <th className="px-5 py-2.5 text-right">Price (QAR)</th>
-          <th className="px-5 py-2.5">Details</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100 text-gray-700">
-        {chain.map((s, i) => (
-          <tr key={s.source} data-testid="chain-step" data-status={s.status} className={s.status === 'applied' ? 'bg-[#F2F7F6]' : ''}>
-            <td className="px-5 py-2.5 text-gray-500">{i + 1}</td>
-            <td className="px-5 py-2.5 font-semibold text-gray-900">{SOURCE_META[s.source]?.label ?? s.source}</td>
-            <td className="px-5 py-2.5"><ChainStatusLabel status={s.status} /></td>
-            <td className="px-5 py-2.5 text-right font-mono">{s.price === undefined ? '—' : money2(s.price)}</td>
-            <td className="px-5 py-2.5">{stepDetail(s)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
 
 const ProductRuleForm: React.FC<{ product: Priced; editable: boolean; onSaved: (v: ProductPricingView) => void }> = ({ product: p, editable, onSaved }) => {
   const { showToast } = useApp();

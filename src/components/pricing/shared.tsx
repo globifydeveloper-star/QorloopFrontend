@@ -4,8 +4,8 @@ import {
   CalendarClock, CalendarX, CheckCircle2, CircleSlash, Folder, FolderTree, Layers, MinusCircle, Package, Settings2, Store, Tag,
 } from 'lucide-react';
 import { ApiError } from '../../api/client';
-import type { ChainStatus, OfferState, PriceRule, PriceSource, RoundingOption, RuleMode } from '../../api/pricing';
-import { money2 } from '../../lib/format';
+import type { ChainStatus, OfferState, PriceChainStep, PriceRule, PriceSource, RoundingOption, RuleMode } from '../../api/pricing';
+import { money2, qatarDateTime } from '../../lib/format';
 
 export const PRICING_SETTINGS_KEY = ['pricing', 'settings'] as const;
 export const CATEGORY_RULES_KEY = ['pricing', 'category-rules'] as const;
@@ -142,6 +142,47 @@ export const RuleFields: React.FC<{
         <FieldError id={`${id}-value-err`} message={errors.value} />
       </div>
     )}
+  </div>
+);
+
+// ───────── Rule chain ─────────
+
+function stepDetail(s: PriceChainStep): string {
+  if (s.offer) {
+    const from = s.offer.validFrom ? `from ${qatarDateTime(s.offer.validFrom)}` : 'no start date';
+    const until = s.offer.validUntil ? `until ${qatarDateTime(s.offer.validUntil)}` : 'no end date';
+    return `Offer ${money2(s.offer.price)} QAR, ${from}, ${until}`;
+  }
+  if (s.rule) return `${ruleText(s.rule)}${s.rounding ? `, ${ROUNDING_LABELS[s.rounding].toLowerCase()}` : ''}`;
+  if (s.status === 'disabled') return 'Different price per marketplace is off';
+  return '—';
+}
+
+/** Every step of the rule order with its status, price and details; the applied one is highlighted. */
+export const Chain: React.FC<{ chain: PriceChainStep[]; label?: string }> = ({ chain, label = 'Price rule chain' }) => (
+  <div role="region" aria-label={label} className="overflow-x-auto">
+    <table className="w-full text-left text-xs">
+      <thead className="bg-[#F2F7F6] text-gray-500 uppercase font-semibold text-[10px] tracking-wider">
+        <tr>
+          <th className="px-5 py-2.5">Order</th>
+          <th className="px-5 py-2.5">Step</th>
+          <th className="px-5 py-2.5">Status</th>
+          <th className="px-5 py-2.5 text-right">Price (QAR)</th>
+          <th className="px-5 py-2.5">Details</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100 text-gray-700">
+        {chain.map((s, i) => (
+          <tr key={s.source} data-testid="chain-step" data-status={s.status} className={s.status === 'applied' ? 'bg-[#F2F7F6]' : ''}>
+            <td className="px-5 py-2.5 text-gray-500">{i + 1}</td>
+            <td className="px-5 py-2.5 font-semibold text-gray-900">{SOURCE_META[s.source]?.label ?? s.source}</td>
+            <td className="px-5 py-2.5"><ChainStatusLabel status={s.status} /></td>
+            <td className="px-5 py-2.5 text-right font-mono">{s.price === undefined ? '—' : money2(s.price)}</td>
+            <td className="px-5 py-2.5">{stepDetail(s)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   </div>
 );
 

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   AlertOctagon, AlertTriangle, CheckCircle2, CircleSlash, EyeOff, FileX, HelpCircle, Sparkles, TrendingDown, XCircle,
 } from 'lucide-react';
@@ -68,6 +68,19 @@ export function useReconSummary(reference?: ReconReference) {
     }
   }, [qc, pending, computedAt, fetchedAt]);
   return q;
+}
+
+/**
+ * A change the backend recomputes after by itself (an inline or bulk price change queues one): refetch the rows and the
+ * summary now, and keep polling the summary until one newer than the latest cached one lands, as after Recompute.
+ */
+export function expectRecompute(qc: QueryClient) {
+  const seen = qc.getQueriesData<ReconSummary>({ queryKey: ['recon', 'summary'] })
+    .map(([, d]) => d?.computedAt ?? null)
+    .reduce<string | null>((a, b) => (newer(b, a) ? b : a), null);
+  qc.setQueryData<RecomputeState>(RECOMPUTE_KEY, { since: seen, startedAt: Date.now(), timedOut: false });
+  void qc.invalidateQueries({ queryKey: ['recon', 'summary'] });
+  void qc.invalidateQueries({ queryKey: ['recon', 'rows'] });
 }
 
 /** POST /api/recon/recompute (pricing.edit); marks a recompute pending against the summary currently shown. */

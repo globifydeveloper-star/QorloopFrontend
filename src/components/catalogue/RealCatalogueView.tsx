@@ -11,6 +11,7 @@ import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductList }
 import { realPricingEnabled } from '../../lib/features';
 import { money2 } from '../../lib/format';
 import { PriceSourceChip } from '../pricing/shared';
+import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
@@ -40,6 +41,10 @@ export const RealCatalogueView: React.FC = () => {
   const filtered = Boolean(q || category);
   // The backend adds marketplacePrice only for pricing.view.
   const showPrice = realPricingEnabled() && can('pricing.view');
+  // Inline price edit (pricing.edit): one row's editor open at a time, under the row.
+  const canEditPrice = showPrice && can('pricing.edit');
+  const [editing, setEditing] = useState<string | null>(null);
+  const columns = 6 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -125,6 +130,7 @@ export const RealCatalogueView: React.FC = () => {
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Category</th>
+                  {canEditPrice && <th className="px-4 py-3"><span className="sr-only">Price actions</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -132,7 +138,8 @@ export const RealCatalogueView: React.FC = () => {
                   const cat = p.categoryId ? names.get(p.categoryId) : undefined;
                   const sub = p.subcategoryId ? names.get(p.subcategoryId) : undefined;
                   return (
-                    <tr key={p.id} className="hover:bg-gray-50">
+                    <React.Fragment key={p.id}>
+                    <tr className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-mono text-[11px] text-gray-900 whitespace-nowrap">{p.barcode}</td>
                       <td className="px-4 py-3 min-w-[220px]">
                         <Link to={pathFor('product-detail', p.id)} className="font-semibold text-gray-900 hover:text-[#027864] hover:underline">{p.nameEn}</Link>
@@ -157,7 +164,25 @@ export const RealCatalogueView: React.FC = () => {
                           : p.categoryId ? <span className="text-gray-400">—</span>
                             : <span className="text-amber-700">No category</span>}
                       </td>
+                      {canEditPrice && (
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <button
+                            type="button" onClick={() => setEditing(editing === p.id ? null : p.id)} aria-expanded={editing === p.id}
+                            aria-label={`Change the price of ${p.nameEn}`} className="font-semibold text-[#027864] hover:underline"
+                          >
+                            Change price
+                          </button>
+                        </td>
+                      )}
                     </tr>
+                    {canEditPrice && editing === p.id && (
+                      <tr aria-label={`Price editor for ${p.nameEn}`}>
+                        <td colSpan={columns} className="px-4 py-4 bg-[#F8FBFA] border-t border-gray-100">
+                          <RowPriceEditor productId={p.id} onClose={() => setEditing(null)} />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

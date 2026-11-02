@@ -54,7 +54,9 @@ export const RealProductDetailView: React.FC = () => {
           {/* Remounted whenever the server copy changes, so a reload replaces the draft. */}
           <EditForm key={`${p.id}:${p.updatedAt}`} product={p} onReload={() => void q.refetch()} reloading={q.isFetching} />
           {/* The backend sends marketplacePrice and pricing only to roles with pricing.view. */}
-          {pricing && p.marketplacePrice && p.pricing && <ProductPricingPanel product={{ ...p, marketplacePrice: p.marketplacePrice, pricing: p.pricing }} />}
+          {pricing && p.marketplacePrice && p.pricing && (
+            <ProductPricingPanel product={{ ...p, marketplacePrice: p.marketplacePrice, pricing: p.pricing }} onReload={async () => (await q.refetch()).data} />
+          )}
           <Listings product={p} />
         </div>
         <div className="space-y-6">

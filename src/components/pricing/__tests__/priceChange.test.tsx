@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ProductDetail, ProductItem, TabCounts } from '../../../api/products';
 import type { BulkApplyResult, BulkPreview, InlinePricing, PriceChainStep, PriceRule } from '../../../api/pricing';
-import type { ReconMarketplaceSummary, ReconSummary } from '../../../api/recon';
+import type { ReconMarketplaceSummary, ReconRow, ReconSummary } from '../../../api/recon';
 
 const perms = new Set<string>();
 vi.mock('../../../auth/AuthContext', () => ({ useAuth: () => ({ can: (p: string) => perms.has(p) }) }));
@@ -579,6 +579,110 @@ describe('bulk price change', () => {
     expect((await dialog.findByText(/Nothing to change/)).textContent).toContain('no selected product would get a new price');
     expect(dialog.queryByRole('button', { name: /^Change .*…$/ })).toBeNull();
     expect(dialog.queryByRole('region', { name: 'Other marketplaces' })).toBeNull();
+  });
+});
+
+// ───────── Bulk change: only price mismatches ─────────
+
+const reconRow = (productId: string, productStatus: string): ReconRow => ({
+  productId, barcode: `b-${productId}`, sku: null, nameEn: `Product ${productId}`, nameAr: null, productStatus, erpStock: 5,
+  status: 'mismatch', stockIssue: null, priceMismatch: true, priceMismatchVsErp: true, priceMismatchVsMarketplace: true,
+  expectedPrice: 10, erpPrice: 10, marketplacePrice: 10, marketplacePriceSource: 'default', actualPrice: 12, erpAvailable: true, actualAvailable: true, lastUpdated: V1,
+});
+/** GET /api/recon/rows?type=price for each marketplace, two pages on Talabat (one inactive product among them). */
+const MISMATCH_PAGES: Record<string, Record<string, { items: ReconRow[]; nextCursor: string | null }>> = {
+  talabat: {
+    first: { items: [reconRow('p1', 'active'), reconRow('x', 'inactive'), reconRow('3', 'active')], nextCursor: 'c2' },
+    c2: { items: [reconRow('4', 'active')], nextCursor: null },
+  },
+  keeta: { first: { items: [reconRow('p1', 'active')], nextCursor: null } },
+  snoonu: { first: { items: [reconRow('x', 'inactive')], nextCursor: null } },
+};
+const mismatchRows: Handler = (u, i) => {
+  if (!is('GET', '/api/recon/rows')(u, method(i))) return undefined;
+  const q = params(u);
+  const page = MISMATCH_PAGES[q.marketplaceId]?.[q.cursor ?? 'first'] ?? { items: [], nextCursor: null };
+  return ok({ reference: 'erp', ...page });
+};
+const mismatchBox = (dialog: ReturnType<typeof within>, mp = 'Talabat') => dialog.getByRole('checkbox', { name: new RegExp(`Only products with a price mismatch on ${mp}`) });
+
+describe('bulk price change: only price mismatches', () => {
+  it('counts the active mismatches on the marketplace before the preview, then sends listed, reconStatus and the reference', async () => {
+    handler = bulkBackend(async (u, i) => {
+      const r = await mismatchRows(u, i);
+      if (r) return r;
+      if (is('POST', '/api/pricing/bulk/preview')(u, method(i))) {
+        const b = bodyOf([u, i]);
+        return ok({ ...PREVIEW, marketplaceId: b.marketplaceId, action: b.action, selection: b.selection, reference: 'erp', rows: [{ ...ROW, marketplaceId: b.marketplaceId }] });
+      }
+      return undefined;
+    });
+    renderAt('/catalogue', <CatalogueView />);
+    const dialog = await openBulk();
+    await waitFor(() => expect((dialog.getByLabelText('Marketplace') as HTMLSelectElement).value).toBe('talabat'));
+    expect(calls(is('GET', '/api/recon/rows'))).toHaveLength(0); // counted only when asked for
+
+    fireEvent.click(mismatchBox(dialog));
+    await waitFor(() => expect(dialog.getByTestId('mismatch-count').textContent).toBe('3 products match: active, listed on Talabat, with a price mismatch.'));
+    expect((dialog.getByLabelText(/Every active product with a price mismatch on Talabat \(3\)/) as HTMLInputElement).checked).toBe(true);
+    expect(mismatchBox(dialog).closest('label')!.textContent).toContain('differs from the ERP price, as of the last comparison');
+    const rowCalls = calls(is('GET', '/api/recon/rows')).map(([u]) => params(String(u)));
+    expect(rowCalls).toEqual([
+      { marketplaceId: 'talabat', type: 'price', limit: '200' },
+      { marketplaceId: 'talabat', type: 'price', limit: '200', cursor: 'c2' },
+    ]);
+    expect(calls(is('POST', '/api/pricing/bulk/preview'))).toHaveLength(0);
+
+    // Another marketplace is counted on its own.
+    fireEvent.change(dialog.getByLabelText('Marketplace'), { target: { value: 'keeta' } });
+    await waitFor(() => expect(dialog.getByTestId('mismatch-count').textContent).toBe('1 product matches: active, listed on Keeta, with a price mismatch.'));
+    expect(dialog.getByLabelText(/Every active product with a price mismatch on Keeta \(1\)/)).toBeTruthy();
+
+    fireEvent.change(dialog.getByLabelText('Change'), { target: { value: 'match_marketplace' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Preview' }));
+    const preview = within(await dialog.findByRole('region', { name: 'Preview' }));
+    expect(bodyOf(calls(is('POST', '/api/pricing/bulk/preview'))[0])).toEqual({
+      marketplaceId: 'keeta', selection: { filter: { listed: true, reconStatus: 'price_mismatch', reference: 'erp' } }, action: { type: 'match_marketplace' },
+    });
+    expect(preview.getByTestId('preview-mismatch-only').textContent).toBe('Only products listed on Keeta with a price mismatch against the ERP price, as of the last comparison.');
+  });
+
+  it('with a search the count is an upper bound; with no mismatch at all it says so and offers no preview', async () => {
+    handler = bulkBackend(mismatchRows);
+    renderAt('/catalogue', <CatalogueView />);
+    fireEvent.change(await screen.findByPlaceholderText('Search by English name, barcode or SKU'), { target: { value: 'milk' } });
+    await waitFor(() => expect(calls(isList).some(([u]) => params(String(u)).q === 'milk')).toBe(true));
+    let dialog = await openBulk();
+    await waitFor(() => expect((dialog.getByLabelText('Marketplace') as HTMLSelectElement).value).toBe('talabat'));
+    fireEvent.click(mismatchBox(dialog));
+    // The list counts 2 active products for "milk"; Talabat has 3 active mismatches in the whole catalogue.
+    await waitFor(() => expect(dialog.getByTestId('mismatch-count').textContent).toBe(
+      'At most 2 products match. Price mismatches cannot be counted within a search or category before the preview; the preview shows the exact number.',
+    ));
+    expect(dialog.getByLabelText(/Active products matching the current filter with a price mismatch on Talabat \(at most 2\)/)).toBeTruthy();
+    expect((dialog.getByRole('button', { name: 'Preview' }) as HTMLButtonElement).disabled).toBe(false);
+    cleanup();
+
+    renderAt('/catalogue', <CatalogueView />);
+    dialog = await openBulk();
+    await waitFor(() => expect((dialog.getByLabelText('Marketplace') as HTMLSelectElement).value).toBe('talabat'));
+    fireEvent.change(dialog.getByLabelText('Marketplace'), { target: { value: 'snoonu' } });
+    fireEvent.click(mismatchBox(dialog, 'Snoonu'));
+    await waitFor(() => expect(dialog.getByRole('alert').textContent).toBe('No active product has a price mismatch on Snoonu (as of the last comparison).'));
+    expect((dialog.getByRole('button', { name: 'Preview' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(calls(is('POST', '/api/pricing/bulk/preview'))).toHaveLength(0);
+  });
+
+  it('ticking the mismatch option moves the choice from ticked rows to the filter', async () => {
+    handler = bulkBackend(mismatchRows);
+    renderAt('/catalogue', <CatalogueView />);
+    fireEvent.click(await screen.findByLabelText('Tick Product p1'));
+    const dialog = await openBulk();
+    expect((dialog.getByLabelText(/Ticked rows \(1\)/) as HTMLInputElement).checked).toBe(true);
+    await waitFor(() => expect((dialog.getByLabelText('Marketplace') as HTMLSelectElement).value).toBe('talabat'));
+    fireEvent.click(mismatchBox(dialog));
+    expect((dialog.getByLabelText(/Every active product with a price mismatch on Talabat/) as HTMLInputElement).checked).toBe(true);
+    expect((dialog.getByLabelText(/Ticked rows \(1\)/) as HTMLInputElement).checked).toBe(false);
   });
 });
 

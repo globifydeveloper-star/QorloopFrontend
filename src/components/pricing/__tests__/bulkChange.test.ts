@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../api/client';
 import type { BulkApplyResult, BulkPreview, BulkPriceRequest } from '../../../api/pricing';
-import { BULK_START, actionText, buildBulkRequest, bulkReducer, newIdempotencyKey, selectionProblem, type BulkForm, type BulkState } from '../bulkChange';
+import {
+  BULK_START, actionText, buildBulkRequest, bulkReducer, newIdempotencyKey, selectionCount, selectionCountText, selectionProblem, type BulkForm, type BulkState,
+} from '../bulkChange';
 import { changeErrors, priceText, readInlineValue, signedPrice } from '../priceChange';
 
 const KEY_RE = /^[A-Za-z0-9_-]{8,100}$/;
@@ -164,6 +166,48 @@ describe('bulk request: limits before the API', () => {
     expect(actionText({ type: 'decrease_amount', amount: 0.5, rounding: 'none' }, 'Talabat')).toBe('Decrease by 0.50 QAR');
     expect(actionText({ type: 'set_fixed', price: 6.325 }, 'Talabat')).toBe('Set a fixed price of 6.325 QAR');
     expect(actionText({ type: 'match_marketplace' }, 'Snoonu')).toBe('Match the Snoonu price');
+  });
+});
+
+describe('bulk request: only price mismatches (listed + reconStatus price_mismatch)', () => {
+  const mm = (count: number, more = false) => ({ count, more, reference: 'erp' as const });
+  const sel = (over: Partial<BulkForm>) => ({ scope: 'filter' as const, tickedIds: [], marketplaceId: 'talabat' as const, filter: {}, onlyMismatches: true, ...over });
+
+  it('counts before the preview: exact for the whole catalogue, at most within a search or category', () => {
+    expect(selectionCount(sel({ onlyMismatches: false, filterActiveCount: 40 }))).toEqual({ value: 40, kind: 'exact' });
+    expect(selectionCount(sel({ filterActiveCount: 2431, mismatches: mm(37) }))).toEqual({ value: 37, kind: 'exact' });
+    expect(selectionCount(sel({ mismatches: mm(5001, true) }))).toEqual({ value: 5001, kind: 'moreThan' });
+    expect(selectionCount(sel({ filter: { q: 'milk' }, filterActiveCount: 12, mismatches: mm(37) }))).toEqual({ value: 12, kind: 'atMost' });
+    expect(selectionCount(sel({ filter: { categoryId: 'c1' }, filterActiveCount: 900, mismatches: mm(37) }))).toEqual({ value: 37, kind: 'atMost' });
+    expect(selectionCount(sel({ filter: { q: 'milk' }, filterActiveCount: 12, mismatches: mm(6000, true) }))).toEqual({ value: 12, kind: 'atMost' });
+    expect(selectionCount(sel({ filterActiveCount: 40 }))).toBeUndefined(); // the mismatches are still being counted
+    expect(selectionCountText({ value: 37, kind: 'exact' })).toBe('37');
+    expect(selectionCountText({ value: 12, kind: 'atMost' })).toBe('at most 12');
+    expect(selectionCountText({ value: 5001, kind: 'moreThan' })).toBe('more than 5,000');
+  });
+
+  it('says what is wrong before the API: none, or above 5,000', () => {
+    expect(selectionProblem(sel({ mismatches: mm(0) }))).toBe('No active product has a price mismatch on Talabat (as of the last comparison).');
+    expect(selectionProblem(sel({ filter: { q: 'milk' }, filterActiveCount: 0, mismatches: mm(37) })))
+      .toBe('No active product matching the current search and category has a price mismatch on Talabat.');
+    expect(selectionProblem(sel({ mismatches: mm(5200) }))).toBe('5,200 active products have a price mismatch on Talabat. One change can price at most 5,000; narrow the search or category.');
+    expect(selectionProblem(sel({ marketplaceId: 'keeta', mismatches: mm(5001, true) })))
+      .toBe('More than 5,000 active products have a price mismatch on Keeta. One change can price at most 5,000; narrow the search or category.');
+    // Only an upper bound above the limit: the server decides.
+    expect(selectionProblem(sel({ filter: { q: 'milk' }, filterActiveCount: 6000, mismatches: mm(6000, true) }))).toBeUndefined();
+    expect(selectionProblem(sel({ mismatches: mm(37) }))).toBeUndefined();
+  });
+
+  it('sends listed, reconStatus and the reference the count was made with', () => {
+    expect(buildBulkRequest(form({ scope: 'filter', filter: { q: 'milk' }, onlyMismatches: true, mismatches: mm(37) })).request?.selection)
+      .toEqual({ filter: { q: 'milk', listed: true, reconStatus: 'price_mismatch', reference: 'erp' } });
+    // Not counted (yet, or the count failed): the server's default reference.
+    expect(buildBulkRequest(form({ scope: 'filter', onlyMismatches: true })).request?.selection)
+      .toEqual({ filter: { listed: true, reconStatus: 'price_mismatch' } });
+    // Ticked rows are never narrowed by the filter.
+    expect(buildBulkRequest(form({ scope: 'ticked', onlyMismatches: true, mismatches: mm(37) })).request?.selection).toEqual({ productIds: ['a', 'b'] });
+    expect(buildBulkRequest(form({ scope: 'filter', onlyMismatches: true, mismatches: mm(0) })).errors?.selection)
+      .toBe('No active product has a price mismatch on Talabat (as of the last comparison).');
   });
 });
 

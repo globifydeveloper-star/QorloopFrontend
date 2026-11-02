@@ -3,6 +3,8 @@ import {
   type BulkAction, type BulkActionType, type BulkApplyResult, type BulkPreview, type BulkPriceRequest, type BulkRounding,
   type PricingMarketplaceId,
 } from '../../api/pricing';
+import type { ReconReference } from '../../api/recon';
+import { MARKETPLACE_NAMES } from '../../lib/pricing';
 import { PRICE, count, isStale, priceText, readNumber } from './priceChange';
 
 /**
@@ -47,21 +49,57 @@ export function bulkValueKind(type: BulkActionType): 'price' | 'percent' | 'amou
   return null;
 }
 
+/**
+ * Active products with a price mismatch on the operation's marketplace, counted from the stored comparison rows
+ * (GET /api/recon/rows?type=price, productStatus active): the same rows and flag the bulk filter
+ * { listed: true, reconStatus: 'price_mismatch', reference } reads. Counting stops above BULK_PRICE_LIMIT (more: true).
+ */
+export interface MismatchCount { count: number; more: boolean; reference: ReconReference }
+
 export interface BulkForm {
   marketplaceId: PricingMarketplaceId;
   /** ticked: the ticked rows; filter: every active product matching the list's current search and category. */
   scope: 'ticked' | 'filter';
   tickedIds: readonly string[];
   filter: { q?: string; categoryId?: string; subcategoryId?: string };
-  /** Active products matching the filter (the product list's own count); undefined when not known yet. */
+  /** Active products matching the search and category (the product list's own count); undefined when not known yet. */
   filterActiveCount?: number;
+  /** filter scope: only products listed on the marketplace with a price mismatch there (as of the last comparison). */
+  onlyMismatches?: boolean;
+  /** The mismatch count on the marketplace, whole catalogue; undefined while not known. */
+  mismatches?: MismatchCount;
   action: BulkActionType;
   value: string;
   rounding: BulkRounding;
 }
 
+type SelectionInput = Pick<BulkForm, 'scope' | 'tickedIds'> & Partial<Pick<BulkForm, 'marketplaceId' | 'filter' | 'filterActiveCount' | 'onlyMismatches' | 'mismatches'>>;
+
+/** What is known before the preview about how many products a filter selection takes. */
+export interface SelectionCount { value: number; kind: 'exact' | 'atMost' | 'moreThan' }
+
+const narrowed = (f: SelectionInput) => Boolean(f.filter?.q?.trim() || f.filter?.categoryId || f.filter?.subcategoryId);
+
+/**
+ * The filter selection's size: the list's active count; with only mismatches, the mismatch count (exact for the whole
+ * catalogue). Mismatches within a search or category cannot be counted before the preview (the comparison rows carry
+ * no category): at most the smaller of the two counts.
+ */
+export function selectionCount(f: SelectionInput): SelectionCount | undefined {
+  if (!f.onlyMismatches) return f.filterActiveCount === undefined ? undefined : { value: f.filterActiveCount, kind: 'exact' };
+  const m = f.mismatches;
+  if (!narrowed(f)) return m ? { value: m.count, kind: m.more ? 'moreThan' : 'exact' } : undefined;
+  const bounds = [f.filterActiveCount, m && !m.more ? m.count : undefined].filter((n): n is number => n !== undefined);
+  return bounds.length ? { value: Math.min(...bounds), kind: 'atMost' } : undefined;
+}
+
+/** "37", "at most 12", "more than 5,000". */
+export function selectionCountText(c: SelectionCount): string {
+  return c.kind === 'exact' ? count(c.value) : c.kind === 'atMost' ? `at most ${count(c.value)}` : `more than ${count(BULK_PRICE_LIMIT)}`;
+}
+
 /** Why this selection cannot be sent, before calling the API (the server checks the same limits). */
-export function selectionProblem(f: Pick<BulkForm, 'scope' | 'tickedIds' | 'filterActiveCount'>): string | undefined {
+export function selectionProblem(f: SelectionInput): string | undefined {
   if (f.scope === 'ticked') {
     const n = f.tickedIds.length;
     if (n === 0) return 'Tick at least one product in the list.';
@@ -70,11 +108,21 @@ export function selectionProblem(f: Pick<BulkForm, 'scope' | 'tickedIds' | 'filt
     }
     return undefined;
   }
-  const n = f.filterActiveCount;
-  if (n === 0) return 'No active products match the current search and category.';
-  if (n !== undefined && n > BULK_PRICE_LIMIT) {
-    return `The current search and category match ${count(n)} active products. One change can price at most ${count(BULK_PRICE_LIMIT)}; narrow the search or category.`;
+  const c = selectionCount(f);
+  if (!c) return undefined;
+  const limit = `One change can price at most ${count(BULK_PRICE_LIMIT)}; narrow the search or category.`;
+  if (!f.onlyMismatches) {
+    if (c.value === 0) return 'No active products match the current search and category.';
+    return c.value > BULK_PRICE_LIMIT ? `The current search and category match ${count(c.value)} active products. ${limit}` : undefined;
   }
+  const mp = f.marketplaceId ? MARKETPLACE_NAMES[f.marketplaceId] : 'this marketplace';
+  if (c.value === 0) {
+    return narrowed(f)
+      ? `No active product matching the current search and category has a price mismatch on ${mp}.`
+      : `No active product has a price mismatch on ${mp} (as of the last comparison).`;
+  }
+  if (c.kind === 'moreThan') return `More than ${count(BULK_PRICE_LIMIT)} active products have a price mismatch on ${mp}. ${limit}`;
+  if (c.kind === 'exact' && c.value > BULK_PRICE_LIMIT) return `${count(c.value)} active products have a price mismatch on ${mp}. ${limit}`;
   return undefined;
 }
 
@@ -106,6 +154,9 @@ export function buildBulkRequest(f: BulkForm): BuiltRequest {
     ...(f.filter.q?.trim() ? { q: f.filter.q.trim() } : {}),
     ...(f.filter.categoryId ? { categoryId: f.filter.categoryId } : {}),
     ...(f.filter.subcategoryId ? { subcategoryId: f.filter.subcategoryId } : {}),
+    // Listed on the operation's marketplace with the price flag of the stored comparison row there; the reference the
+    // count was made with, so the preview selects what was counted (omitted: the store's default).
+    ...(f.onlyMismatches ? { listed: true, reconStatus: 'price_mismatch' as const, ...(f.mismatches ? { reference: f.mismatches.reference } : {}) } : {}),
   };
   return {
     request: {

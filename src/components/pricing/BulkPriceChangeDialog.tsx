@@ -1,17 +1,18 @@
 import React, { useId, useReducer, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import {
-  BULK_ACTION_TYPES, BULK_ROUNDINGS, pricingApi,
+  BULK_ACTION_TYPES, BULK_PRICE_LIMIT, BULK_ROUNDINGS, pricingApi,
   type BulkActionType, type BulkApplyResult, type BulkPreview, type BulkPriceRequest, type BulkPriceRow, type BulkRounding, type PricingMarketplaceId,
 } from '../../api/pricing';
+import { reconApi, type ReconReference } from '../../api/recon';
 import { ConfirmDialog } from '../uploads/shared';
-import { expectRecompute, marketplaceName } from '../recon/shared';
+import { REFERENCE_LABELS, expectRecompute, marketplaceName } from '../recon/shared';
 import { FieldError, PriceSourceChip, inputCls, invalidatePriced, ruleText } from './shared';
 import { changeErrors, count, priceText, signedPrice } from './priceChange';
 import {
   BULK_ACTION_LABELS, BULK_ROUNDING_LABELS, BULK_START, actionText, bulkReducer, bulkValueKind, buildBulkRequest, newIdempotencyKey,
-  productsText, selectionProblem, type BulkForm,
+  productsText, selectionCount, selectionCountText, selectionProblem, type BulkForm, type MismatchCount, type SelectionCount,
 } from './bulkChange';
 import { namesText, usePricingMarketplaces } from './InlinePriceEditor';
 
@@ -48,13 +49,20 @@ export const BulkPriceChangeDialog: React.FC<{
   const [value, setValue] = useState('');
   const [rounding, setRounding] = useState<BulkRounding>('none');
   const [valueError, setValueError] = useState<string>();
+  // Part of the filter option: only products listed on the marketplace with a price mismatch there.
+  const [onlyMismatches, setOnlyMismatches] = useState(false);
+  const mismatchCount = useMismatchCount(marketplaceId, onlyMismatches);
 
+  const filterSelection = { scope: 'filter' as const, tickedIds, marketplaceId, filter, filterActiveCount, onlyMismatches, mismatches: mismatchCount.data };
+  const filterCount = selectionCount(filterSelection);
   const form: BulkForm | undefined = marketplaceId
-    ? { marketplaceId, scope, tickedIds, filter, filterActiveCount, action, value, rounding }
+    ? { ...filterSelection, scope, marketplaceId, action, value, rounding }
     : undefined;
-  const liveSelectionProblem = selectionProblem({ scope, tickedIds, filterActiveCount });
+  const liveSelectionProblem = selectionProblem(scope === 'filter' ? filterSelection : { scope, tickedIds });
   const kind = bulkValueKind(action);
   const mpName = marketplaceId ? marketplaceName(marketplaceId) : 'the marketplace';
+  const compared = mismatchCount.data ? `the ${REFERENCE_LABELS[mismatchCount.data.reference]}` : 'the price you compare against';
+  const filterCountLabel = filterCount ? selectionCountText(filterCount) : onlyMismatches && mismatchCount.isError ? 'not counted' : '…';
   const applying = state.phase === 'applying';
   const close = () => { if (!applying) onClose(); };
 
@@ -129,13 +137,34 @@ export const BulkPriceChangeDialog: React.FC<{
                     <input type="radio" name={`${uid}-scope`} value="filter" checked={scope === 'filter'} onChange={() => setScope('filter')} className="mt-1 accent-[#027864]" />
                     <span>
                       <span className="block font-semibold text-gray-900">
-                        {filterSummary ? 'Active products matching the current filter' : 'Every active product'} ({filterActiveCount === undefined ? '…' : count(filterActiveCount)})
+                        {filterSummary ? 'Active products matching the current filter' : 'Every active product'}
+                        {onlyMismatches ? ` with a price mismatch on ${mpName}` : ''} ({filterCountLabel})
                       </span>
                       <span className="block text-xs text-gray-500">{filterSummary ? `${filterSummary}. ` : ''}Only active products are priced; the status tab is not used.</span>
                     </span>
                   </label>
                 </div>
-                {liveSelectionProblem && <p role="alert" className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">{liveSelectionProblem}</p>}
+                <label className="mt-3 flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox" checked={onlyMismatches} disabled={!marketplaceId}
+                    onChange={e => { setOnlyMismatches(e.target.checked); if (e.target.checked) setScope('filter'); }}
+                    className="mt-1 accent-[#027864]"
+                  />
+                  <span>
+                    <span className="block font-semibold text-gray-900">Only products with a price mismatch on {mpName}</span>
+                    <span className="block text-xs text-gray-500">
+                      Listed on {mpName} at a price that differs from {compared}, as of the last comparison. Fixes every price mismatch in one change; works with the current search and category.
+                    </span>
+                  </span>
+                </label>
+                {onlyMismatches && (
+                  <p role="status" data-testid="mismatch-count" className="mt-1 ml-6 text-xs text-gray-700">
+                    {mismatchCount.isPending ? `Counting the price mismatches on ${mpName}…`
+                      : mismatchCount.isError ? 'We could not count the price mismatches; the preview shows the number.'
+                        : filterCount ? matchText(filterCount, mpName) : ''}
+                  </p>
+                )}
+                {liveSelectionProblem &&<p role="alert" className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">{liveSelectionProblem}</p>}
               </fieldset>
 
               <fieldset disabled={state.phase === 'previewing'} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -248,6 +277,42 @@ export const BulkPriceChangeDialog: React.FC<{
   );
 };
 
+/** Rows per page of GET /api/recon/rows (its maximum). */
+const RECON_ROWS_PAGE = 200;
+
+/**
+ * Active products with a price mismatch on the marketplace, from the stored comparison rows: the rows and flag the
+ * bulk filter's reconStatus price_mismatch reads (the store's default reference, named in the answer). Pages through
+ * GET /api/recon/rows?type=price and stops once above the bulk limit. Under ['recon', 'rows'], so a price change or a
+ * recompute invalidates it with the reports.
+ */
+function useMismatchCount(marketplaceId: PricingMarketplaceId | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ['recon', 'rows', 'bulk-mismatch-count', marketplaceId],
+    enabled: enabled && Boolean(marketplaceId),
+    retry: false,
+    queryFn: async ({ signal }): Promise<MismatchCount> => {
+      let cursor: string | undefined;
+      let active = 0;
+      let reference: ReconReference = 'marketplace';
+      do {
+        const page = await reconApi.rows({ marketplaceId: marketplaceId!, type: 'price', limit: RECON_ROWS_PAGE, cursor }, signal);
+        reference = page.reference;
+        active += page.items.filter(r => r.productStatus === 'active').length;
+        cursor = page.nextCursor ?? undefined;
+      } while (cursor && active <= BULK_PRICE_LIMIT);
+      return { count: active, more: Boolean(cursor), reference };
+    },
+  });
+}
+
+/** The count line under the mismatch checkbox. */
+function matchText(c: SelectionCount, marketplace: string): string {
+  if (c.kind === 'exact') return `${productsText(c.value)} ${c.value === 1 ? 'matches' : 'match'}: active, listed on ${marketplace}, with a price mismatch.`;
+  if (c.kind === 'moreThan') return `More than ${count(BULK_PRICE_LIMIT)} products match.`;
+  return `At most ${productsText(c.value)} match. Price mismatches cannot be counted within a search or category before the preview; the preview shows the exact number.`;
+}
+
 const ACTION_HINTS: Record<BulkActionType, (marketplace: string) => string> = {
   set_fixed: () => 'Every selected product gets this exact price.',
   increase_percent: m => `Starts from each product's current price on ${m}; the result is saved as a fixed price.`,
@@ -273,6 +338,11 @@ const PreviewResult: React.FC<{ preview: BulkPreview; faded?: boolean }> = ({ pr
       <p className="text-xs text-gray-600">
         Preview for <b>{name}</b>: {actionText(p.action, name)}. {productsText(p.selected)} selected. Nothing has been changed yet.
       </p>
+      {'filter' in p.selection && p.selection.filter.reconStatus === 'price_mismatch' && (
+        <p data-testid="preview-mismatch-only" className="text-xs text-gray-600">
+          Only products listed on {name} with a price mismatch against the {REFERENCE_LABELS[p.reference ?? 'marketplace']}, as of the last comparison.
+        </p>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Selected" value={p.selected} testId="bulk-selected" />
         <Stat label="Will change" value={p.willChange} testId="bulk-will-change" />

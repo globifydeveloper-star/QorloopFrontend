@@ -7,7 +7,7 @@ import { beforeEach, vi } from 'vitest';
  * The list names every flag in src/lib/features.ts (src/lib/__tests__/flags.test.ts fails if one is missing); any other
  * VITE_REAL_* variable present in the environment is switched off too.
  */
-export const REAL_FLAGS = ['VITE_REAL_UPLOADS', 'VITE_REAL_CATALOGUE', 'VITE_REAL_RECON', 'VITE_REAL_PRICING'] as const;
+export const REAL_FLAGS = ['VITE_REAL_UPLOADS', 'VITE_REAL_CATALOGUE', 'VITE_REAL_RECON', 'VITE_REAL_PRICING', 'VITE_REAL_FILES'] as const;
 
 const allFlags = () => [...new Set([...REAL_FLAGS, ...Object.keys(import.meta.env).filter(k => k.startsWith('VITE_REAL_'))])];
 const allOff = () => { for (const flag of allFlags()) vi.stubEnv(flag, ''); };

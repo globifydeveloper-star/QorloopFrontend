@@ -10,6 +10,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { MarketplaceBadge } from '../common/MarketplaceBadge';
 import { MarketplaceId } from '../../types';
 import { MARKETPLACE_IDS, REFERENCE_LABELS, checkProductPrices } from '../../lib/pricing';
+import { realFilesEnabled } from '../../lib/features';
+import { RealGenerateFilesView } from '../files/RealGenerateFilesView';
 
 // Stock mismatch counts come from the latest stock reconciliation (unchanged demo figures).
 const STOCK_MISMATCHES: Record<MarketplaceId, number> = {
@@ -19,7 +21,7 @@ const STOCK_MISMATCHES: Record<MarketplaceId, number> = {
   keeta: 0,
 };
 
-export const GenerateFilesView: React.FC = () => {
+const DemoGenerateFilesView: React.FC = () => {
   const {
     outputFiles,
     generateMarketplaceFiles,
@@ -488,3 +490,5 @@ export const GenerateFilesView: React.FC = () => {
     </div>
   );
 };
+
+export const GenerateFilesView: React.FC = () => (realFilesEnabled() ? <RealGenerateFilesView /> : <DemoGenerateFilesView />);

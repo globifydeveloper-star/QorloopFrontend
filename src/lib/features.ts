@@ -17,3 +17,6 @@ export const realReconEnabled = (): boolean => import.meta.env.VITE_REAL_RECON =
  * rule / offer on the real catalogue use /api/pricing and /api/products/:id/{price-rule,offer}. Default off.
  */
 export const realPricingEnabled = (): boolean => import.meta.env.VITE_REAL_PRICING === 'true';
+
+/** Generate marketplace files and the generated-files history use /api/generated-files. Default off. */
+export const realFilesEnabled = (): boolean => import.meta.env.VITE_REAL_FILES === 'true';

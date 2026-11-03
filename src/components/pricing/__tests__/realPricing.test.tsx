@@ -181,7 +181,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
     expect(errorOf(screen.getByLabelText('Percent (%)'))).toBe('Enter a value');
     expect(calls(is('PUT', '/api/pricing/settings'))).toHaveLength(0);
 
-    fireEvent.change(screen.getByLabelText('Percent (%)'), { target: { value: '2000' } });
+    fireEvent.change(screen.getByLabelText('Percent (%)'), { target: { value: '15' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save pricing' }));
     await waitFor(() => expect(errorOf(screen.getByLabelText('Percent (%)'))).toBe('Too big: expected number to be <=1000'));
     expect(screen.getByLabelText('Percent (%)').getAttribute('aria-invalid')).toBe('true');
@@ -196,7 +196,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
     };
     renderAt('/pricing', <MarkupsView />);
     const settingsAlert = (await screen.findByText('We could not load the pricing settings')).closest('[role="alert"]') as HTMLElement;
-    expect(settingsAlert.textContent).toContain('Database unavailable');
+    expect(settingsAlert.textContent).toContain('share the Request ID with support');
     await waitFor(() => expect(screen.getByRole('region', { name: 'Category rules' }).textContent).toContain('We could not load the category rules'));
     failing = false;
     fireEvent.click(within(settingsAlert).getByRole('button', { name: 'Try again' }));
@@ -240,7 +240,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
     expect(bodyOf(calls(is('PUT', '/api/pricing/category-rules'))[0])).toEqual({ mode: 'percent', value: 5, categoryId: 'cat_dairy', subcategoryId: 'sub_milk' });
 
     reply = fail(400, 'Validation failed', [{ path: 'value', message: 'Too small: expected number to be >=-90' }]);
-    fireEvent.change(form.getByLabelText('Percent (%)'), { target: { value: '-95' } });
+    fireEvent.change(form.getByLabelText('Percent (%)'), { target: { value: '-85' } });
     fireEvent.click(form.getByRole('button', { name: 'Add rule' }));
     await waitFor(() => expect(errorOf(form.getByLabelText('Percent (%)'))).toBe('Too small: expected number to be >=-90'));
 

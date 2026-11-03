@@ -7,7 +7,7 @@ import { qatarDateTime } from '../../lib/format';
 import { ErrorState, LoadingState } from '../common/States';
 import { PricingSettingsForm } from '../pricing/RealPricingView';
 import { PRICING_SETTINGS_KEY, FieldError, inputCls, invalidatePriced } from '../pricing/shared';
-import { marketplaceName } from '../recon/shared';
+import { expectRecompute, marketplaceName } from '../recon/shared';
 import { NoAccessPage } from '../auth/SystemPages';
 import { settingsChanges, settingsDraft } from './form';
 
@@ -30,6 +30,7 @@ const Settings: React.FC = () => {
       void qc.invalidateQueries({ queryKey: ['me'] });
       invalidatePriced(qc);
       const recompute = body.thresholds?.priceTolerance !== undefined || body.thresholds?.stockThreshold !== undefined || body.pricing !== undefined;
+      if (recompute) expectRecompute(qc);
       setNotice(recompute ? 'Settings saved. The comparison will recompute and refresh shortly.' : 'Settings saved.');
       return next;
     } catch (e) {

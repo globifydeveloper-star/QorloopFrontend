@@ -64,9 +64,10 @@ interface Options {
 
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   const method = opts.method ?? 'GET';
-  const qs = opts.query
-    ? '?' + new URLSearchParams(Object.entries(opts.query).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))
+  const queryString = opts.query
+    ? new URLSearchParams(Object.entries(opts.query).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
     : '';
+  const qs = queryString ? '?' + queryString : '';
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET') {

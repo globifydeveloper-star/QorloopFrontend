@@ -10,7 +10,10 @@ import { beforeEach, vi } from 'vitest';
 export const REAL_FLAGS = ['VITE_REAL_UPLOADS', 'VITE_REAL_CATALOGUE', 'VITE_REAL_RECON', 'VITE_REAL_PRICING', 'VITE_REAL_FILES', 'VITE_REAL_SETTINGS'] as const;
 
 const allFlags = () => [...new Set([...REAL_FLAGS, ...Object.keys(import.meta.env).filter(k => k.startsWith('VITE_REAL_'))])];
-const allOff = () => { for (const flag of allFlags()) vi.stubEnv(flag, ''); };
+const allOff = () => {
+  for (const flag of allFlags()) vi.stubEnv(flag, '');
+  vi.stubEnv('VITE_API_BASE_URL', '');
+};
 
 // Before the test file's own imports run: some modules read a flag at load time (CONNECTED_VIEWS in src/routes/paths.ts).
 allOff();

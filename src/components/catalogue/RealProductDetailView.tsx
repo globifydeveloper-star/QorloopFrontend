@@ -9,7 +9,7 @@ import { productsApi, type ProductDetail, type UpdateProductRequest } from '../.
 import { MARKETPLACE_NAMES } from '../../lib/pricing';
 import { matchView, pathFor } from '../../routes/paths';
 import { ErrorState, LoadingState } from '../common/States';
-import { realPricingEnabled } from '../../lib/features';
+import { realPricingEnabled, realSettingsEnabled } from '../../lib/features';
 import { ProductPricingPanel } from '../pricing/ProductPricingPanel';
 import { ProductHistory } from '../activity/ActivityView';
 import { qatarDateTime } from '../../lib/format';
@@ -66,6 +66,7 @@ export const RealProductDetailView: React.FC = () => {
           <ErpData product={p} />
           {!pricing && <NotAvailableYet title="Marketplace price rules" hint="Price rules for this product are not connected to the server yet." />}
           <NotAvailableYet title="Price discrepancies" hint="Discrepancy checks for this product are not connected to the server yet." />
+          {!realSettingsEnabled() && <NotAvailableYet title="Change history" hint="The change history is not connected to the server yet." />}
         </div>
       </div>
     </div>

@@ -9,6 +9,8 @@ const onlyFlags = (on: Partial<Record<(typeof REAL_FLAGS)[number], string>>) => 
 
 describe('real URLs for every screen', () => {
   it('round-trips static and parameterised paths', () => {
+    expect(matchView(pathFor('activity'))).toEqual({ view: 'activity' });
+    expect(VIEW_PERMISSION.activity).toBe('activity.view');
     expect(matchView(pathFor('dashboard'))).toEqual({ view: 'dashboard' });
     expect(matchView(pathFor('team'))).toEqual({ view: 'team' });
     expect(matchView(pathFor('product-detail', 'a b/1'))).toEqual({ view: 'product-detail', id: 'a b/1' });
@@ -53,5 +55,10 @@ describe('real URLs for every screen', () => {
     try {
       expect([...(await import('../paths')).CONNECTED_VIEWS]).toEqual(['team', 'outputs-generate']);
     } finally { vi.unstubAllEnvs(); vi.resetModules(); }
+  });
+  it('VITE_REAL_SETTINGS marks Settings and Activity connected', async () => {
+    onlyFlags({ VITE_REAL_SETTINGS: 'true' }); vi.resetModules();
+    try { expect([...(await import('../paths')).CONNECTED_VIEWS]).toEqual(['team', 'settings', 'activity']); }
+    finally { vi.unstubAllEnvs(); vi.resetModules(); }
   });
 });

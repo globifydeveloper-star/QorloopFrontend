@@ -98,7 +98,7 @@ export interface RuleDraft { mode: RuleMode; value: string }
 export const draftOf = (r: PriceRule | { mode: RuleMode; value?: number } | null | undefined): RuleDraft =>
   r ? { mode: r.mode, value: 'value' in r && typeof r.value === 'number' ? String(r.value) : '' } : { mode: 'same', value: '' };
 
-/** The rule to send; undefined with a message when the value is missing or not a number (the server checks the range). */
+/** Mirrors the API range and DECIMAL(12,3) validation; same never includes a value property. */
 export function ruleFromDraft(d: RuleDraft): { rule?: PriceRule; error?: string } {
   if (d.mode === 'same') return { rule: { mode: 'same' } };
   const text = d.value.trim();

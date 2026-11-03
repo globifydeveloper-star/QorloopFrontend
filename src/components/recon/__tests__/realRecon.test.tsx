@@ -211,7 +211,7 @@ describe('dashboard (DASH-001)', () => {
     renderAt('/', <DashboardView />);
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('We could not load the comparison');
-    expect(alert.textContent).toContain('Database unavailable');
+    expect(alert.textContent).toContain('share the Request ID with support');
     failing = false;
     fireEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('region', { name: 'Talabat' })).toBeTruthy();

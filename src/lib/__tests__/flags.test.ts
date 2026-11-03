@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { REAL_FLAGS } from '../../../vitest.setup';
-import { realCatalogueEnabled, realFilesEnabled, realPricingEnabled, realReconEnabled, realUploadsEnabled } from '../features';
+import { realCatalogueEnabled, realFilesEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled, realUploadsEnabled } from '../features';
 
 describe('feature flags in tests', () => {
   it('the global setup switches off every VITE_REAL_* flag that src/lib/features.ts reads', () => {
@@ -12,8 +12,9 @@ describe('feature flags in tests', () => {
   });
 
   it('every flag is off by default, whatever .env.local says, and a test can turn one on', () => {
+    expect(import.meta.env.VITE_API_BASE_URL).toBe('');
     for (const flag of REAL_FLAGS) expect(import.meta.env[flag]).toBe('');
-    expect([realUploadsEnabled(), realCatalogueEnabled(), realReconEnabled(), realPricingEnabled(), realFilesEnabled()]).toEqual([false, false, false, false, false]);
+    expect([realUploadsEnabled(), realCatalogueEnabled(), realReconEnabled(), realPricingEnabled(), realFilesEnabled(), realSettingsEnabled()]).toEqual([false, false, false, false, false, false]);
     vi.stubEnv('VITE_REAL_PRICING', 'true');
     expect(realPricingEnabled()).toBe(true);
   });

@@ -52,11 +52,9 @@ export const ErrorState: React.FC<{ error: unknown; onRetry?: () => void; title?
       <div className="text-sm font-semibold text-gray-900">{title ?? friendly.title}</div>
       <div className="text-xs text-gray-500 max-w-sm">{friendly.message}</div>
       {api?.requestId && <RequestId id={api.requestId} />}
-      {(
-        <button type="button" onClick={onRetry ?? (() => window.location.reload())} className="mt-1 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold border border-gray-300 bg-white hover:bg-gray-50">
-          <RefreshCw className="w-3.5 h-3.5" /> Try again
-        </button>
-      )}
+      <button type="button" onClick={onRetry ?? (() => window.location.reload())} className="mt-1 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-xs font-semibold border border-gray-300 bg-white hover:bg-gray-50">
+        <RefreshCw className="w-3.5 h-3.5" /> Try again
+      </button>
     </div>
   );
 };

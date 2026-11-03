@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Pencil, Plus, Trash2, Wand2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
+import { ApiError } from '../../api/client';
 import {
   ROUNDING_OPTIONS, pricingApi,
   type CategoryRule, type CompareReferenceDefault, type PricingSettings, type RoundingOption, type UpdatePricingSettings,
@@ -95,6 +96,7 @@ export const PricingSettingsForm: React.FC<{
   });
   const errors = fieldErrors(save.error, ['value', 'mode'], 'defaultRule.');
   const other = fieldErrors(save.error, ['rounding', 'perMarketplaceEnabled', 'compareReferenceDefault']);
+  const screenError = save.error instanceof ApiError && (save.error.status === 0 || save.error.status >= 500 || save.error.status === 403 || save.error.status === 404);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +112,7 @@ export const PricingSettingsForm: React.FC<{
 
   return (
     <form aria-label="Pricing settings" onSubmit={submit} className="space-y-6">
-      {errors.general && !Object.keys(other.fields).length && <p role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">{errors.general}</p>}
+      {screenError ? <ErrorState error={save.error} onRetry={() => save.reset()} /> : errors.general && !Object.keys(other.fields).length && <p role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">{errors.general}</p>}
 
       <section aria-label="Default marketplace price" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div>

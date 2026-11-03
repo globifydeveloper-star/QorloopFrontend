@@ -11,12 +11,14 @@ import {
   HelpCircle,
   LogOut,
   Users,
+  History,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ViewType } from '../../types';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLE_LABELS } from '../../api/types';
 import { VIEW_PERMISSION } from '../../routes/paths';
+import { realSettingsEnabled } from '../../lib/features';
 import logo from '../../assets/qorloop-logo.png';
 
 type NavItem = { label: string; view: ViewType; icon: React.ElementType; count?: number; countTone?: 'brand' | 'muted' };
@@ -156,6 +158,7 @@ export const Sidebar: React.FC = () => {
       {/* Bottom */}
       <div className="pt-3 mt-6 border-t border-[#8CFFE7]/10 space-y-0.5">
         {allowed('team') && <NavButton item={{ label: 'Team', view: 'team', icon: Users }} />}
+        {realSettingsEnabled() && allowed('activity') && <NavButton item={{ label: 'Activity', view: 'activity', icon: History }} />}
         {allowed('settings') && <NavButton item={{ label: 'Settings', view: 'settings', icon: Settings }} />}
         <NavButton item={{ label: 'Help & onboarding', view: 'onboarding', icon: HelpCircle }} />
 

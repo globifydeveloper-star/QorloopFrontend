@@ -26,6 +26,7 @@ const PATHS: Record<ViewType, string> = {
   'outputs-generate': '/files',
   onboarding: '/onboarding',
   settings: '/settings',
+  activity: '/activity',
   team: '/settings/team',
 };
 
@@ -41,6 +42,7 @@ const STATIC: [string, ViewType][] = [
   ['/catalogue', 'catalogue'], ['/catalogue/new', 'new-products'], ['/categories', 'categories'],
   ['/pricing', 'markups'], ['/settings/category-mapping', 'category-mapping'], ['/settings/file-mappings', 'templates'],
   ['/files', 'outputs-generate'], ['/onboarding', 'onboarding'], ['/settings', 'settings'], ['/settings/team', 'team'],
+  ['/activity', 'activity'],
 ];
 
 export function matchView(pathname: string): { view: ViewType; id?: string } | null {
@@ -65,7 +67,7 @@ export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   ...(realReconEnabled() ? (['dashboard', 'reports', 'reports-stock', 'reports-price-discrepancies'] as const) : []),
   ...(realPricingEnabled() ? (['markups'] as const) : []),
   ...(realFilesEnabled() ? (['outputs-generate'] as const) : []),
-  ...(realSettingsEnabled() ? (['settings'] as const) : []),
+  ...(realSettingsEnabled() ? (['settings', 'activity'] as const) : []),
 ]);
 
 /** UI hint only (the server decides): permission a role needs to see each screen in the navigation. */
@@ -76,4 +78,5 @@ export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {
   categories: 'products.view', 'category-detail': 'products.view',
   markups: 'pricing.view', 'category-mapping': 'categories.manage', templates: 'uploads.view',
   'outputs-generate': 'files.view', settings: 'settings.view', team: 'team.view',
+  activity: 'activity.view',
 };

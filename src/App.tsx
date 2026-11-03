@@ -11,6 +11,7 @@ import { MfaSetupPage, MfaVerifyPage } from './components/auth/MfaPages';
 import { NoAccessPage, NotFoundPage, SessionExpiredPage } from './components/auth/SystemPages';
 import { ErrorState, LoadingState } from './components/common/States';
 import { TeamView } from './components/views/TeamView';
+import { ActivityView } from './components/activity/ActivityView';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { UploadModal } from './components/modals/UploadModal';
@@ -99,6 +100,8 @@ const MainContent: React.FC = () => {
         return <TemplatesView />;
       case 'settings':
         return <SettingsView />;
+      case 'activity':
+        return <ActivityView />;
       case 'team':
         return <TeamView />;
       default:

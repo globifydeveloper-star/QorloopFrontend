@@ -15,6 +15,8 @@ export function invalidatePriced(qc: QueryClient) {
   void qc.invalidateQueries({ queryKey: ['products'] });
   void qc.invalidateQueries({ queryKey: ['recon', 'summary'] });
   void qc.invalidateQueries({ queryKey: ['recon', 'rows'] });
+  void qc.invalidateQueries({ queryKey: ['activity'] });
+  void qc.invalidateQueries({ queryKey: ['product-history'] });
 }
 
 type IconType = React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;

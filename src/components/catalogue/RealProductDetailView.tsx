@@ -11,6 +11,8 @@ import { matchView, pathFor } from '../../routes/paths';
 import { ErrorState, LoadingState } from '../common/States';
 import { realPricingEnabled } from '../../lib/features';
 import { ProductPricingPanel } from '../pricing/ProductPricingPanel';
+import { ProductHistory } from '../activity/ActivityView';
+import { qatarDateTime } from '../../lib/format';
 import {
   CATEGORIES_KEY, CONFLICT_TEXT, CategoryOptions, FieldError, NotAvailableYet, ProductStatusPill, isConflict, productErrors,
   productKey, qar, storeProduct, useCategoryTree,
@@ -58,12 +60,12 @@ export const RealProductDetailView: React.FC = () => {
             <ProductPricingPanel product={{ ...p, marketplacePrice: p.marketplacePrice, pricing: p.pricing }} onReload={async () => (await q.refetch()).data} />
           )}
           <Listings product={p} />
+          <ProductHistory productId={p.id} />
         </div>
         <div className="space-y-6">
           <ErpData product={p} />
           {!pricing && <NotAvailableYet title="Marketplace price rules" hint="Price rules for this product are not connected to the server yet." />}
           <NotAvailableYet title="Price discrepancies" hint="Discrepancy checks for this product are not connected to the server yet." />
-          <NotAvailableYet title="Change history" hint="The change history is not connected to the server yet." />
         </div>
       </div>
     </div>
@@ -97,6 +99,8 @@ const EditForm: React.FC<{ product: ProductDetail; onReload: () => void; reloadi
       storeProduct(qc, updated);
       void qc.invalidateQueries({ queryKey: ['products', 'list'] });
       void qc.invalidateQueries({ queryKey: CATEGORIES_KEY });
+      void qc.invalidateQueries({ queryKey: ['product-history', p.id] });
+      void qc.invalidateQueries({ queryKey: ['activity'] });
       showToast('Product saved', 'success');
     },
   });
@@ -231,7 +235,7 @@ const ErpData: React.FC<{ product: ProductDetail }> = ({ product: p }) => (
       <Row label="ERP stock"><span className="font-mono">{p.erpStock}</span></Row>
       <Row label="Active in ERP"><YesNo value={p.erpActive} /></Row>
       <Row label="In latest ERP file"><YesNo value={p.inLatestErpFile} /></Row>
-      <Row label="Updated">{new Date(p.updatedAt).toLocaleString()}</Row>
+      <Row label="Updated">{qatarDateTime(p.updatedAt)} (Qatar time)</Row>
     </dl>
   </section>
 );
@@ -262,7 +266,7 @@ const Listings: React.FC<{ product: ProductDetail }> = ({ product: p }) => (
               <td className="px-5 py-2.5 font-mono text-[11px]">{l.marketplaceProductId ?? '—'}</td>
               <td className="px-5 py-2.5 text-right font-mono">{qar(l.price)}</td>
               <td className="px-5 py-2.5"><YesNo value={l.available} yes="Available" no="Unavailable" /></td>
-              <td className="px-5 py-2.5 text-gray-500">{new Date(l.updatedAt).toLocaleString()}</td>
+              <td className="px-5 py-2.5 text-gray-500">{qatarDateTime(l.updatedAt)} (Qatar time)</td>
             </tr>
           ))}
         </tbody>

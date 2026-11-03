@@ -17,6 +17,7 @@ export type ViewType =
   | 'outputs-generate'
   | 'onboarding'
   | 'settings'
+  | 'activity'
   | 'column-mapping'
   | 'new-products'
   | 'team';

@@ -24,6 +24,7 @@ const VIEW_TITLES: Partial<Record<ViewType, [string, string]>> = {
   templates: ['Outputs', 'Templates'],
   'outputs-generate': ['Outputs', 'Generated files'],
   settings: ['Workspace', 'Settings'],
+  activity: ['Workspace', 'Activity'],
   team: ['Settings', 'Team'],
 };
 

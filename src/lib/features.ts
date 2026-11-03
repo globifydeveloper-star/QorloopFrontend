@@ -23,3 +23,6 @@ export const realFilesEnabled = (): boolean => import.meta.env.VITE_REAL_FILES =
 
 /** Store settings, activity log and real product history. Default off. */
 export const realSettingsEnabled = (): boolean => import.meta.env.VITE_REAL_SETTINGS === 'true';
+
+/** Derived Owner/Admin get-started checklist from /api/onboarding. Default off. */
+export const realOnboardingEnabled = (): boolean => import.meta.env.VITE_REAL_ONBOARDING === 'true';

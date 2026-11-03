@@ -265,6 +265,7 @@ export const RealCatalogueView: React.FC = () => {
           filter={bulkFilter}
           // The list's own count for this search and category: exactly the active products a filter selection takes.
           filterActiveCount={list.isPlaceholderData ? undefined : counts?.active}
+          filterCountPending={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage)}
           filterSummary={filterSummary}
           onClose={() => setBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}

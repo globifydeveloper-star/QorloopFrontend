@@ -92,20 +92,22 @@ const Activity: React.FC = () => {
 
 export const ProductHistory: React.FC<{ productId: string }> = ({ productId }) => {
   const { can } = useAuth();
-  return can('activity.view') && can('products.view') && realSettingsEnabled() ? <History productId={productId} /> : null;
+  return can('activity.view') && can('products.view') && realSettingsEnabled() ? <History key={productId} productId={productId} /> : null;
 };
 const History: React.FC<{ productId: string }> = ({ productId }) => {
+  const [showStoreWide, setShowStoreWide] = useState(false);
   const q = useInfiniteQuery({
     queryKey: ['product-history', productId], initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) => activityApi.history(productId, { cursor: pageParam }, signal),
     getNextPageParam: page => page.nextCursor ?? undefined, retry: false,
   });
-  const items = q.data?.pages.flatMap(p => p.items) ?? [];
+  const items = (q.data?.pages.flatMap(p => p.items) ?? []).filter(item => showStoreWide || item.scope !== 'tenant');
   return <section aria-label="History" className="bg-white border rounded-2xl p-5 space-y-3">
     <h2 className="font-bold">History</h2>
     {q.data && <p role="note" className="text-xs text-gray-600">{q.data.pages[0].coverageNotice}</p>}
+    <label className="flex items-center gap-2 text-xs text-gray-700"><input type="checkbox" checked={showStoreWide} onChange={e => setShowStoreWide(e.target.checked)} />Show store-wide upload entries</label>
     {q.isPending ? <LoadingState label="Loading history…" rows={3} /> : <>
-      {items.length ? <ActivityRows items={items} history /> : !q.isError && <EmptyState title="No recorded history for this product" />}
+      {items.length ? <ActivityRows items={items} history /> : !q.isError && <EmptyState title="No changes recorded for this product yet" />}
       {q.isError && <ErrorState error={q.error} onRetry={() => void (q.isFetchNextPageError ? q.fetchNextPage() : q.refetch())} />}
       {q.hasNextPage && <button disabled={q.isFetching} onClick={() => void q.fetchNextPage()} className="border rounded-lg px-4 py-2 text-sm">{q.isFetchingNextPage ? 'Loading…' : 'Load more'}</button>}
     </>}

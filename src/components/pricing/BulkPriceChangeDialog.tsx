@@ -30,12 +30,14 @@ export const BulkPriceChangeDialog: React.FC<{
   filter: BulkForm['filter'];
   /** Active products matching the filter, from the product list's counts; undefined while not known. */
   filterActiveCount?: number;
+  /** Cached counts can be stale while the catalogue's first page is loading/refetching. */
+  filterCountPending?: boolean;
   /** "Search "milk" · Dairy › Milk", or '' for no filter. */
   filterSummary: string;
   onClose: () => void;
   /** After a successful apply (the ticks can be cleared). */
   onApplied: () => void;
-}> = ({ tickedIds, filter, filterActiveCount, filterSummary, onClose, onApplied }) => {
+}> = ({ tickedIds, filter, filterActiveCount, filterCountPending = false, filterSummary, onClose, onApplied }) => {
   const uid = useId();
   const qc = useQueryClient();
   const markets = usePricingMarketplaces();
@@ -53,16 +55,16 @@ export const BulkPriceChangeDialog: React.FC<{
   const [onlyMismatches, setOnlyMismatches] = useState(false);
   const mismatchCount = useMismatchCount(marketplaceId, onlyMismatches);
 
-  const filterSelection = { scope: 'filter' as const, tickedIds, marketplaceId, filter, filterActiveCount, onlyMismatches, mismatches: mismatchCount.data };
-  const filterCount = selectionCount(filterSelection);
+  const filterSelection = { scope: 'filter' as const, tickedIds, marketplaceId, filter, filterActiveCount: filterCountPending ? undefined : filterActiveCount, onlyMismatches, mismatches: mismatchCount.data };
+  const filterCount = filterCountPending ? undefined : selectionCount(filterSelection);
   const form: BulkForm | undefined = marketplaceId
     ? { ...filterSelection, scope, marketplaceId, action, value, rounding }
     : undefined;
-  const liveSelectionProblem = selectionProblem(scope === 'filter' ? filterSelection : { scope, tickedIds });
+  const liveSelectionProblem = scope === 'filter' && filterCountPending ? undefined : selectionProblem(scope === 'filter' ? filterSelection : { scope, tickedIds });
   const kind = bulkValueKind(action);
   const mpName = marketplaceId ? marketplaceName(marketplaceId) : 'the marketplace';
   const compared = mismatchCount.data ? `the ${REFERENCE_LABELS[mismatchCount.data.reference]}` : 'the price you compare against';
-  const filterCountLabel = filterCount ? selectionCountText(filterCount) : onlyMismatches && mismatchCount.isError ? 'not counted' : '…';
+  const filterCountLabel = filterCount ? selectionCountText(filterCount) : !filterCountPending && onlyMismatches && mismatchCount.isError ? 'not counted' : 'Counting...';
   const applying = state.phase === 'applying';
   const close = () => { if (!applying) onClose(); };
 
@@ -159,7 +161,7 @@ export const BulkPriceChangeDialog: React.FC<{
                 </label>
                 {onlyMismatches && (
                   <p role="status" data-testid="mismatch-count" className="mt-1 ml-6 text-xs text-gray-700">
-                    {mismatchCount.isPending ? `Counting the price mismatches on ${mpName}…`
+                    {filterCountPending ? 'Counting...' : mismatchCount.isPending ? `Counting the price mismatches on ${mpName}…`
                       : mismatchCount.isError ? 'We could not count the price mismatches; the preview shows the number.'
                         : filterCount ? matchText(filterCount, mpName) : ''}
                   </p>

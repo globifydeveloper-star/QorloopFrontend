@@ -33,6 +33,10 @@ describe('Activity filters and cursor pages', () => {
   it('shows loading, empty results and filters in Qatar time', async () => {
     mount(); expect(screen.getByRole('status', { name: 'Loading activity…' })).toBeTruthy();
     expect(await screen.findByText('No activity matches these filters')).toBeTruthy();
+    expect((screen.getByLabelText('From (Qatar time)') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('To (Qatar time)') as HTMLInputElement).value).toBe('');
+    expect(urls()[0].searchParams.has('from')).toBe(false);
+    expect(urls()[0].searchParams.has('to')).toBe(false);
     fireEvent.change(screen.getByLabelText('Event type group'), { target: { value: 'price' } });
     fireEvent.change(screen.getByLabelText('Actor'), { target: { value: 'system' } });
     fireEvent.change(screen.getByLabelText('Product ID'), { target: { value: PRODUCT } });
@@ -70,6 +74,21 @@ describe('Activity filters and cursor pages', () => {
     fireEvent.change(screen.getByLabelText('Product ID'), { target: { value: '' } }); fireEvent.change(screen.getByLabelText('From (Qatar time)'), { target: { value: '2026-11-03T09:00' } }); fireEvent.change(screen.getByLabelText('To (Qatar time)'), { target: { value: '2026-11-02T09:00' } }); fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
     expect(screen.getByText(/end date must be on or after/)).toBeTruthy(); expect(urls()).toHaveLength(1);
   });
+  it('clears every applied filter, including actor/event type, dates, product and validation errors', async () => {
+    mount(); await screen.findByText('No activity matches these filters');
+    for (const [label, value] of [['Actor', ACTOR], ['Event type group', 'price'], ['Product ID', PRODUCT], ['From (Qatar time)', '2026-11-01T09:00'], ['To (Qatar time)', '2026-11-03T10:00']])
+      fireEvent.change(screen.getByLabelText(label), { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+    await waitFor(() => expect(urls().at(-1)!.searchParams.get('actorId')).toBe(ACTOR));
+    fireEvent.change(screen.getByLabelText('Actor'), { target: { value: 'invalid actor' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+    expect(screen.getByText(/Choose an actor/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    for (const label of ['Actor', 'Event type group', 'Product ID', 'From (Qatar time)', 'To (Qatar time)'])
+      expect((screen.getByLabelText(label) as HTMLInputElement | HTMLSelectElement).value).toBe('');
+    expect(screen.queryByText(/Choose an actor/)).toBeNull();
+    await waitFor(() => expect(urls().at(-1)!.search).toBe(''));
+  });
   it('loads team actor suggestions only with team.view', async () => {
     perms.add('team.view');
     handler = u => u.pathname === '/api/team/members' ? ok([{ id: 'member', user: { id: ACTOR, name: 'Sara', email: 'sara@example.test' } }]) : ok({ items: [], nextCursor: null });
@@ -90,15 +109,39 @@ describe('Product History safe rendering', () => {
     ], nextCursor: null, coverageNotice: NOTICE });
     mount(<ProductHistory productId={PRODUCT} />);
     expect(screen.getByRole('status', { name: 'Loading history…' })).toBeTruthy();
-    expect(await screen.findByText(NOTICE)).toBeTruthy(); expect(screen.getByText('System')).toBeTruthy(); expect(screen.getByText('Former team member')).toBeTruthy();
+    expect(await screen.findByText(NOTICE)).toBeTruthy();
+    const toggle = screen.getByRole('checkbox', { name: 'Show store-wide upload entries' }) as HTMLInputElement;
+    expect(toggle.checked).toBe(false); expect(screen.queryByText('Marketplace upload applied')).toBeNull();
+    expect(screen.getByText('Price change rule')).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(screen.getByText('System')).toBeTruthy(); expect(screen.getByText('Former team member')).toBeTruthy();
     expect(screen.getByText(/Store-wide context/)).toBeTruthy(); expect(screen.getAllByText('Before and after')).toHaveLength(1);
     fireEvent.click(screen.getByText('Before and after')); expect(screen.getByText('Not recorded')).toBeTruthy(); expect(screen.getByText('Fixed 12.50 QAR')).toBeTruthy();
     expect(screen.queryByText('DO_NOT_RENDER')).toBeNull(); expect(document.body.textContent).not.toContain('"mode"');
     expect(fetchMock.mock.calls[0][0]).toBe(`/api/products/${PRODUCT}/history`);
+    fireEvent.click(toggle);
+    expect(screen.queryByText('Marketplace upload applied')).toBeNull(); expect(screen.getByText(NOTICE)).toBeTruthy();
+    expect(screen.getByText('Price change rule')).toBeTruthy();
   });
   it('shows the exact coverage notice even for an empty history', async () => {
     handler = () => ok({ items: [], nextCursor: null, coverageNotice: NOTICE }); mount(<ProductHistory productId={PRODUCT} />);
-    expect(await screen.findByText('No recorded history for this product')).toBeTruthy(); expect(screen.getByText(NOTICE)).toBeTruthy();
+    expect(await screen.findByText('No changes recorded for this product yet')).toBeTruthy(); expect(screen.getByText(NOTICE)).toBeTruthy();
+  });
+  it('shows the product empty state for upload-only results, with notice and an opt-in toggle', async () => {
+    handler = () => ok({ items: [event('upload', { scope: 'tenant', productId: null, summary: 'Marketplace upload applied' })], nextCursor: null, coverageNotice: NOTICE });
+    mount(<ProductHistory productId={PRODUCT} />);
+    expect(await screen.findByText('No changes recorded for this product yet')).toBeTruthy(); expect(screen.getByText(NOTICE)).toBeTruthy();
+    expect(screen.queryByText('Marketplace upload applied')).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Show store-wide upload entries' }));
+    expect(screen.getByText('Marketplace upload applied')).toBeTruthy(); expect(screen.queryByText('No changes recorded for this product yet')).toBeNull();
+    expect(screen.getByText(/Store-wide context/)).toBeTruthy(); expect(screen.getByText(NOTICE)).toBeTruthy();
+  });
+  it('keeps Load more available when the current page contains only hidden uploads', async () => {
+    handler = u => ok({ items: [u.searchParams.has('cursor') ? event('product-change') : event('upload', { scope: 'tenant', productId: null })], nextCursor: u.searchParams.has('cursor') ? null : 'next', coverageNotice: NOTICE });
+    mount(<ProductHistory productId={PRODUCT} />);
+    await screen.findByText('No changes recorded for this product yet');
+    fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+    expect(await screen.findByText('Price change product-change')).toBeTruthy(); expect(screen.queryByText('Price change upload')).toBeNull(); expect(screen.getByText(NOTICE)).toBeTruthy();
   });
   it.each(['activity.view', 'products.view'])('requires %s for history', permission => { perms.delete(permission); mount(<ProductHistory productId={PRODUCT} />); expect(screen.queryByRole('region', { name: 'History' })).toBeNull(); expect(fetchMock).not.toHaveBeenCalled(); });
   it('keeps existing history when loading another page fails, with a request ID and retry', async () => {

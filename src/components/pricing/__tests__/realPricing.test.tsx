@@ -196,7 +196,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
     };
     renderAt('/pricing', <MarkupsView />);
     const settingsAlert = (await screen.findByText('We could not load the pricing settings')).closest('[role="alert"]') as HTMLElement;
-    expect(settingsAlert.textContent).toContain('share the Request ID with support');
+    expect(settingsAlert.textContent).toContain('contact support');
     await waitFor(() => expect(screen.getByRole('region', { name: 'Category rules' }).textContent).toContain('We could not load the category rules'));
     failing = false;
     fireEvent.click(within(settingsAlert).getByRole('button', { name: 'Try again' }));

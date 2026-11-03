@@ -17,6 +17,17 @@ const mount = (ui = <OfflineBanner />) => { const qc = new QueryClient({ default
 const ReadQuery = () => { const q = useQuery({ queryKey: ['safe-read'], queryFn: () => api<{ message: string }>('/api/read'), retry: false }); return <div>{q.data?.message}</div>; };
 
 describe('friendly errors with Request IDs', () => {
+  it('shows the exact connection message without Request ID advice or Copy when no response was received', () => {
+    const retry = vi.fn(); render(<ErrorState error={new ApiError(0, 'NETWORK', 'Failed to fetch')} onRetry={retry} />);
+    expect(screen.getByText("Qorloop can't reach the server. Check your connection and try again")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Request ID/i); expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' })); expect(retry).toHaveBeenCalledTimes(1);
+  });
+  it('does not mention a Request ID when an HTTP server error omitted it', () => {
+    render(<ErrorState error={new ApiError(500, 'INTERNAL_ERROR', 'Internal server error')} />);
+    expect(screen.getByText('Qorloop could not complete this request')).toBeTruthy(); expect(document.body.textContent).not.toMatch(/Request ID/i);
+    expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull(); expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  });
   it.each([[500, 'INTERNAL_ERROR', 'Qorloop could not complete this request'], [403, 'FORBIDDEN', 'You do not have permission'], [404, 'NOT_FOUND', 'We could not find this page'], [0, 'NETWORK', 'We could not reach Qorloop']] as const)('shows a plain %s screen, retry and copy', async (status, code, title) => {
     const retry = vi.fn(); const copy = vi.fn(async () => undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
     render(<ErrorState error={new ApiError(status, code, 'Internal technical message', [], 'request-123')} onRetry={retry} />);

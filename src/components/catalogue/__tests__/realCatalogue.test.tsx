@@ -158,7 +158,7 @@ describe('catalogue (CAT-001)', () => {
     };
     renderAt('/catalogue', <CatalogueView />);
     expect(await screen.findByText('We could not load the catalogue')).toBeTruthy();
-    expect(screen.getByText(/share the Request ID with support/)).toBeTruthy();
+    expect(screen.getByText(/contact support/)).toBeTruthy();
     failing = false;
     fireEvent.click(screen.getByRole('button', { name: /Try again/ }));
     expect(await screen.findByText('No products yet')).toBeTruthy();

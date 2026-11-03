@@ -35,11 +35,11 @@ export const RequestId: React.FC<{ id: string }> = ({ id }) => {
 
 export function friendlyError(error: unknown): { title: string; message: string } {
   if (!(error instanceof ApiError)) return { title: 'Something went wrong', message: 'Please try again.' };
-  if (error.status === 0) return { title: 'We could not reach Qorloop', message: 'Check your connection. We will retry when it is back.' };
+  if (error.status === 0) return { title: 'We could not reach Qorloop', message: "Qorloop can't reach the server. Check your connection and try again" };
   if (error.code === 'CSRF_REQUIRED') return { title: 'Please try saving again', message: 'We are refreshing your sign-in status. Review your changes and try again. If this continues, sign in again.' };
   if (error.status === 403) return { title: 'You do not have permission', message: 'Ask your store Owner or an Admin if you need access.' };
   if (error.status === 404) return { title: 'We could not find this page', message: 'It may have moved or may no longer be available.' };
-  if (error.status >= 500) return { title: 'Qorloop could not complete this request', message: 'Please try again. If this continues, share the Request ID with support.' };
+  if (error.status >= 500) return { title: 'Qorloop could not complete this request', message: error.requestId ? 'Please try again. If this continues, share the Request ID with support.' : 'Please try again. If this continues, contact support.' };
   return { title: 'Something went wrong', message: error.message };
 }
 

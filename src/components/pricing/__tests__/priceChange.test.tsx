@@ -611,6 +611,28 @@ const mismatchRows: Handler = (u, i) => {
 const mismatchBox = (dialog: ReturnType<typeof within>, mp = 'Talabat') => dialog.getByRole('checkbox', { name: new RegExp(`Only products with a price mismatch on ${mp}`) });
 
 describe('bulk price change: only price mismatches', () => {
+  it.each([0, 4])('shows Counting... while a catalogue filter loads, then the confirmed bound for %s products', async active => {
+    let release!: (response: Response) => void;
+    handler = bulkBackend((u, i) => {
+      if (isList(u, method(i))) return params(u).q === 'milk' ? new Promise<Response>(resolve => { release = resolve; }) : list([], { active: 0 });
+      return mismatchRows(u, i);
+    });
+    renderAt('/catalogue', <CatalogueView />);
+    await screen.findByText('No products yet');
+    fireEvent.change(screen.getByPlaceholderText('Search by English name, barcode or SKU'), { target: { value: 'milk' } });
+    await waitFor(() => expect(release).toBeTypeOf('function'));
+    const dialog = await openBulk();
+    await waitFor(() => expect((dialog.getByLabelText('Marketplace') as HTMLSelectElement).value).toBe('talabat'));
+    fireEvent.click(mismatchBox(dialog));
+    await waitFor(() => expect(calls(is('GET', '/api/recon/rows'))).toHaveLength(2));
+    const selection = dialog.getByRole('radio', { name: /Active products matching the current filter with a price mismatch on Talabat/ });
+    expect(selection.closest('label')!.textContent).toContain('(Counting...)');
+    expect(selection.closest('label')!.textContent).not.toContain('at most 0');
+    expect(dialog.queryByRole('alert')).toBeNull();
+    release(list(active ? [item('p1')] : [], { active }));
+    await waitFor(() => expect(selection.closest('label')!.textContent).toContain(`(at most ${Math.min(active, 3)})`));
+    expect(selection.closest('label')!.textContent).not.toContain('Counting...');
+  });
   it('counts the active mismatches on the marketplace before the preview, then sends listed, reconStatus and the reference', async () => {
     handler = bulkBackend(async (u, i) => {
       const r = await mismatchRows(u, i);

@@ -4,6 +4,7 @@ import {
   CalendarClock, CalendarX, CheckCircle2, CircleSlash, Folder, FolderTree, Layers, MinusCircle, Package, Settings2, Store, Tag,
 } from 'lucide-react';
 import { ApiError } from '../../api/client';
+import { invalidateOnboarding } from '../onboarding/shared';
 import type { ChainStatus, OfferState, PriceChainStep, PriceRule, PriceSource, RoundingOption, RuleMode } from '../../api/pricing';
 import { money2, qatarDateTime } from '../../lib/format';
 
@@ -12,6 +13,7 @@ export const CATEGORY_RULES_KEY = ['pricing', 'category-rules'] as const;
 
 /** Everything that depends on prices: product lists and details, and the reconciliation (recomputed by the backend). */
 export function invalidatePriced(qc: QueryClient) {
+  invalidateOnboarding(qc);
   void qc.invalidateQueries({ queryKey: ['products'] });
   void qc.invalidateQueries({ queryKey: ['recon', 'summary'] });
   void qc.invalidateQueries({ queryKey: ['recon', 'rows'] });

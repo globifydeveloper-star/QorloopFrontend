@@ -4,6 +4,7 @@ import {
   AlertOctagon, AlertTriangle, CheckCircle2, CircleSlash, EyeOff, FileX, HelpCircle, Sparkles, TrendingDown, XCircle,
 } from 'lucide-react';
 import { ApiError } from '../../api/client';
+import { invalidateOnboarding } from '../onboarding/shared';
 import {
   RECON_PAGE_SIZE, reconApi,
   type ReconMarketplaceId, type ReconMarketplaceSummary, type ReconPriceSource, type ReconReference, type ReconRowType,
@@ -56,6 +57,7 @@ export function useReconSummary(reference?: ReconReference) {
     refetchInterval: polling ? reconTiming.pollMs : false,
   });
   const computedAt = q.data?.computedAt ?? null;
+  useEffect(() => { if (computedAt) invalidateOnboarding(qc); }, [computedAt, qc]);
   const fetchedAt = q.dataUpdatedAt;
   useEffect(() => {
     if (!pending || pending.timedOut || !fetchedAt) return;
@@ -88,7 +90,10 @@ export function useRecompute(summary: ReconSummary | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => reconApi.recompute(),
-    onSuccess: () => qc.setQueryData<RecomputeState>(RECOMPUTE_KEY, { since: summary?.computedAt ?? null, startedAt: Date.now(), timedOut: false }),
+    onSuccess: () => {
+      qc.setQueryData<RecomputeState>(RECOMPUTE_KEY, { since: summary?.computedAt ?? null, startedAt: Date.now(), timedOut: false });
+      invalidateOnboarding(qc);
+    },
   });
 }
 

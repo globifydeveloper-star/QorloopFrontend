@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { realOnboardingEnabled } from '../../lib/features';
+import { invalidateOnboarding } from '../onboarding/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Mail, Send, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react';
 import { teamApi } from '../../api/team';
@@ -29,7 +30,7 @@ export const TeamView: React.FC = () => {
 
   const members = useQuery({ queryKey: ['team', 'members'], queryFn: teamApi.members });
   const invitations = useQuery({ queryKey: ['team', 'invitations'], queryFn: teamApi.invitations, enabled: canInvite });
-  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['team'] })]);
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['team'] }), invalidateOnboarding(qc)]);
   const fail = (e: unknown) => showToast(e instanceof ApiError ? e.message : 'Something went wrong', 'error');
 
   const [inviting, setInviting] = useState(false);

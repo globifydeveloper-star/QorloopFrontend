@@ -9,6 +9,7 @@ import {
 } from '../../api/generatedFiles';
 import { useAuth } from '../../auth/AuthContext';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
+import { invalidateOnboarding } from '../onboarding/shared';
 import { REFERENCE_LABELS, marketplaceName, money2, qatarDateTime, reconErrorText, useReconSummary } from '../recon/shared';
 
 export const KIND_LABELS: Record<FileKind, string> = { stock: 'Stock', price: 'Price', stock_price: 'Stock and price' };
@@ -104,6 +105,7 @@ export const RealGenerateFilesView: React.FC = () => {
   useEffect(() => {
     if (!job || !done || downloadedFor.current === job.jobId) return;
     downloadedFor.current = job.jobId;
+    invalidateOnboarding(qc);
     void qc.invalidateQueries({ queryKey: HISTORY_KEY });
     if (fileId && can('files.download')) startDownload(fileId).catch(e => setActionError(`The file is ready but the download did not start: ${errorText(e)}`));
   }, [job, done, fileId, qc, can]);

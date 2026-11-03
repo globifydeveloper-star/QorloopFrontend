@@ -6,6 +6,8 @@ import { useAuth } from '../../auth/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { ApiError } from '../../api/client';
 import { ErrorState } from '../common/States';
+import { invalidateOnboarding } from '../onboarding/shared';
+import { qatarDateTime } from '../../lib/format';
 import { ERRORS_XLSX_LIMIT, uploadsApi } from '../../api/uploads';
 import { REVIEW_TABS, UPLOAD_ERRORS_PAGE_SIZE } from '../../api/types';
 import type { ChangeType, ChangeValue, ReviewRow, ReviewTab, UploadDetail, UploadSummary, UploadRowError, ValueChange } from '../../api/types';
@@ -104,6 +106,7 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
   const openApply = () => { apply.reset(); setConfirmingApply(true); };
 
   useEffect(() => {
+    if (upload.status === 'applied') invalidateOnboarding(qc);
     if (upload.status !== 'applied' || !appliedHere.current) return;
     appliedHere.current = false;
     showToast(`Changes from ${upload.fileName} were applied to the catalogue.`);
@@ -163,7 +166,7 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
         <p className="p-4 bg-[#E3FAF3] border border-[#027864]/20 rounded-xl text-sm text-[#02604F] flex items-start gap-2">
           <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
           <span>
-            These changes were applied to the catalogue{upload.appliedAt ? ` on ${new Date(upload.appliedAt).toLocaleString()}` : ''}.
+            These changes were applied to the catalogue{upload.appliedAt ? ` on ${qatarDateTime(upload.appliedAt)} (Qatar time)` : ''}.
             This upload is now read-only.
           </span>
         </p>

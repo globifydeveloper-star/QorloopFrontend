@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { invalidateOnboarding } from '../onboarding/shared';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
@@ -18,6 +19,9 @@ export const RealUploadsHistoryView: React.FC = () => {
     refetchInterval: query => (query.state.data?.some(u => !isSettled(u.status)) ? UPLOAD_POLL_MS : false),
   });
   const uploads = q.data ?? [];
+  const qc = useQueryClient();
+  const appliedEvidence = uploads.filter(up => up.status === 'applied').map(up => `${up.id}:${up.appliedAt}`).join('|');
+  useEffect(() => { if (appliedEvidence) invalidateOnboarding(qc); }, [appliedEvidence, qc]);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">

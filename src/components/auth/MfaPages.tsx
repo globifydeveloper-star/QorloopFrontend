@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Copy, Download, KeyRound, Lock, ShieldCheck } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import QRCode from 'qrcode';
@@ -16,6 +16,7 @@ const digits = (v: string) => v.replace(/\D/g, '').slice(0, 6);
 export const MfaSetupPage: React.FC = () => {
   const { establish, logout } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [qr, setQr] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export const MfaSetupPage: React.FC = () => {
         </label>
         <button
           disabled={!saved}
-          onClick={async () => { await establish(verified); navigate(homeFor(verified.state), { replace: true }); }}
+          onClick={async () => { await establish(verified); navigate(homeFor(verified.state, params.get('next')), { replace: true }); }}
           className="mt-4 w-full h-11 rounded-[10px] text-sm font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-60"
         >
           Continue to Qorloop
@@ -105,11 +106,12 @@ export const MfaSetupPage: React.FC = () => {
 export const MfaVerifyPage: React.FC = () => {
   const { establish, logout } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [mode, setMode] = useState<'totp' | 'recovery'>('totp');
   const [code, setCode] = useState('');
   const verify = useMutation({
     mutationFn: () => (mode === 'totp' ? authApi.mfaVerify(code) : authApi.mfaRecovery(code.trim())),
-    onSuccess: async s => { await establish(s); navigate(homeFor(s.state), { replace: true }); },
+    onSuccess: async s => { await establish(s); navigate(homeFor(s.state, params.get('next')), { replace: true }); },
   });
   const ready = mode === 'totp' ? code.length === 6 : code.trim().length >= 20;
   return (

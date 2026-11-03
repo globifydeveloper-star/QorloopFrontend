@@ -1,7 +1,8 @@
 import { api } from './client';
-import type { Me, SessionResponse } from './types';
+import type { Me, SessionResponse, SessionStatus } from './types';
 
 export const authApi = {
+  session: () => api<SessionStatus>('/api/auth/session', { expectUnauthorized: true }),
   me: () => api<Me>('/api/auth/me', { expectUnauthorized: true }),
   login: (email: string, password: string) =>
     api<SessionResponse>('/api/auth/login', { method: 'POST', body: { email, password }, expectUnauthorized: true }),

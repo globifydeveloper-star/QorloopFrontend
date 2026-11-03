@@ -22,6 +22,14 @@ export type Permission = string;
 
 export type AuthState = 'authenticated' | 'mfa_setup_required' | 'mfa_required';
 
+/** GET /api/auth/session inspects expiry without extending it. No CSRF/session token is returned. */
+export interface SessionStatus {
+  state: AuthState;
+  expiresAt: string;
+  idleExpiresAt: string;
+  nextAction: 'none' | 'verify_mfa' | 'setup_mfa';
+}
+
 export interface SessionResponse {
   state: AuthState;
   csrfToken: string;

@@ -6,10 +6,11 @@ import { authApi } from '../../api/auth';
 import { useAuth } from '../../auth/AuthContext';
 import { AuthLayout } from './AuthLayout';
 import { Field, FormError, FormNotice, SubmitButton } from './controls';
+import { returnQuery, safeReturnTo } from '../../lib/returnTo';
 
 /** Where a session state sends the user next. */
 export const homeFor = (state: string, next?: string | null) =>
-  state === 'mfa_setup_required' ? '/mfa/setup' : state === 'mfa_required' ? '/mfa/verify' : next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+  state === 'mfa_setup_required' ? '/mfa/setup' + returnQuery(next) : state === 'mfa_required' ? '/mfa/verify' + returnQuery(next) : safeReturnTo(next);
 
 export const LoginPage: React.FC = () => {
   const { establish } = useAuth();

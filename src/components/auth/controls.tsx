@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { ApiError } from '../../api/client';
+import { RequestId, friendlyError } from '../common/States';
 
 export const FormError: React.FC<{ error: unknown }> = ({ error }) => {
   if (!error) return null;
   const e = error instanceof ApiError ? error : null;
-  const message = e?.status === 429 ? 'Too many attempts. Please wait a minute and try again.' : e?.message ?? 'Something went wrong. Please try again.';
+  const friendly = e && (e.status === 0 || e.status >= 500 || e.status === 403 || e.status === 404);
+  const message = e?.status === 429 ? 'Too many attempts. Please wait a minute and try again.' : friendly ? friendlyError(e).message : e?.message ?? 'Something went wrong. Please try again.';
   return (
     <div role="alert" className="flex items-start gap-2 rounded-[10px] border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
       <div>
         {message}
-        {e?.requestId && e.status >= 500 && <div className="text-[11px] text-red-500 mt-0.5">Request ID: {e.requestId}</div>}
+        {e?.requestId && <RequestId id={e.requestId} />}
+        {friendly && <button type="submit" className="mt-2 underline font-semibold">Try again</button>}
       </div>
     </div>
   );

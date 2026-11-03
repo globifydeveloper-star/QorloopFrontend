@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { DemoProvider } from './demo';
 import { useAuth } from './auth/AuthContext';
@@ -10,6 +10,8 @@ import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/Passwor
 import { MfaSetupPage, MfaVerifyPage } from './components/auth/MfaPages';
 import { NoAccessPage, NotFoundPage, SessionExpiredPage } from './components/auth/SystemPages';
 import { ErrorState, LoadingState } from './components/common/States';
+import { OfflineBanner } from './components/common/OfflineBanner';
+import { returnQuery, safeReturnTo } from './lib/returnTo';
 import { TeamView } from './components/views/TeamView';
 import { ActivityView } from './components/activity/ActivityView';
 import { Sidebar } from './components/layout/Sidebar';
@@ -180,32 +182,35 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   switch (status) {
     case 'loading': return <FullPage><LoadingState label="Loading your workspace…" /></FullPage>;
-    case 'error': return <FullPage><ErrorState error={error} onRetry={error?.status === 404 ? undefined : retry} title={error?.status === 404 ? 'We could not find this store' : 'We could not reach Qorloop'} /></FullPage>;
+    case 'error': return <FullPage><ErrorState error={error} onRetry={retry} title={error?.status === 404 ? 'We could not find this store' : error?.status === 500 || error?.status === 0 ? 'We could not reach Qorloop' : undefined} /></FullPage>;
     case 'unauthenticated': return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
-    case 'expired': return <Navigate to="/session-expired" replace />;
-    case 'mfa_setup_required': return <Navigate to="/mfa/setup" replace />;
-    case 'mfa_required': return <Navigate to="/mfa/verify" replace />;
+    case 'expired': return <Navigate to={'/session-expired' + returnQuery(location.pathname + location.search + location.hash)} replace />;
+    case 'mfa_setup_required': return <Navigate to={'/mfa/setup' + returnQuery(location.pathname + location.search + location.hash)} replace />;
+    case 'mfa_required': return <Navigate to={'/mfa/verify' + returnQuery(location.pathname + location.search + location.hash)} replace />;
     default: return <>{children}</>;
   }
 };
 
 /** Pages for visitors who are not fully signed in. A signed-in user is sent to the app instead. */
 const Guest: React.FC<{ children: React.ReactNode; allow?: 'mfa_setup_required' | 'mfa_required' }> = ({ children, allow }) => {
-  const { status } = useAuth();
+  const { status, error, retry } = useAuth();
+  const [params] = useSearchParams();
+  const next = params.get('next');
   if (status === 'loading') return <FullPage><LoadingState /></FullPage>;
-  if (status === 'authenticated') return <Navigate to="/" replace />;
+  if (status === 'error') return <FullPage><ErrorState error={error} onRetry={retry} title={error?.status === 500 || error?.status === 0 ? 'We could not reach Qorloop' : undefined} /></FullPage>;
+  if (status === 'authenticated') return <Navigate to={safeReturnTo(next)} replace />;
   if (allow) {
     if (status === allow) return <>{children}</>;
-    if (status === 'mfa_setup_required') return <Navigate to="/mfa/setup" replace />;
-    if (status === 'mfa_required') return <Navigate to="/mfa/verify" replace />;
-    return <Navigate to={status === 'expired' ? '/session-expired' : '/login'} replace />;
+    if (status === 'mfa_setup_required') return <Navigate to={'/mfa/setup' + returnQuery(next)} replace />;
+    if (status === 'mfa_required') return <Navigate to={'/mfa/verify' + returnQuery(next)} replace />;
+    return <Navigate to={(status === 'expired' ? '/session-expired' : '/login') + returnQuery(next)} replace />;
   }
   return <>{children}</>;
 };
 
 export default function App() {
   return (
-    <Routes>
+    <><OfflineBanner /><Routes>
       {/* No public store registration or sign-up route exists: accounts are created by invitation only. */}
       <Route path="/login" element={<Guest><LoginPage /></Guest>} />
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
@@ -226,6 +231,6 @@ export default function App() {
           </RequireAuth>
         }
       />
-    </Routes>
+    </Routes></>
   );
 }

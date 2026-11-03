@@ -1,4 +1,5 @@
 import type { ApiErrorBody } from './types';
+import { connectionFailed, connectionReached } from './connectivity';
 
 /**
  * Typed fetch wrapper for the Qorloop API.
@@ -38,6 +39,12 @@ export function onSessionExpired(fn: Listener) {
   return () => void sessionExpiredListeners.delete(fn);
 }
 
+const authIssueListeners = new Set<(error: ApiError) => void>();
+export function onAuthIssue(fn: (error: ApiError) => void) {
+  authIssueListeners.add(fn);
+  return () => void authIssueListeners.delete(fn);
+}
+
 export function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
   const hit = document.cookie.split('; ').find(c => c.startsWith(name + '='));
@@ -75,8 +82,11 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
     });
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
+    connectionFailed();
     throw new ApiError(0, 'NETWORK', 'We could not reach the server. Check your connection and try again.');
   }
+
+  connectionReached();
 
   const text = await res.text();
   const json = parseJson(text);
@@ -91,9 +101,11 @@ export async function apiBlob(path: string, signal?: AbortSignal): Promise<{ blo
     res = await fetch(BASE + path, { method: 'GET', credentials: 'include', signal });
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
+    connectionFailed();
     throw new ApiError(0, 'NETWORK', 'We could not reach the server. Check your connection and try again.');
   }
   // Error bodies are JSON ({ error: { code, message } }) when the backend sends them; anything else gets a generic message.
+  connectionReached();
   if (!res.ok) throw failure(res, parseJson(await res.text()));
   return { blob: await res.blob(), headers: res.headers };
 }
@@ -106,6 +118,11 @@ function failure(res: Response, json: unknown, expectUnauthorized?: boolean): Ap
   const body = (json ?? {}) as Partial<ApiErrorBody>;
   const msg = body.error?.message;
   const message = Array.isArray(msg) ? msg.join(' ') : msg ?? `Request failed (${res.status})`;
-  if (res.status === 401 && !expectUnauthorized) sessionExpiredListeners.forEach(fn => fn());
-  return new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined);
+  const error = new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined);
+  if (!expectUnauthorized) {
+    if (res.status === 401) sessionExpiredListeners.forEach(fn => fn());
+    if (res.status === 401 || (res.status === 403 && ['MFA_REQUIRED', 'MFA_SETUP_REQUIRED', 'CSRF_REQUIRED'].includes(error.code)))
+      authIssueListeners.forEach(fn => fn(error));
+  }
+  return error;
 }

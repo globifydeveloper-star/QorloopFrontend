@@ -2,8 +2,14 @@ import React, { useState } from 'react';
 import { Store, Shield, Bell, CheckCircle2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useDemo } from '../../demo';
+import { realSettingsEnabled } from '../../lib/features';
+import { RealSettingsView } from '../settings/RealSettingsView';
 
 export const SettingsView: React.FC = () => {
+  return realSettingsEnabled() ? <RealSettingsView /> : <DemoSettingsView />;
+};
+
+const DemoSettingsView: React.FC = () => {
   const { showToast } = useApp();
   const { state } = useDemo();
 

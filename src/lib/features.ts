@@ -20,3 +20,6 @@ export const realPricingEnabled = (): boolean => import.meta.env.VITE_REAL_PRICI
 
 /** Generate marketplace files and the generated-files history use /api/generated-files. Default off. */
 export const realFilesEnabled = (): boolean => import.meta.env.VITE_REAL_FILES === 'true';
+
+/** Store settings, activity log and real product history. Default off. */
+export const realSettingsEnabled = (): boolean => import.meta.env.VITE_REAL_SETTINGS === 'true';

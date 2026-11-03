@@ -54,7 +54,7 @@ export const RealPricingView: React.FC = () => {
         </div>
       ) : (
         // Remounted when the server copy changes, so a save or reload replaces the draft.
-        <SettingsForm key={settings.data.updatedAt ?? 'never'} settings={settings.data} editable={editable} />
+        <PricingSettingsForm key={settings.data.updatedAt ?? 'never'} settings={settings.data} editable={editable} />
       )}
 
       <CategoryRules editable={editable} />
@@ -64,7 +64,10 @@ export const RealPricingView: React.FC = () => {
   );
 };
 
-const SettingsForm: React.FC<{ settings: PricingSettings; editable: boolean }> = ({ settings: s, editable }) => {
+export const PricingSettingsForm: React.FC<{
+  settings: PricingSettings; editable: boolean;
+  saveSettings?: (body: UpdatePricingSettings) => Promise<PricingSettings>;
+}> = ({ settings: s, editable, saveSettings = pricingApi.updateSettings }) => {
   const { showToast } = useApp();
   const qc = useQueryClient();
   const [rule, setRule] = useState<RuleDraft>(draftOf(s.defaultRule));
@@ -83,7 +86,7 @@ const SettingsForm: React.FC<{ settings: PricingSettings; editable: boolean }> =
   const dirty = ruleDirty || Object.keys(changes).length > 0;
 
   const save = useMutation({
-    mutationFn: (body: UpdatePricingSettings) => pricingApi.updateSettings(body),
+    mutationFn: saveSettings,
     onSuccess: next => {
       qc.setQueryData(PRICING_SETTINGS_KEY, next);
       invalidatePriced(qc);
@@ -95,7 +98,7 @@ const SettingsForm: React.FC<{ settings: PricingSettings; editable: boolean }> =
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dirty || save.isPending) return;
+    if (!editable || !dirty || save.isPending) return;
     if (ruleDirty && !parsed.rule) { setLocalError(parsed.error); return; }
     setLocalError(undefined);
     if (Object.keys(changes).length) save.mutate(changes);

@@ -103,6 +103,10 @@ export function ruleFromDraft(d: RuleDraft): { rule?: PriceRule; error?: string 
   if (!text) return { error: 'Enter a value' };
   const n = Number(text);
   if (!Number.isFinite(n)) return { error: 'Enter a number' };
+  if (Math.abs(n * 1000 - Math.round(n * 1000)) >= 1e-6) return { error: 'Use at most 3 decimal places' };
+  if (d.mode === 'percent' && (n < -90 || n > 1000)) return { error: 'Enter a percent from -90 to 1000' };
+  if (d.mode === 'amount' && (n < -100000 || n > 100000)) return { error: 'Enter an amount from -100000 to 100000' };
+  if (d.mode === 'fixed' && (n <= 0 || n >= 1000000000)) return { error: 'Enter a price greater than 0 and less than 1000000000' };
   return { rule: { mode: d.mode, value: n } };
 }
 

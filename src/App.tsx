@@ -28,6 +28,8 @@ import { StockMismatchesView } from './components/views/StockMismatchesView';
 import { PriceDiscrepanciesView } from './components/views/PriceDiscrepanciesView';
 import { GenerateFilesView } from './components/views/GenerateFilesView';
 import { OnboardingCompleteView } from './components/views/OnboardingCompleteView';
+import { OnboardingPage } from './components/onboarding/OnboardingPage';
+import { OnboardingRouteActions } from './components/onboarding/OnboardingRouteActions';
 import { MarkupsView } from './components/views/MarkupsView';
 import { TemplatesView } from './components/views/TemplatesView';
 import { SettingsView } from './components/views/SettingsView';
@@ -35,7 +37,7 @@ import { UploadsHistoryView } from './components/views/UploadsHistoryView';
 import { CategoryMappingView } from './components/views/CategoryMappingView';
 import { CategoriesView } from './components/views/CategoriesView';
 import { CategoryDetailView } from './components/views/CategoryDetailView';
-import { realCatalogueEnabled } from './lib/features';
+import { realCatalogueEnabled, realOnboardingEnabled } from './lib/features';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 /** The signed-in application. Sample-data screens stay available but are labelled until their endpoints exist. */
@@ -54,8 +56,8 @@ const MainContent: React.FC = () => {
     );
   }
 
-  // Full-screen wizard (sample data until the onboarding endpoints exist)
-  if (currentView === 'onboarding') {
+  // Keep the legacy demo wizard full-screen; real onboarding uses the normal application shell.
+  if (currentView === 'onboarding' && !realOnboardingEnabled()) {
     return (
       <>
         <OnboardingCompleteView />
@@ -68,6 +70,8 @@ const MainContent: React.FC = () => {
     switch (currentView) {
       case 'dashboard':
         return <DashboardView />;
+      case 'onboarding':
+        return <OnboardingPage />;
       case 'uploads':
         return <UploadsHistoryView />;
       case 'upload-review':
@@ -115,6 +119,7 @@ const MainContent: React.FC = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F2F7F6]">
+      <OnboardingRouteActions />
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />

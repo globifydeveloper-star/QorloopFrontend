@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { realOnboardingEnabled } from '../../lib/features';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Mail, Send, ShieldCheck, Trash2, UserPlus, X } from 'lucide-react';
 import { teamApi } from '../../api/team';
@@ -31,6 +33,12 @@ export const TeamView: React.FC = () => {
   const fail = (e: unknown) => showToast(e instanceof ApiError ? e.message : 'Something went wrong', 'error');
 
   const [inviting, setInviting] = useState(false);
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (!realOnboardingEnabled() || !canInvite || params.get('invite') !== '1') return;
+    setInviting(true);
+    const next = new URLSearchParams(params); next.delete('invite'); setParams(next, { replace: true });
+  }, [params, setParams, canInvite]);
   const [confirm, setConfirm] = useState<{ kind: 'remove'; member: TeamMember } | { kind: 'role'; member: TeamMember; role: Role } | { kind: 'revoke'; invitation: PendingInvitation } | null>(null);
 
   const changeRole = useMutation({

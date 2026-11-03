@@ -26,6 +26,7 @@ const VIEW_TITLES: Partial<Record<ViewType, [string, string]>> = {
   settings: ['Workspace', 'Settings'],
   activity: ['Workspace', 'Activity'],
   team: ['Settings', 'Team'],
+  onboarding: ['Workspace', 'Help & onboarding'],
 };
 
 export const Header: React.FC = () => {

@@ -9,10 +9,10 @@ import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { marketplaceName } from '../recon/shared';
 import { ONBOARDING_TARGETS } from './targets';
 
-export function useOnboardingProgress() {
+export function useOnboardingProgress(enabled = true) {
   const { me, can } = useAuth();
   const eligible = (me?.role === 'owner' || me?.role === 'admin') && can('settings.view');
-  return useQuery({ queryKey: ONBOARDING_KEY, queryFn: ({ signal }) => onboardingApi.get(signal), enabled: realOnboardingEnabled() && eligible, retry: false });
+  return useQuery({ queryKey: ONBOARDING_KEY, queryFn: ({ signal }) => onboardingApi.get(signal), enabled: enabled && realOnboardingEnabled() && eligible, retry: false });
 }
 
 /** No browser completion/dismiss state: visibility and progress always come from server evidence. */
@@ -28,7 +28,7 @@ const Checklist: React.FC<{ placement: 'dashboard' | 'page' }> = ({ placement })
   if (q.data?.complete && !q.isError) return placement === 'dashboard' ? null : <EmptyState title="You're all set" hint="All required get-started steps are complete." />;
   const required = q.data?.steps.filter(step => step.required) ?? [];
   const optional = q.data?.steps.filter(step => !step.required) ?? [];
-  return <section aria-label="Get started" className="bg-white border border-gray-200 rounded-2xl p-5 space-y-5">
+  return <section aria-label="Get started" className={`${placement === 'dashboard' ? 'm-8 mb-0 max-w-7xl' : ''} bg-white border border-gray-200 rounded-2xl p-5 space-y-5`}>
     <div><h2 className="text-lg font-bold text-gray-900">Get started</h2><p className="text-xs text-gray-500">Complete these four required steps to get your store ready. Progress updates from your store's records.</p></div>
     {q.isPending ? <LoadingState label="Loading get-started checklist…" rows={4} /> : q.isError ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : <>
       <div>

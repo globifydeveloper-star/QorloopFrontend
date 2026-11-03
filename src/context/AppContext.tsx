@@ -51,7 +51,7 @@ interface AppContextType {
   outputFiles: OutputFileRecord[];
   teamMembers: TeamMember[];
   isUploadModalOpen: boolean;
-  uploadModalPreselectedSource: MarketplaceId | 'erp';
+  uploadModalPreselectedSource: MarketplaceId | 'erp' | 'marketplace';
   toasts: ToastInfo[];
   navigate: (
     view: ViewType,
@@ -63,7 +63,7 @@ interface AppContextType {
       id?: string;
     }
   ) => void;
-  openUploadModal: (source?: MarketplaceId | 'erp') => void;
+  openUploadModal: (source?: MarketplaceId | 'erp' | 'marketplace') => void;
   closeUploadModal: () => void;
   updateProduct: (product: Product) => void;
   addProduct: (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt' | 'updatedBy'>) => void;
@@ -121,7 +121,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [outputFiles, setOutputFiles] = useState<OutputFileRecord[]>(INITIAL_OUTPUT_FILES);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(INITIAL_TEAM_MEMBERS);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadModalPreselectedSource, setUploadModalPreselectedSource] = useState<MarketplaceId | 'erp'>('talabat');
+  const [uploadModalPreselectedSource, setUploadModalPreselectedSource] = useState<MarketplaceId | 'erp' | 'marketplace'>('talabat');
   const [toasts, setToasts] = useState<ToastInfo[]>([]);
   const [pricingSettings, setPricingSettings] = useState<PricingSettings>(INITIAL_PRICING_SETTINGS);
   const [categoryPriceRules, setCategoryPriceRules] = useState<CategoryPriceRule[]>(
@@ -164,7 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const openUploadModal = (source: MarketplaceId | 'erp' = 'talabat') => {
+  const openUploadModal = (source: MarketplaceId | 'erp' | 'marketplace' = 'talabat') => {
     setUploadModalPreselectedSource(source);
     setIsUploadModalOpen(true);
   };

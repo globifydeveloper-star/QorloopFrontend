@@ -11,7 +11,7 @@ const DemoUploadModal: React.FC = () => {
   const { isUploadModalOpen, closeUploadModal, uploadModalPreselectedSource, navigate, showToast } = useApp();
   const { state, uploadFile, uploadSample } = useDemo();
 
-  const [source, setSource] = useState<SourceId>(uploadModalPreselectedSource || 'talabat');
+  const [source, setSource] = useState<SourceId>(uploadModalPreselectedSource === 'marketplace' ? 'talabat' : uploadModalPreselectedSource || 'talabat');
   const [fileMode, setFileMode] = useState<'full' | 'partial'>('full');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -22,7 +22,7 @@ const DemoUploadModal: React.FC = () => {
   // Bug fix per task: re-sync source whenever modal opens
   useEffect(() => {
     if (isUploadModalOpen) {
-      setSource(uploadModalPreselectedSource || 'talabat');
+      setSource(uploadModalPreselectedSource === 'marketplace' ? 'talabat' : uploadModalPreselectedSource || 'talabat');
       setSelectedFile(null);
       setError(null);
       setUploading(false);

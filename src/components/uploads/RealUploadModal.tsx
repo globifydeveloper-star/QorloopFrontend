@@ -7,6 +7,8 @@ import { UploadStepError, completeUpload, uploadFile, validateFile } from '../..
 import { UPLOAD_SOURCES } from '../../api/types';
 import type { UploadContains, UploadSource } from '../../api/types';
 import { SOURCE_LABELS, StatusProgress, UPLOADS_LIST_KEY, errorText, failureCopy, formatBytes, uploadPath, useUploadStatus } from './shared';
+import { useOnboardingProgress } from '../onboarding/OnboardingChecklist';
+import { qatarDateTime } from '../../lib/format';
 
 type Phase =
   | { kind: 'idle' }
@@ -19,7 +21,9 @@ export const RealUploadModal: React.FC = () => {
   const { isUploadModalOpen, closeUploadModal, uploadModalPreselectedSource, showToast } = useApp();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [source, setSource] = useState<UploadSource>(uploadModalPreselectedSource || 'talabat');
+  const marketplaceChoice = uploadModalPreselectedSource === 'marketplace';
+  const onboarding = useOnboardingProgress(isUploadModalOpen && marketplaceChoice);
+  const [source, setSource] = useState<UploadSource | undefined>(uploadModalPreselectedSource === 'marketplace' ? undefined : uploadModalPreselectedSource || 'talabat');
   const [contains, setContains] = useState<UploadContains>('full');
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
@@ -29,7 +33,7 @@ export const RealUploadModal: React.FC = () => {
 
   useEffect(() => {
     if (!isUploadModalOpen) return;
-    setSource(uploadModalPreselectedSource || 'talabat');
+    setSource(uploadModalPreselectedSource === 'marketplace' ? undefined : uploadModalPreselectedSource || 'talabat');
     setContains('full');
     setFile(null);
     setPhase({ kind: 'idle' });
@@ -67,7 +71,7 @@ export const RealUploadModal: React.FC = () => {
   };
 
   const start = async () => {
-    if (!file) return;
+    if (!file || !source) return;
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     setPhase({ kind: 'sending', fraction: 0 });
@@ -126,8 +130,8 @@ export const RealUploadModal: React.FC = () => {
         <fieldset disabled={busy} className="space-y-5 pt-3">
           <div>
             <div className="block text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">1. Source</div>
-            <div className="grid grid-cols-5 gap-1.5 p-1 bg-gray-50 border border-gray-200 rounded-lg">
-              {UPLOAD_SOURCES.map(id => (
+            <div className={`grid ${marketplaceChoice ? 'grid-cols-4' : 'grid-cols-5'} gap-1.5 p-1 bg-gray-50 border border-gray-200 rounded-lg`}>
+              {UPLOAD_SOURCES.filter(id => !marketplaceChoice || id !== 'erp').map(id => (
                 <button
                   key={id}
                   type="button"
@@ -139,6 +143,8 @@ export const RealUploadModal: React.FC = () => {
                 </button>
               ))}
             </div>
+            {marketplaceChoice && <p className="mt-2 text-xs text-gray-600">Choose the marketplace whose file you want to upload.</p>}
+            {marketplaceChoice && onboarding.data && <ul aria-label="Marketplace upload evidence" className="mt-2 space-y-1 text-xs text-gray-500">{onboarding.data.marketplaces.map(m => <li key={m.marketplaceId}>{SOURCE_LABELS[m.marketplaceId]}: {m.applied ? 'Applied upload' : 'No applied upload'}{m.doneAt && ` · ${qatarDateTime(m.doneAt)} (Qatar time)`}</li>)}</ul>}
           </div>
 
           <div>
@@ -207,7 +213,7 @@ export const RealUploadModal: React.FC = () => {
           <button
             type="button"
             onClick={() => void start()}
-            disabled={!file || busy || (phase.kind === 'error' && phase.retry !== 'restart')}
+            disabled={!source || !file || busy || (phase.kind === 'error' && phase.retry !== 'restart')}
             className="px-5 py-2 text-xs font-semibold text-white bg-[#027864] rounded-lg hover:bg-[#02604F] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {phase.kind === 'sending' ? 'Uploading…' : phase.kind === 'processing' ? 'Processing…' : phase.kind === 'error' && phase.retry === 'restart' && file ? 'Upload again' : 'Upload'}

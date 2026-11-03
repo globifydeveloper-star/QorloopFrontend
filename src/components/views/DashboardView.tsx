@@ -1,5 +1,6 @@
 import React from 'react';
 import { RealDashboardView } from '../recon/RealDashboardView';
+import { OnboardingChecklist } from '../onboarding/OnboardingChecklist';
 import { realReconEnabled } from '../../lib/features';
 import {
   RotateCw,
@@ -373,4 +374,4 @@ const DemoDashboardView: React.FC = () => {
 };
 
 /** Real /api/recon when VITE_REAL_RECON=true, the demo store otherwise. */
-export const DashboardView: React.FC = () => (realReconEnabled() ? <RealDashboardView /> : <DemoDashboardView />);
+export const DashboardView: React.FC = () => <><OnboardingChecklist />{realReconEnabled() ? <RealDashboardView /> : <DemoDashboardView />}</>;

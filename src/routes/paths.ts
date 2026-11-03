@@ -1,5 +1,5 @@
 import type { ViewType } from '../types';
-import { realCatalogueEnabled, realFilesEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled, realUploadsEnabled } from '../lib/features';
+import { realCatalogueEnabled, realFilesEnabled, realOnboardingEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled, realUploadsEnabled } from '../lib/features';
 
 /**
  * Real URLs for every screen. The existing views still call `navigate('<view>')`; AppContext translates that
@@ -68,6 +68,7 @@ export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   ...(realPricingEnabled() ? (['markups'] as const) : []),
   ...(realFilesEnabled() ? (['outputs-generate'] as const) : []),
   ...(realSettingsEnabled() ? (['settings', 'activity'] as const) : []),
+  ...(realOnboardingEnabled() ? (['onboarding'] as const) : []),
 ]);
 
 /** UI hint only (the server decides): permission a role needs to see each screen in the navigation. */
@@ -79,4 +80,5 @@ export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {
   markups: 'pricing.view', 'category-mapping': 'categories.manage', templates: 'uploads.view',
   'outputs-generate': 'files.view', settings: 'settings.view', team: 'team.view',
   activity: 'activity.view',
+  onboarding: 'settings.view',
 };

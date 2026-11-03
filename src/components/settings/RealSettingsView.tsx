@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext';
 import { ApiError } from '../../api/client';
@@ -21,6 +22,9 @@ const Settings: React.FC = () => {
   const qc = useQueryClient();
   const [notice, setNotice] = useState('');
   const q = useQuery({ queryKey: SETTINGS_KEY, queryFn: ({ signal }) => settingsApi.get(signal), retry: false });
+  const { hash } = useLocation();
+  const loaded = Boolean(q.data);
+  useEffect(() => { if (loaded && hash === '#security') document.getElementById('security')?.scrollIntoView?.({ block: 'start' }); }, [loaded, hash]);
   const update = async (body: UpdateStoreSettings) => {
     setNotice('');
     try {
@@ -86,7 +90,7 @@ const StoreForm: React.FC<{ settings: StoreSettings; editable: boolean; security
       </div>)}
     </fieldset>
     <p className="text-xs text-gray-500">Fractions of a day are allowed in whole hours (0.5 days = 12 hours). Range: 1 hour to 365 days.</p>
-    <h2 className="font-bold">Security and export policy</h2>
+    <h2 id="security" className="font-bold scroll-mt-24">Security and export policy</h2>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={draft.analystCanExport} disabled={!editable || save.isPending} onChange={e => setDraft({ ...draft, analystCanExport: e.target.checked })} />Allow Analysts to export reports</label>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={draft.mfaRequiredForAll} disabled={!editable || !security || save.isPending} onChange={e => setDraft({ ...draft, mfaRequiredForAll: e.target.checked })} />Require two-step verification for everyone</label>
     {!security && <p className="text-xs text-gray-500">Only the Owner can change the two-step verification policy.</p>}

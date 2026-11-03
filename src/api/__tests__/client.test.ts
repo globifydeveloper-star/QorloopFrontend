@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, api, onSessionExpired } from '../client';
+import { ApiError, api, apiBlob, onSessionExpired } from '../client';
+import { connectionReached, connectionUnavailable } from '../connectivity';
+import { NETWORK_MESSAGE } from '../network';
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
 let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => { fetchMock = vi.fn(); vi.stubGlobal('fetch', fetchMock); document.cookie = 'qorloop.csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/'; });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { connectionReached(); vi.unstubAllGlobals(); });
 
 describe('api client', () => {
   it('unwraps the { data } envelope and always sends cookies', async () => {
@@ -61,5 +63,22 @@ describe('api client', () => {
   it('survives non-JSON error bodies (e.g. a proxy 502)', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(new Response('<html>Bad gateway</html>', { status: 502 })));
     await expect(api('/api/x')).rejects.toMatchObject({ status: 502, message: 'Request failed (502)' });
+  });
+  it.each([api, apiBlob])('normalizes an explicitly marked upstream connection failure for JSON and binary requests', async request => {
+    fetchMock.mockResolvedValue(json(503, { error: { code: 'UPSTREAM_UNREACHABLE', message: 'Connection unavailable' }, requestId: 'proxy-id-is-not-an-api-request-id' }));
+    await expect(request('/api/x')).rejects.toMatchObject({ status: 0, code: 'NETWORK', message: NETWORK_MESSAGE, requestId: undefined });
+    expect(connectionUnavailable()).toBe(true);
+  });
+  it('keeps genuine 5xx responses as server errors even without a Request ID or body', async () => {
+    fetchMock.mockResolvedValueOnce(json(503, { error: { code: 'UNAVAILABLE', message: 'Service unavailable' }, requestId: 'backend-id' })).mockResolvedValueOnce(new Response(null, { status: 502 }));
+    await expect(api('/api/x')).rejects.toMatchObject({ status: 503, code: 'UNAVAILABLE', requestId: 'backend-id' });
+    await expect(api('/api/x')).rejects.toMatchObject({ status: 502, code: 'ERROR' });
+    expect(connectionUnavailable()).toBe(false);
+  });
+  it('normalizes connection loss while reading a response body', async () => {
+    const response = new Response(null, { status: 200 });
+    vi.spyOn(response, 'text').mockRejectedValue(new TypeError('Failed to fetch'));
+    fetchMock.mockResolvedValue(response);
+    await expect(api('/api/x')).rejects.toMatchObject({ status: 0, code: 'NETWORK', message: NETWORK_MESSAGE });
   });
 });

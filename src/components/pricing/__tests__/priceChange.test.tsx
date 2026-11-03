@@ -440,7 +440,7 @@ describe('bulk price change', () => {
     // First try: the answer is lost.
     fireEvent.click(confirm.getByRole('button', { name: 'Change 1 product' }));
     await waitFor(() => expect(confirm.getByRole('alert').textContent).toContain('trying again is safe and will not apply it twice'));
-    expect(confirm.getByRole('alert').textContent).toContain('We could not reach the server');
+    expect(confirm.getByRole('alert').textContent).toContain("Qorloop can't reach the server");
 
     // Retry: the button is disabled while the apply runs.
     const lists = calls(isList).length;

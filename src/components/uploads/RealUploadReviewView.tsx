@@ -5,6 +5,7 @@ import { CheckCircle2, Download } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { ApiError } from '../../api/client';
+import { ErrorState } from '../common/States';
 import { ERRORS_XLSX_LIMIT, uploadsApi } from '../../api/uploads';
 import { REVIEW_TABS, UPLOAD_ERRORS_PAGE_SIZE } from '../../api/types';
 import type { ChangeType, ChangeValue, ReviewRow, ReviewTab, UploadDetail, UploadSummary, UploadRowError, ValueChange } from '../../api/types';
@@ -67,7 +68,7 @@ export const RealUploadReviewView: React.FC = () => {
 
   if (!id) return <Shell><p className="text-sm text-gray-500">No upload selected. Open one from <Link to="/uploads" className="text-[#027864] hover:underline">Uploads</Link>.</p></Shell>;
   if (status.isPending) return <Shell><p className="text-sm text-gray-500">Loading…</p></Shell>;
-  if (status.isError) return <Shell><p role="alert" className="text-sm text-red-600">{errorText(status.error)}</p></Shell>;
+  if (status.isError) return <Shell><ErrorState error={status.error} onRetry={() => void status.refetch()} /></Shell>;
   return <Detail upload={status.data} />;
 };
 
@@ -291,7 +292,7 @@ const ReviewTabs: React.FC<{ id: string }> = ({ id }) => {
         ))}
       </div>
       {q.isError ? (
-        <p role="alert" className="p-4 text-xs text-red-600">{errorText(q.error)}</p>
+        <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : !data ? (
         <p className="p-4 text-xs text-gray-500">Loading…</p>
       ) : (
@@ -397,7 +398,7 @@ const RowErrors: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
         {hasErrors && can('uploads.view') && <DownloadErrors id={id} capped={shownCount > ERRORS_XLSX_LIMIT} />}
       </div>
       {q.isError ? (
-        <p role="alert" className="p-4 text-xs text-red-600">{errorText(q.error)}</p>
+        <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : !q.data ? (
         <p className="p-4 text-xs text-gray-500">Loading…</p>
       ) : q.data.errors.length === 0 ? (

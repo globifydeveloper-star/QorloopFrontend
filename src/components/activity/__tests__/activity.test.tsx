@@ -29,6 +29,36 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.forEach(q => q.clear()); clients = []; vi.unstubAllGlobals(); });
 const mount = (ui = <ActivityView />) => { const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }); clients.push(qc); return render(<QueryClientProvider client={qc}><MemoryRouter>{ui}</MemoryRouter></QueryClientProvider>); };
 
+describe('shared Activity and History data errors', () => {
+  it.each(['Activity', 'History'] as const)('shows the connection message and retry without a Request ID on %s when fetch rejects', async page => {
+    handler = () => { throw new TypeError('Failed to fetch'); };
+    mount(page === 'Activity' ? <ActivityView /> : <ProductHistory productId={PRODUCT} />);
+    expect(await screen.findByText("Qorloop can't reach the server. Check your connection and try again.")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Request ID|could not complete this request/i);
+    expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    handler = () => ok({ items: [], nextCursor: null, coverageNotice: NOTICE });
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText(page === 'Activity' ? 'No activity matches these filters' : 'No changes recorded for this product yet')).toBeTruthy();
+  });
+  it.each(['Activity', 'History'] as const)('shows the connection message on %s for an explicitly marked refused dev-proxy connection', async page => {
+    handler = () => new Response(JSON.stringify({ error: { code: 'UPSTREAM_UNREACHABLE', message: 'Proxy could not connect' } }), { status: 503 });
+    mount(page === 'Activity' ? <ActivityView /> : <ProductHistory productId={PRODUCT} />);
+    expect(await screen.findByText("Qorloop can't reach the server. Check your connection and try again.")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Request ID|could not complete this request/i);
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  });
+  it.each(['Activity', 'History'] as const)('keeps a real server 500 and Request ID/Copy on %s', async page => {
+    const copy = vi.fn(async () => undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
+    handler = () => new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }, requestId: 'page-server-request' }), { status: 500 });
+    mount(page === 'Activity' ? <ActivityView /> : <ProductHistory productId={PRODUCT} />);
+    expect(await screen.findByText('Qorloop could not complete this request')).toBeTruthy();
+    expect(screen.getByText('Request ID: page-server-request')).toBeTruthy();
+    expect(screen.queryByText("Qorloop can't reach the server. Check your connection and try again.")).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }));
+    await waitFor(() => expect(copy).toHaveBeenCalledWith('page-server-request'));
+  });
+});
+
 describe('Activity filters and cursor pages', () => {
   it('shows loading, empty results and filters in Qatar time', async () => {
     mount(); expect(screen.getByRole('status', { name: 'Loading activity…' })).toBeTruthy();

@@ -18,8 +18,9 @@ const ReadQuery = () => { const q = useQuery({ queryKey: ['safe-read'], queryFn:
 
 describe('friendly errors with Request IDs', () => {
   it('shows the exact connection message without Request ID advice or Copy when no response was received', () => {
-    const retry = vi.fn(); render(<ErrorState error={new ApiError(0, 'NETWORK', 'Failed to fetch')} onRetry={retry} />);
-    expect(screen.getByText("Qorloop can't reach the server. Check your connection and try again")).toBeTruthy();
+    const retry = vi.fn(); render(<ErrorState error={new ApiError(0, 'NETWORK', 'Failed to fetch', [], 'must-not-display')} title="Could not load the page" onRetry={retry} />);
+    expect(screen.getByText("Qorloop can't reach the server. Check your connection and try again.")).toBeTruthy();
+    expect(screen.queryByText('Could not load the page')).toBeNull();
     expect(document.body.textContent).not.toMatch(/Request ID/i); expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' })); expect(retry).toHaveBeenCalledTimes(1);
   });
@@ -28,7 +29,7 @@ describe('friendly errors with Request IDs', () => {
     expect(screen.getByText('Qorloop could not complete this request')).toBeTruthy(); expect(document.body.textContent).not.toMatch(/Request ID/i);
     expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull(); expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
   });
-  it.each([[500, 'INTERNAL_ERROR', 'Qorloop could not complete this request'], [403, 'FORBIDDEN', 'You do not have permission'], [404, 'NOT_FOUND', 'We could not find this page'], [0, 'NETWORK', 'We could not reach Qorloop']] as const)('shows a plain %s screen, retry and copy', async (status, code, title) => {
+  it.each([[500, 'INTERNAL_ERROR', 'Qorloop could not complete this request'], [403, 'FORBIDDEN', 'You do not have permission'], [404, 'NOT_FOUND', 'We could not find this page']] as const)('shows a plain %s screen, retry and copy', async (status, code, title) => {
     const retry = vi.fn(); const copy = vi.fn(async () => undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
     render(<ErrorState error={new ApiError(status, code, 'Internal technical message', [], 'request-123')} onRetry={retry} />);
     expect(screen.getByText(title)).toBeTruthy(); expect(screen.queryByText('Internal technical message')).toBeNull();

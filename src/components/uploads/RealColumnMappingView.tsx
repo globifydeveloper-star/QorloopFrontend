@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { uploadsApi } from '../../api/uploads';
 import { ApiError } from '../../api/client';
 import { ColumnMappingPanel } from '../common/ColumnMappingPanel';
+import { ErrorState } from '../common/States';
 import { SOURCE_LABELS, StatusBadge, StatusProgress, UPLOADS_LIST_KEY, errorText, uploadKey, uploadPath, useUploadStatus } from './shared';
 
 /** Below this suggestion confidence (0..1) the user is asked to double-check the pre-filled columns. */
@@ -24,7 +25,7 @@ export const RealColumnMappingView: React.FC = () => {
 
   if (!id) return <Shell><p className="text-sm text-gray-500">No upload selected. Open one from <Link to="/uploads" className="text-[#027864] hover:underline">Uploads</Link>.</p></Shell>;
   if (status.isPending) return <Shell><p className="text-sm text-gray-500">Loading…</p></Shell>;
-  if (status.isError) return <Shell><p role="alert" className="text-sm text-red-600">{errorText(status.error)}</p></Shell>;
+  if (status.isError) return <Shell><ErrorState error={status.error} onRetry={() => void status.refetch()} /></Shell>;
 
   const upload = status.data;
   const sourceName = SOURCE_LABELS[upload.source] ?? upload.source;

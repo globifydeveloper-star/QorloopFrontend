@@ -207,7 +207,7 @@ export const RealGenerateFilesView: React.FC = () => {
             {!canPreview && !canGenerate && <span className="text-[11px] text-gray-500">You can download files but not create them. Ask an owner or admin for access.</span>}
           </div>
 
-          {job && <JobProgress job={jobQ.data} error={jobQ.error} state={state} downloads={can('files.download') ? (fileId ? 'started' : 'listed') : null} />}
+          {job && <JobProgress job={jobQ.data} error={jobQ.error} onRetry={() => void jobQ.refetch()} state={state} downloads={can('files.download') ? (fileId ? 'started' : 'listed') : null} />}
           {seen && <PreviewPanel preview={seen} />}
         </section>
       )}
@@ -237,8 +237,8 @@ const STATE_TEXT: Record<GenerationJob['state'], string> = {
   queued: 'Waiting to start…', running: 'Building the file…', done: 'The file is ready.', failed: 'The file could not be generated.',
 };
 
-const JobProgress: React.FC<{ job?: GenerationJob; error: unknown; state: GenerationJob['state'] | null; downloads: 'started' | 'listed' | null }> = ({ job, error, state, downloads }) => {
-  if (error) return <div role="alert" className="text-xs text-red-700">We could not check the file&apos;s progress: {reconErrorText(error)}</div>;
+const JobProgress: React.FC<{ job?: GenerationJob; error: unknown; onRetry: () => void; state: GenerationJob['state'] | null; downloads: 'started' | 'listed' | null }> = ({ job, error, onRetry, state, downloads }) => {
+  if (error) return <ErrorState error={error} onRetry={onRetry} />;
   if (!state) return null;
   const failed = state === 'failed';
   return (

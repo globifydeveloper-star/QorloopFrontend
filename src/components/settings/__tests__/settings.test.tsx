@@ -75,6 +75,25 @@ describe('settings state and validation', () => {
 });
 
 describe('real Settings screen', () => {
+  it.each(['fetch rejection', 'refused dev-proxy connection'])('shows the shared connection state for %s and retries the read', async mode => {
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url === '/api/settings/marketplaces') return ok({ items: [] });
+      if (mode === 'fetch rejection') throw new TypeError('Failed to fetch');
+      return new Response(JSON.stringify({ error: { code: 'UPSTREAM_UNREACHABLE', message: 'Proxy could not connect' } }), { status: 503 });
+    });
+    mount();
+    expect(await screen.findByText("Qorloop can't reach the server. Check your connection and try again.")).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/Request ID|could not complete this request/i); expect(screen.queryByRole('button', { name: 'Copy' })).toBeNull();
+    fetchMock.mockImplementation(async (url: string) => ok(url === '/api/settings' ? BASE : { items: [] }));
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByLabelText('Store name')).toBeTruthy();
+  });
+  it('keeps a genuine 500 response with Request ID and Copy', async () => {
+    const copy = vi.fn(async () => undefined); Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: copy } });
+    fetchMock.mockImplementation(async (url: string) => url === '/api/settings/marketplaces' ? ok({ items: [] }) : new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }, requestId: 'settings-server-request' }), { status: 500 }));
+    mount(); expect(await screen.findByText('Qorloop could not complete this request')).toBeTruthy(); expect(screen.getByText('Request ID: settings-server-request')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' })); await waitFor(() => expect(copy).toHaveBeenCalledWith('settings-server-request'));
+  });
   it('loads profile, days, labels and read-only marketplace upload times in Qatar', async () => {
     mount(); expect(screen.getByRole('status', { name: 'Loading settings…' })).toBeTruthy();
     expect((await screen.findByLabelText('Store name') as HTMLInputElement).value).toBe('Doha Store');

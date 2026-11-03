@@ -188,7 +188,7 @@ const EditForm: React.FC<{ product: ProductDetail; onReload: () => void; reloadi
           <FieldError id="err-status" message={errors.fields.status} />
         </div>
       </div>
-      {tree.isError && <p className="text-[11px] text-red-700">We could not load the category list. <button type="button" className="underline" onClick={() => void tree.refetch()}>Try again</button></p>}
+      {tree.isError && <ErrorState error={tree.error} onRetry={() => void tree.refetch()} />}
 
       {editable && (
         <div className="flex justify-end gap-2 pt-1">

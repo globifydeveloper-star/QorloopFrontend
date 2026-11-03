@@ -1,5 +1,6 @@
 import type { ApiErrorBody } from './types';
 import { connectionFailed, connectionReached } from './connectivity';
+import { NETWORK_MESSAGE, UPSTREAM_UNREACHABLE } from './network';
 
 /**
  * Typed fetch wrapper for the Qorloop API.
@@ -84,14 +85,13 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
     connectionFailed();
-    throw new ApiError(0, 'NETWORK', 'We could not reach the server. Check your connection and try again.');
+    throw new ApiError(0, 'NETWORK', NETWORK_MESSAGE);
   }
 
-  connectionReached();
-
-  const text = await res.text();
+  const text = await readBody(() => res.text());
   const json = parseJson(text);
   if (!res.ok) throw failure(res, json, opts.expectUnauthorized);
+  connectionReached();
   return ((json as { data?: T } | undefined)?.data ?? (json as T)) as T;
 }
 
@@ -103,12 +103,21 @@ export async function apiBlob(path: string, signal?: AbortSignal): Promise<{ blo
   } catch (e) {
     if ((e as Error).name === 'AbortError') throw e;
     connectionFailed();
-    throw new ApiError(0, 'NETWORK', 'We could not reach the server. Check your connection and try again.');
+    throw new ApiError(0, 'NETWORK', NETWORK_MESSAGE);
   }
   // Error bodies are JSON ({ error: { code, message } }) when the backend sends them; anything else gets a generic message.
+  if (!res.ok) throw failure(res, parseJson(await readBody(() => res.text())));
+  const blob = await readBody(() => res.blob());
   connectionReached();
-  if (!res.ok) throw failure(res, parseJson(await res.text()));
-  return { blob: await res.blob(), headers: res.headers };
+  return { blob, headers: res.headers };
+}
+
+async function readBody<T>(read: () => Promise<T>): Promise<T> {
+  try { return await read(); } catch (error) {
+    if ((error as Error).name === 'AbortError') throw error;
+    connectionFailed();
+    throw new ApiError(0, 'NETWORK', NETWORK_MESSAGE);
+  }
 }
 
 function parseJson(text: string): unknown {
@@ -117,6 +126,11 @@ function parseJson(text: string): unknown {
 
 function failure(res: Response, json: unknown, expectUnauthorized?: boolean): ApiError {
   const body = (json ?? {}) as Partial<ApiErrorBody>;
+  if ((res.status === 502 || res.status === 503) && body.error?.code === UPSTREAM_UNREACHABLE) {
+    connectionFailed();
+    return new ApiError(0, 'NETWORK', NETWORK_MESSAGE);
+  }
+  connectionReached();
   const msg = body.error?.message;
   const message = Array.isArray(msg) ? msg.join(' ') : msg ?? `Request failed (${res.status})`;
   const error = new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined);

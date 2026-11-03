@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { ReviewRow, UploadDetail, UploadStatus, UploadSummary } from '../../../api/types';
+import { ONBOARDING_KEY } from '../../../api/onboarding';
 
 const perms = new Set<string>();
 vi.mock('../../../auth/AuthContext', () => ({ useAuth: () => ({ can: (p: string) => perms.has(p) }) }));
@@ -50,8 +51,10 @@ const calls = (pred: (url: string, method: string) => boolean) =>
   fetchMock.mock.calls.filter(([u, i]) => pred(String(u), (i as RequestInit).method ?? 'GET'));
 
 const Where = () => { const l = useLocation(); return <output data-testid="where">{l.pathname + l.search}</output>; };
+let lastClient: QueryClient;
 function renderAt(path: string, ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastClient = qc;
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[path]}>
@@ -207,9 +210,11 @@ describe('confirm and apply (real mode)', () => {
   });
 
   it('POSTs apply with the CSRF header, shows progress while applying, then returns to the Dashboard', async () => {
+    vi.stubEnv('VITE_REAL_ONBOARDING', 'true');
     document.cookie = 'qorloop.csrf=tok; path=/';
     afterApply = [rec('applying', { summary, step: 'Writing prices', progress: 60 }), rec('applied', { summary, appliedAt: '2026-10-30T09:00:00.000Z' })];
     fireEvent.click(await open());
+    lastClient.setQueryData(ONBOARDING_KEY, { steps: [], percent: 0, nextStepId: null, complete: false, marketplaces: [] });
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Apply changes' }));
     await waitFor(() => expect(applies()).toHaveLength(1));
     expect((applies()[0][1] as RequestInit).headers).toMatchObject({ 'X-CSRF-Token': 'tok' });
@@ -221,6 +226,7 @@ describe('confirm and apply (real mode)', () => {
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/'), { timeout: 3500 });
     expect(calls(u => u === '/api/uploads/up_1').length).toBeGreaterThan(getsBefore);
     expect(app.showToast).toHaveBeenCalledWith('Changes from talabat.xlsx were applied to the catalogue.');
+    expect(lastClient.getQueryState(ONBOARDING_KEY)?.isInvalidated).toBe(true);
     expect(applies()).toHaveLength(1);
     document.cookie = 'qorloop.csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
   }, 10_000);

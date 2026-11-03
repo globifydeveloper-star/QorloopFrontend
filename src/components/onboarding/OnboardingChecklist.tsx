@@ -9,10 +9,15 @@ import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { marketplaceName } from '../recon/shared';
 import { ONBOARDING_TARGETS } from './targets';
 
+export const onboardingTiming = { pollMs: 15_000 };
+
 export function useOnboardingProgress(enabled = true) {
   const { me, can } = useAuth();
   const eligible = (me?.role === 'owner' || me?.role === 'admin') && can('settings.view');
-  return useQuery({ queryKey: ONBOARDING_KEY, queryFn: ({ signal }) => onboardingApi.get(signal), enabled: enabled && realOnboardingEnabled() && eligible, retry: false });
+  return useQuery({
+    queryKey: ONBOARDING_KEY, queryFn: ({ signal }) => onboardingApi.get(signal), enabled: enabled && realOnboardingEnabled() && eligible, retry: false,
+    refetchInterval: query => !query.state.error && query.state.data?.steps.length && !query.state.data.complete ? onboardingTiming.pollMs : false,
+  });
 }
 
 /** No browser completion/dismiss state: visibility and progress always come from server evidence. */

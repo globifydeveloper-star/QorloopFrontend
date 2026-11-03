@@ -61,4 +61,12 @@ describe('real URLs for every screen', () => {
     try { expect([...(await import('../paths')).CONNECTED_VIEWS]).toEqual(['team', 'settings', 'activity']); }
     finally { vi.unstubAllEnvs(); vi.resetModules(); }
   });
+  it('VITE_REAL_ONBOARDING connects Help & onboarding behind settings.view', async () => {
+    onlyFlags({ VITE_REAL_ONBOARDING: 'true' }); vi.resetModules();
+    try {
+      const paths = await import('../paths');
+      expect([...paths.CONNECTED_VIEWS]).toEqual(['team', 'onboarding']);
+      expect(paths.VIEW_PERMISSION.onboarding).toBe('settings.view');
+    } finally { vi.unstubAllEnvs(); vi.resetModules(); }
+  });
 });

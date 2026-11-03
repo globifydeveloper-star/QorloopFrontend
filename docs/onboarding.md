@@ -21,3 +21,5 @@ No target lacks a route. Action screens retain their existing independent flags.
 Browser acceptance against the real backend remains pending owner verification. No authenticated business mutation or migration is performed as part of implementing the frontend.
 
 Progress is invalidated when an applied upload is observed on Review/Upload history, when a new comparison timestamp arrives, after recompute acceptance, after successful team changes/invitations, after pricing saves (including restoring defaults), and after successful file generation. Upload/comparison queue acceptance never locally completes a step. Authentication/MFA transitions clear the cached workspace as before, so the next checklist reads fresh evidence. No skip/dismiss action or browser completion flag exists.
+
+While visible progress is incomplete, the checklist also refreshes its GET every 15 seconds so background comparison/upload evidence can complete without another click. Polling stops for complete/empty responses or errors; errors retain explicit Try again and the shared connection-recovery behavior.

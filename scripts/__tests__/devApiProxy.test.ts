@@ -12,14 +12,14 @@ const configuredProxy = () => {
   return proxy;
 };
 describe('dev API proxy connection failures', () => {
-  it('passes through a real 500 and marks connection refusal after the upstream server stops', async () => {
+  it.each(['127.0.0.1', 'localhost'])('passes through a real 500 and marks connection refusal through %s after the upstream server stops', async targetHost => {
     const upstream = createHttpServer((_request, response) => {
       response.writeHead(500, { 'Content-Type': 'application/json', 'X-Request-ID': 'upstream-request' });
       response.end(JSON.stringify({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' }, requestId: 'upstream-request' }));
     });
     await new Promise<void>(resolve => upstream.listen(0, '127.0.0.1', resolve));
     const upstreamPort = (upstream.address() as { port: number }).port;
-    const vite = await createViteServer({ configFile: false, logLevel: 'silent', server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null, proxy: { '/api': devApiProxy(`http://127.0.0.1:${upstreamPort}`) } } });
+    const vite = await createViteServer({ configFile: false, logLevel: 'silent', server: { host: '127.0.0.1', port: 0, strictPort: true, hmr: false, watch: null, proxy: { '/api': devApiProxy(`http://${targetHost}:${upstreamPort}`) } } });
     try {
       await vite.listen();
       const proxyPort = (vite.httpServer!.address() as { port: number }).port;
@@ -42,6 +42,23 @@ describe('dev API proxy connection failures', () => {
     proxy.emit('error', Object.assign(new Error('Not displayed'), { code }), {}, response);
     expect(response.writeHead).toHaveBeenCalledWith(503, { 'Content-Type': 'application/json' });
     expect(JSON.parse(response.end.mock.calls[0][0])).toEqual({ error: { code: 'UPSTREAM_UNREACHABLE', message: NETWORK_MESSAGE } });
+  });
+  it('marks an aggregated localhost refusal without an outer code', () => {
+    const proxy = configuredProxy();
+    const response = { headersSent: false, writableEnded: false, writeHead: vi.fn(), end: vi.fn() };
+    const error = new AggregateError([
+      Object.assign(new Error('IPv6 refused'), { code: 'ECONNREFUSED' }),
+      Object.assign(new Error('IPv4 refused'), { code: 'ECONNREFUSED' }),
+    ]);
+    proxy.emit('error', error, {}, response);
+    expect(response.writeHead).toHaveBeenCalledWith(503, { 'Content-Type': 'application/json' });
+    expect(JSON.parse(response.end.mock.calls[0][0]).error.code).toBe('UPSTREAM_UNREACHABLE');
+  });
+  it.each([new AggregateError([]), new AggregateError([new Error('Other failure')]), new AggregateError([Object.assign(new Error('Refused'), { code: 'ECONNREFUSED' }), new Error('Other failure')])])('does not label unknown aggregate failures as network errors', error => {
+    const proxy = configuredProxy();
+    const response = { headersSent: false, writableEnded: false, writeHead: vi.fn(), end: vi.fn() };
+    proxy.emit('error', error, {}, response);
+    expect(response.writeHead).not.toHaveBeenCalled(); expect(response.end).not.toHaveBeenCalled();
   });
   it('does not rewrite other errors, responses already started, or normal upstream HTTP responses', () => {
     const proxy = configuredProxy();

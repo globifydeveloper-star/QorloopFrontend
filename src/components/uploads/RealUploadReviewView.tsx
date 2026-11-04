@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Download } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useApp } from '../../context/AppContext';
-import { ApiError } from '../../api/client';
 import { ErrorState } from '../common/States';
 import { invalidateOnboarding } from '../onboarding/shared';
 import { qatarDateTime } from '../../lib/format';
@@ -13,8 +12,9 @@ import { REVIEW_TABS, UPLOAD_ERRORS_PAGE_SIZE } from '../../api/types';
 import type { ChangeType, ChangeValue, ReviewRow, ReviewTab, UploadDetail, UploadSummary, UploadRowError, ValueChange } from '../../api/types';
 import {
   ConfirmDialog, DISCARDABLE, FailureNotice, SOURCE_LABELS, StatusBadge, StatusProgress, UPLOADS_LIST_KEY, cell, errorText,
-  formatBytes, saveBlob, uploadKey, useUploadStatus,
+  formatBytes, uploadKey, useUploadStatus,
 } from './shared';
+import { DownloadErrorsButton } from './DownloadErrors';
 
 const TAB_LABELS: Record<ReviewTab, string> = {
   price: 'Price changes',
@@ -61,7 +61,7 @@ const PAGE_SIZE = 50;
 /**
  * Upload detail page: live status while processing, the review tabs once the backend reaches needs_review, and the
  * row errors. "Confirm and apply" POSTs /apply, polls while `applying`, and returns to the Dashboard once `applied`;
- * an applied upload is a read-only summary.
+ * an applied upload is a read-only summary (its errors file stays downloadable from the "Rows with errors" tile).
  */
 export const RealUploadReviewView: React.FC = () => {
   const [params] = useSearchParams();
@@ -127,6 +127,9 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
   const canApply = can('uploads.apply') && upload.status === 'needs_review';
   const rolledBack = upload.status === 'needs_review' && Boolean(upload.errorMessage);
   const summary = upload.summary;
+  // An applied upload has no Row errors panel, so its errors file is offered on the "Rows with errors" tile. The
+  // backend keeps the stored errors after apply (only discard deletes them).
+  const tileDownload = upload.status === 'applied' && can('uploads.view');
 
   return (
     <Shell crumb={upload.fileName}>
@@ -200,6 +203,11 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
                 <div key={c.key} className="bg-white border border-gray-200 rounded-xl p-3">
                   <div className="text-[11px] text-gray-500">{c.label}</div>
                   <div className={`text-xl font-bold mt-1 ${c.tone?.(n) ?? 'text-gray-900'}`}>{n.toLocaleString()}</div>
+                  {c.key === 'rowsWithErrors' && tileDownload && n > 0 && (
+                    <div className="mt-2">
+                      <DownloadErrorsButton id={upload.id} capped={n > ERRORS_XLSX_LIMIT} align="start" />
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -398,7 +406,7 @@ const RowErrors: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
         <h2 className="text-xs font-bold uppercase tracking-wider text-gray-900">
           Row errors{q.data ? ` (${q.data.total})` : ''}
         </h2>
-        {hasErrors && can('uploads.view') && <DownloadErrors id={id} capped={shownCount > ERRORS_XLSX_LIMIT} />}
+        {hasErrors && can('uploads.view') && <DownloadErrorsButton id={id} capped={shownCount > ERRORS_XLSX_LIMIT} />}
       </div>
       {q.isError ? (
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
@@ -412,40 +420,6 @@ const RowErrors: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
           <Pager page={page} pages={pages} total={q.data.total} onPage={setPage} />
         </>
       )}
-    </div>
-  );
-};
-
-const DownloadErrors: React.FC<{ id: string; capped: boolean }> = ({ id, capped }) => {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const download = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const { blob, fileName } = await uploadsApi.downloadErrors(id);
-      saveBlob(blob, fileName);
-    } catch (e) {
-      console.error('[uploads] downloading the errors file failed', e);
-      // A 401 has already sent the app to the session-expired screen (client.ts); the message is for everything else.
-      setError(`Could not download the errors: ${e instanceof ApiError ? e.message : errorText(e)}`);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={() => void download()}
-        disabled={busy}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#027864] bg-white border border-[#027864]/40 rounded-lg hover:bg-[#E3FAF3] disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <Download className="w-3.5 h-3.5" />
-        {busy ? 'Preparing…' : 'Download errors (.xlsx)'}
-      </button>
-      {capped && <p className="text-[11px] text-gray-500">The file lists up to {ERRORS_XLSX_LIMIT.toLocaleString('en-US')} errors</p>}
-      {error && <p role="alert" className="text-[11px] text-red-600">{error}</p>}
     </div>
   );
 };

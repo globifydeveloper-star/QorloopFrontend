@@ -39,15 +39,25 @@ export const uploadsApi = {
    */
   apply: (id: string) => api<UploadRecord>(`/api/uploads/${enc(id)}/apply`, { method: 'POST' }),
   discard: (id: string) => api<UploadRecord>(`/api/uploads/${enc(id)}/discard`, { method: 'POST' }),
-  /** The row errors as an .xlsx (the backend caps it at ERRORS_XLSX_LIMIT rows). */
+  /**
+   * The row errors as an .xlsx (the backend caps it at ERRORS_XLSX_LIMIT rows). Any status the upload is in, as long
+   * as it was not discarded (discard deletes the stored errors). The backend always sends a workbook, so an empty
+   * body is treated as a missing file (EMPTY_ERRORS_FILE) rather than saved as a 0-byte .xlsx.
+   */
   downloadErrors: async (id: string): Promise<{ blob: Blob; fileName: string }> => {
     const { blob, headers } = await apiBlob(`/api/uploads/${enc(id)}/errors.xlsx`);
+    if (blob.size === 0) {
+      throw new ApiError(200, EMPTY_ERRORS_FILE, 'The server sent an empty file.', [], headers.get('X-Request-ID') ?? undefined);
+    }
     return { blob, fileName: fileNameFrom(headers.get('Content-Disposition')) ?? 'row-errors.xlsx' };
   },
 };
 
 /** Rows the errors.xlsx export holds at most. */
 export const ERRORS_XLSX_LIMIT = 5000;
+
+/** ApiError code for a 2xx errors.xlsx reply with no body. */
+export const EMPTY_ERRORS_FILE = 'EMPTY_FILE';
 
 /** File name from a Content-Disposition header: RFC 5987 `filename*=UTF-8''…` first, then `filename="…"`. */
 export function fileNameFrom(header: string | null): string | undefined {

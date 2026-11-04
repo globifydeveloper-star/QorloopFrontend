@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, onSessionExpired } from '../client';
-import { isSettled, uploadsApi } from '../uploads';
+import { EMPTY_ERRORS_FILE, isSettled, uploadsApi } from '../uploads';
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -159,6 +159,15 @@ describe('uploadsApi.downloadErrors', () => {
   it('a non-JSON error body gets a generic message with the status', async () => {
     fetchMock.mockResolvedValue(new Response('<html>Bad gateway</html>', { status: 502 }));
     await expect(uploadsApi.downloadErrors('up_1')).rejects.toMatchObject({ status: 502, message: 'Request failed (502)' });
+  });
+
+  it('an empty 200 body is a missing file (EMPTY_FILE, with the Request ID), never a 0-byte download', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(new Uint8Array(0), { status: 200, headers: { 'X-Request-ID': 'req-empty-1' } }));
+    const err = (await uploadsApi.downloadErrors('up_1').catch(e => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({ code: EMPTY_ERRORS_FILE, requestId: 'req-empty-1' });
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
+    await expect(uploadsApi.downloadErrors('up_1')).rejects.toMatchObject({ code: EMPTY_ERRORS_FILE, requestId: undefined });
   });
 });
 

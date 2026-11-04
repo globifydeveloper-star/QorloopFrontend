@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { ReviewRow, UploadDetail, UploadStatus, UploadSummary } from '../../../api/types';
 import { ONBOARDING_KEY } from '../../../api/onboarding';
+import { NETWORK_MESSAGE } from '../../../api/network';
 
 const perms = new Set<string>();
 vi.mock('../../../auth/AuthContext', () => ({ useAuth: () => ({ can: (p: string) => perms.has(p) }) }));
@@ -409,12 +410,13 @@ describe('download errors (.xlsx)', () => {
     off();
   });
 
-  it('a 404 shows the specific message and logs the original error', async () => {
-    xlsxReply = () => json(404, { error: { code: 'NOT_FOUND', message: 'Upload not found' } });
+  it('a 404 shows the missing-file message with its Request ID and logs the original error', async () => {
+    xlsxReply = () => json(404, { error: { code: 'NOT_FOUND', message: 'Upload not found' }, requestId: 'req-404' });
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     await open();
     fireEvent.click(screen.getByRole('button', { name: NAME }));
-    expect((await screen.findByText(/Could not download the errors/)).textContent).toBe('Could not download the errors: Upload not found');
+    expect((await screen.findByText(/Could not download the errors/)).textContent).toBe('Could not download the errors: the errors file for this upload was not found.');
+    expect(screen.getByText('Request ID: req-404')).toBeTruthy();
     expect(log).toHaveBeenCalledWith('[uploads] downloading the errors file failed', expect.objectContaining({ status: 404 }));
     expect(clicked).toHaveLength(0);
   });
@@ -427,6 +429,145 @@ describe('download errors (.xlsx)', () => {
     errorsTotal = 5001;
     await open();
     expect(screen.getByText('The file lists up to 5,000 errors')).toBeTruthy();
+  });
+
+  describe('on an applied upload', () => {
+    const applied = (rowsWithErrors: number) => rec('applied', { summary: { ...summary, rowsWithErrors }, appliedAt: '2026-10-30T09:00:00.000Z' });
+    const tile = () => screen.getByText('Rows with errors').parentElement!;
+    const openApplied = async () => {
+      renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
+      await screen.findByText(/These changes were applied to the catalogue/);
+    };
+    beforeEach(() => { detail = applied(28); });
+
+    it('offers the download on the "Rows with errors" tile and saves the server file, without loading the error list', async () => {
+      await openApplied();
+      expect(tile().textContent).toContain('28');
+      fireEvent.click(within(tile()).getByRole('button', { name: NAME }));
+      await waitFor(() => expect(clicked).toEqual([{ href: 'blob:qorloop/1', download: 'talabat-errors.xlsx' }]));
+      expect(calls(u => u === '/api/uploads/up_1/errors.xlsx')).toHaveLength(1);
+      expect(calls(u => u.startsWith('/api/uploads/up_1/errors?') || u.includes('/review'))).toHaveLength(0);
+      expect(screen.queryByRole('button', { name: 'Confirm and apply' })).toBeNull();
+    });
+
+    it('is hidden at zero errors, without uploads.view, and on a discarded upload', async () => {
+      detail = applied(0);
+      await openApplied();
+      expect(screen.queryByRole('button', { name: NAME })).toBeNull();
+      cleanup();
+      detail = applied(28);
+      perms.delete('uploads.view');
+      await openApplied();
+      expect(screen.queryByRole('button', { name: NAME })).toBeNull();
+      cleanup();
+      perms.add('uploads.view');
+      detail = rec('discarded', { summary: { ...summary, rowsWithErrors: 28 } });
+      renderAt('/uploads/review?upload=up_1', <UploadReviewView />);
+      await screen.findByText(/This upload was discarded/);
+      expect(screen.queryByRole('button', { name: NAME })).toBeNull();
+    });
+
+    it('says "Preparing…" while loading and a double click sends one request', async () => {
+      let finish!: (r: Response) => void;
+      xlsxReply = () => new Promise<Response>(r => { finish = r; });
+      await openApplied();
+      const button = within(tile()).getByRole('button', { name: NAME });
+      fireEvent.click(button);
+      fireEvent.click(button);
+      expect(((await within(tile()).findByRole('button', { name: 'Preparing…' })) as HTMLButtonElement).disabled).toBe(true);
+      expect(calls(u => u.endsWith('/errors.xlsx'))).toHaveLength(1);
+      finish(new Response(new Uint8Array([1]), { status: 200 }));
+      expect(((await within(tile()).findByRole('button', { name: NAME })) as HTMLButtonElement).disabled).toBe(false);
+      expect(clicked).toEqual([{ href: 'blob:qorloop/1', download: 'row-errors.xlsx' }]);
+    });
+
+    it('a server failure shows a friendly message with the Request ID (not the raw error), and a retry can succeed', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      xlsxReply = () => json(500, { error: { code: 'INTERNAL', message: 'TypeError: cannot read rows' }, requestId: 'req-500-abc' });
+      await openApplied();
+      fireEvent.click(within(tile()).getByRole('button', { name: NAME }));
+      const alert = await within(tile()).findByRole('alert');
+      expect(alert.textContent).toContain('Could not download the errors: Qorloop could not prepare the file. Please try again. If this continues, share the Request ID with support.');
+      expect(alert.textContent).not.toContain('cannot read rows');
+      expect(within(alert).getByText('Request ID: req-500-abc')).toBeTruthy();
+      expect(within(alert).getByRole('button', { name: 'Copy' })).toBeTruthy();
+      expect(clicked).toHaveLength(0);
+
+      xlsxReply = () => new Response(new Uint8Array([1]), { status: 200, headers: { 'Content-Disposition': 'attachment; filename="talabat-errors.xlsx"' } });
+      fireEvent.click(within(tile()).getByRole('button', { name: NAME }));
+      await waitFor(() => expect(clicked).toHaveLength(1));
+      expect(within(tile()).queryByRole('alert')).toBeNull();
+    });
+
+    it.each([
+      ['a 404', () => json(404, { error: { code: 'NOT_FOUND', message: 'Upload not found' }, requestId: 'req-404' }), 'the errors file for this upload was not found.', 'req-404'],
+      ['an empty file', () => new Response(new Uint8Array(0), { status: 200, headers: { 'X-Request-ID': 'req-empty' } }), 'the server sent an empty file. Please try again.', 'req-empty'],
+    ] as const)('%s is reported as a missing file with its Request ID, and nothing is saved', async (_, reply, message, requestId) => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      xlsxReply = reply;
+      await openApplied();
+      fireEvent.click(within(tile()).getByRole('button', { name: NAME }));
+      const alert = await within(tile()).findByRole('alert');
+      expect(alert.textContent).toContain(`Could not download the errors: ${message}`);
+      expect(within(alert).getByText(`Request ID: ${requestId}`)).toBeTruthy();
+      expect(clicked).toHaveLength(0);
+      expect(URL.createObjectURL).not.toHaveBeenCalled();
+    });
+
+    it('a network failure shows the shared connection message and no Request ID', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      xlsxReply = () => Promise.reject(new TypeError('Failed to fetch'));
+      await openApplied();
+      fireEvent.click(within(tile()).getByRole('button', { name: NAME }));
+      const alert = await within(tile()).findByRole('alert');
+      expect(alert.textContent).toBe(NETWORK_MESSAGE);
+      expect(within(alert).queryByText(/Request ID/)).toBeNull();
+    });
+  });
+
+  describe('from the uploads list', () => {
+    beforeEach(() => {
+      const list = [
+        rec('applied', { summary: { ...summary, rowsWithErrors: 28 }, appliedAt: '2026-10-30T09:00:00.000Z' }),
+        rec('applied', { id: 'up_2', fileName: 'clean.xlsx', summary: { ...summary, rowsWithErrors: 0 }, appliedAt: '2026-10-30T09:00:00.000Z' }),
+        rec('needs_review', { id: 'up_3', fileName: 'pending.xlsx', summary }),
+      ];
+      const base = handler;
+      handler = (url, init) => (url === '/api/uploads' ? json(200, { data: list }) : base(url, init));
+    });
+    const LABEL = `${NAME} for talabat.xlsx`;
+
+    it('appears only on applied rows with errors, next to Details, and downloads that upload', async () => {
+      renderAt('/uploads', <UploadsHistoryView />);
+      const button = await screen.findByRole('button', { name: LABEL });
+      expect(screen.getAllByRole('button', { name: /Download errors/ })).toHaveLength(1);
+      expect(within(button.closest('td')!).getByRole('link', { name: 'Details' })).toBeTruthy();
+      fireEvent.click(button);
+      await waitFor(() => expect(clicked).toEqual([{ href: 'blob:qorloop/1', download: 'talabat-errors.xlsx' }]));
+      expect(calls(u => u.endsWith('/errors.xlsx')).map(([u]) => u)).toEqual(['/api/uploads/up_1/errors.xlsx']);
+    });
+
+    it('shows loading and a failure (with Request ID) in that row only', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      let finish!: (r: Response) => void;
+      xlsxReply = () => new Promise<Response>(r => { finish = r; });
+      renderAt('/uploads', <UploadsHistoryView />);
+      fireEvent.click(await screen.findByRole('button', { name: LABEL }));
+      const busy = await screen.findByRole('button', { name: 'Preparing… for talabat.xlsx' }) as HTMLButtonElement;
+      expect(busy.disabled).toBe(true);
+      finish(json(503, { error: { code: 'UNAVAILABLE', message: 'Storage is down' }, requestId: 'req-503' }));
+      const cellAlert = await within(busy.closest('td')!).findByRole('alert');
+      expect(cellAlert.textContent).toContain('Qorloop could not prepare the file.');
+      expect(within(cellAlert).getByText('Request ID: req-503')).toBeTruthy();
+      expect(screen.getAllByRole('alert')).toHaveLength(1);
+    });
+
+    it('is hidden without uploads.view', async () => {
+      perms.delete('uploads.view');
+      renderAt('/uploads', <UploadsHistoryView />);
+      await screen.findByRole('link', { name: 'Review' });
+      expect(screen.queryByRole('button', { name: /Download errors/ })).toBeNull();
+    });
   });
 });
 

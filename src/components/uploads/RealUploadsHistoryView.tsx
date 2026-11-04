@@ -5,8 +5,9 @@ import { invalidateOnboarding } from '../onboarding/shared';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
-import { UPLOAD_POLL_MS, isSettled, uploadsApi } from '../../api/uploads';
+import { ERRORS_XLSX_LIMIT, UPLOAD_POLL_MS, isSettled, uploadsApi } from '../../api/uploads';
 import { SOURCE_LABELS, StatusBadge, StatusProgress, UPLOADS_LIST_KEY, errorText, failureCopy, formatBytes, uploadPath } from './shared';
+import { DownloadErrorsButton } from './DownloadErrors';
 
 /** Upload history from GET /api/uploads. Refreshes every 2 s while any upload is still being processed. */
 export const RealUploadsHistoryView: React.FC = () => {
@@ -88,11 +89,17 @@ export const RealUploadsHistoryView: React.FC = () => {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right">
-                      {up.status === 'needs_mapping' && !can('uploads.map') ? null : (
-                        <Link to={uploadPath(up)} className="text-[#027864] hover:underline font-semibold">
-                          {up.status === 'needs_mapping' ? 'Map columns' : up.status === 'needs_review' ? 'Review' : 'Details'}
-                        </Link>
-                      )}
+                      <div className="flex flex-col items-end gap-1.5">
+                        {up.status === 'needs_mapping' && !can('uploads.map') ? null : (
+                          <Link to={uploadPath(up)} className="text-[#027864] hover:underline font-semibold">
+                            {up.status === 'needs_mapping' ? 'Map columns' : up.status === 'needs_review' ? 'Review' : 'Details'}
+                          </Link>
+                        )}
+                        {/* An applied upload's detail page has no Row errors panel, so its errors file is offered here too. */}
+                        {up.status === 'applied' && (up.summary?.rowsWithErrors ?? 0) > 0 && can('uploads.view') && (
+                          <DownloadErrorsButton id={up.id} fileName={up.fileName} capped={(up.summary?.rowsWithErrors ?? 0) > ERRORS_XLSX_LIMIT} />
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

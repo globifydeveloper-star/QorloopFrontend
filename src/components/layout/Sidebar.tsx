@@ -5,7 +5,6 @@ import {
   BarChart2,
   Package,
   Tag,
-  Network,
   FileSpreadsheet,
   Settings,
   HelpCircle,
@@ -49,7 +48,6 @@ export const Sidebar: React.FC = () => {
       items: [
         { label: 'Catalogue', view: 'catalogue', icon: Package },
         { label: 'Marketplace price', view: 'markups', icon: Tag },
-        { label: 'Category mapping', view: 'category-mapping', icon: Network },
       ],
     },
     {

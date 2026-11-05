@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, CircleSlash, RefreshCw } from 'lucide-react';
+import { CheckCircle2, CircleSlash, Info, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import { ApiError } from '../../api/client';
@@ -109,6 +109,8 @@ const EditForm: React.FC<{ product: ProductDetail; onReload: () => void; reloadi
   const errors = save.error && !conflict ? productErrors(save.error) : { fields: {} as ReturnType<typeof productErrors>['fields'] };
   const input = 'w-full h-9 px-3 text-sm border rounded-lg bg-white disabled:bg-gray-50 disabled:text-gray-600';
   const border = (f?: string) => (f ? 'border-red-400' : 'border-gray-300');
+  // The saved product's details as the backend reports them; a hint only, activation does not need them.
+  const missing = [p.arabicNameMissing && 'Arabic name', p.categoryMissing && 'Category'].filter(Boolean);
 
   return (
     <form
@@ -120,6 +122,12 @@ const EditForm: React.FC<{ product: ProductDetail; onReload: () => void; reloadi
         <h2 className="text-sm font-bold text-gray-900">Qorloop details</h2>
         <p className="text-xs text-gray-500">{editable ? 'These fields belong to Qorloop; ERP uploads never overwrite them.' : 'You can view this product but not edit it.'}</p>
       </div>
+      {missing.length > 0 && (
+        <p role="note" className="flex items-center gap-1.5 text-xs text-gray-600">
+          <Info className="w-3.5 h-3.5 shrink-0 text-gray-400" aria-hidden="true" />
+          Missing details: {missing.join(', ')}
+        </p>
+      )}
 
       {conflict && (
         <div role="alert" className="flex items-center justify-between gap-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">

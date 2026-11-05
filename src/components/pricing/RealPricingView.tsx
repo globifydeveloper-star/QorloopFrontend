@@ -159,8 +159,7 @@ export const PricingSettingsForm: React.FC<{
         </label>
         <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 text-xs">
           <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-600 mt-0.5" aria-hidden />
-          <span><b>Price parity:</b> many marketplace contracts require the same price everywhere. Check your contracts before using different prices.</span>
-        </div>
+         </div>
         {s.perMarketplaceEnabled && (
           s.marketplaceRules.length === 0
             ? <p className="text-xs text-gray-500">No marketplace has its own rule yet, so every marketplace uses the rules above.</p>

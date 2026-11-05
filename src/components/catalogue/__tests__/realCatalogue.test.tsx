@@ -184,8 +184,11 @@ const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
   ...prod('p1', { status: 'new', erpCategory: 'DAIRY', costPrice: 9 }), size: '1L', erpActive: true, createdAt: UPDATED,
   category: null, subcategory: null,
   listings: [{ marketplaceId: 'talabat', marketplaceProductId: 'T-1', price: 13, available: false, updatedAt: UPDATED }],
+  arabicNameMissing: true, categoryMissing: true,
   ...over,
 });
+const LATER = '2026-10-30T09:00:00.000Z';
+const detailsForm = () => within(screen.getByRole('form', { name: 'Qorloop details' }));
 
 describe('product detail (CAT-002)', () => {
   it('shows the product, its listings and "Not available yet" for unbuilt sections', async () => {
@@ -211,8 +214,8 @@ describe('product detail (CAT-002)', () => {
       if (i.method !== 'PATCH') return ok(detail());
       attempt++;
       return attempt === 1
-        ? fail(400, 'The product is not ready to activate', [{ path: 'category', message: 'Category missing' }])
-        : ok(detail({ nameAr: 'حليب', categoryId: 'cat_dairy', subcategoryId: 'sub_milk', updatedAt: '2026-10-30T09:00:00.000Z' }));
+        ? fail(400, 'Validation failed', [{ path: 'nameAr', message: 'Arabic name is too long' }])
+        : ok(detail({ nameAr: 'حليب', categoryId: 'cat_dairy', subcategoryId: 'sub_milk', updatedAt: LATER, arabicNameMissing: false, categoryMissing: false }));
     };
     renderAt('/catalogue/p1', <ProductDetailView />);
     await screen.findByRole('heading', { name: 'Product p1' });
@@ -221,9 +224,9 @@ describe('product detail (CAT-002)', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Arabic name' }), { target: { value: ' حليب ' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'active' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByText('Category missing')).toBeTruthy();
-    expect(screen.getByText('The product is not ready to activate')).toBeTruthy();
-    expect(screen.getByRole('combobox', { name: 'Category' }).getAttribute('aria-invalid')).toBe('true');
+    expect(await screen.findByText('Arabic name is too long')).toBeTruthy();
+    expect(screen.getByRole('textbox', { name: 'Arabic name' }).getAttribute('aria-invalid')).toBe('true');
+    expect(screen.queryByText('Validation failed')).toBeNull();
     expect(bodyOf(calls((u, m) => m === 'PATCH')[0])).toEqual({ nameAr: 'حليب', status: 'active', expectedUpdatedAt: UPDATED });
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Category' }), { target: { value: 'cat_dairy' } });
@@ -233,9 +236,63 @@ describe('product detail (CAT-002)', () => {
     expect(bodyOf(calls((u, m) => m === 'PATCH')[1])).toEqual({
       nameAr: 'حليب', categoryId: 'cat_dairy', subcategoryId: 'sub_milk', status: 'active', expectedUpdatedAt: UPDATED,
     });
+    // Both details are there now, so no hint.
+    await waitFor(() => expect(detailsForm().queryByRole('note')).toBeNull());
   });
 
-  it('a 409 says "This product changed; reload" and Reload fetches the new version', async () => {
+  it('activates a product with no Arabic name and no category; the gaps stay a plain hint, not an error', async () => {
+    handler = (u, i) => {
+      if (u !== '/api/products/p1') return undefined;
+      return i.method === 'PATCH' ? ok(detail({ status: 'active', updatedAt: LATER })) : ok(detail());
+    };
+    renderAt('/catalogue/p1', <ProductDetailView />);
+    await screen.findByRole('heading', { name: 'Product p1' });
+    expect(detailsForm().getByRole('note').textContent).toBe('Missing details: Arabic name, Category');
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'active' } });
+    const save = screen.getByRole('button', { name: 'Save changes' }) as HTMLButtonElement;
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await waitFor(() => expect(app.showToast).toHaveBeenCalledWith('Product saved', 'success'));
+    expect(bodyOf(calls((u, m) => m === 'PATCH')[0])).toEqual({ status: 'active', expectedUpdatedAt: UPDATED });
+    await waitFor(() => expect(screen.getByTestId('status-pill').textContent).toBe('Active'));
+
+    const note = detailsForm().getByRole('note');
+    expect(note.textContent).toBe('Missing details: Arabic name, Category');
+    expect(note.className).not.toMatch(/red/);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/not ready to activate/i)).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Arabic name' }).getAttribute('aria-invalid')).toBe('false');
+    expect(screen.getByRole('combobox', { name: 'Category' }).getAttribute('aria-invalid')).toBe('false');
+  });
+
+  it('builds the hint from arabicNameMissing / categoryMissing, not from the fields', async () => {
+    handler = u => (u === '/api/products/p1' ? ok(detail({ arabicNameMissing: false, categoryMissing: true })) : undefined);
+    renderAt('/catalogue/p1', <ProductDetailView />);
+    await screen.findByRole('heading', { name: 'Product p1' });
+    expect(detailsForm().getByRole('note').textContent).toBe('Missing details: Category');
+    cleanup();
+
+    handler = u => (u === '/api/products/p1' ? ok(detail({ arabicNameMissing: false, categoryMissing: false })) : undefined);
+    renderAt('/catalogue/p1', <ProductDetailView />);
+    await screen.findByRole('heading', { name: 'Product p1' });
+    expect(detailsForm().queryByRole('note')).toBeNull();
+  });
+
+  it('a 403 on activating says so, as before', async () => {
+    handler = (u, i) => {
+      if (u !== '/api/products/p1') return undefined;
+      return i.method === 'PATCH' ? fail(403, 'Permission denied') : ok(detail());
+    };
+    renderAt('/catalogue/p1', <ProductDetailView />);
+    await screen.findByRole('heading', { name: 'Product p1' });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'active' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('You do not have permission to do this.');
+    expect(app.showToast).not.toHaveBeenCalled();
+  });
+
+  it('a 409 on activating says "This product changed; reload" and Reload fetches the new version', async () => {
     let version = 1;
     handler = (u, i) => {
       if (u !== '/api/products/p1') return undefined;
@@ -244,7 +301,7 @@ describe('product detail (CAT-002)', () => {
     };
     renderAt('/catalogue/p1', <ProductDetailView />);
     await screen.findByRole('heading', { name: 'Product p1' });
-    fireEvent.change(screen.getByRole('textbox', { name: 'Arabic name' }), { target: { value: 'حليب' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Status' }), { target: { value: 'active' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
     expect((await screen.findByRole('alert')).textContent).toContain('This product changed; reload');
     version = 2;
@@ -283,62 +340,83 @@ describe('new products (CAT-004)', () => {
         return ok({ items: NEW, nextCursor: null, counts: counts({ new: 3 }) });
       }
       if (u === '/api/products/activate') {
+        // As the backend answers: no Arabic name or category is required; only unknown or not-new ids are skipped.
         return 'all' in JSON.parse(String(i.body))
-          ? ok({ activated: 1, skipped: [{ id: 'n2', reason: 'Arabic name missing' }, { id: 'n3', reason: 'Category missing' }], skippedCount: 2 })
-          : ok({ activated: 1, skipped: [{ id: 'n2', reason: 'Arabic name missing' }], skippedCount: 1 });
+          ? ok({
+            activated: 1336, arabicNameMissing: 1300, categoryMissing: 1336,
+            skipped: [{ id: 'n1', reason: 'Not a new product' }, { id: 'gone', reason: 'Not found' }], skippedCount: 2,
+          })
+          : ok({ activated: 2, arabicNameMissing: 1, categoryMissing: 2, skipped: [], skippedCount: 0 });
       }
       if (u === '/api/products/n2' && i.method === 'PATCH') {
-        return ok({ ...detail(), ...NEW[1], nameAr: 'اسم', categoryId: 'cat_snacks', updatedAt: '2026-10-30T09:00:00.000Z', listings: [] });
+        return ok({ ...detail(), ...NEW[1], nameAr: 'اسم', categoryId: 'cat_snacks', updatedAt: LATER, listings: [], arabicNameMissing: false, categoryMissing: false });
       }
       return undefined;
     };
   });
+  const OLD_READINESS = /not ready|^ready$|Arabic name missing|Category missing|all ready/i;
 
-  it('labels readiness and saves an inline edit of Arabic name and category', async () => {
+  it('shows no readiness labels and saves an inline edit of Arabic name and category', async () => {
     renderAt('/catalogue/new', <NewProductsView />);
     const row = within(await screen.findByTestId('row-n2'));
-    expect(row.getByText('Not ready')).toBeTruthy();
-    expect(row.getByText('Arabic name missing')).toBeTruthy();
-    expect(row.getByText('Category missing')).toBeTruthy();
-    expect(within(screen.getByTestId('row-n1')).getByText('Ready')).toBeTruthy();
+    expect(screen.queryByRole('columnheader', { name: 'Ready' })).toBeNull();
+    expect(screen.queryAllByText(OLD_READINESS)).toHaveLength(0);
+    expect(screen.queryByText(/ready once it has/)).toBeNull();
 
     await screen.findAllByRole('option', { name: 'Snacks' });
     fireEvent.change(row.getByRole('textbox', { name: 'Arabic name for Product n2' }), { target: { value: 'اسم' } });
     fireEvent.change(row.getByRole('combobox', { name: 'Category for Product n2' }), { target: { value: 'cat_snacks' } });
     fireEvent.click(row.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(row.getByText('Ready')).toBeTruthy());
+    await waitFor(() => expect(row.queryByRole('button', { name: 'Save' })).toBeNull());
     expect(bodyOf(calls((u, m) => m === 'PATCH')[0])).toEqual({ nameAr: 'اسم', categoryId: 'cat_snacks', expectedUpdatedAt: UPDATED });
-    expect(row.queryByRole('button', { name: 'Save' })).toBeNull();
+    expect((row.getByRole('textbox', { name: 'Arabic name for Product n2' }) as HTMLInputElement).value).toBe('اسم');
   });
 
-  it('activates the selected rows and lists the skipped ones with their reasons', async () => {
+  it('activates selected rows that have no Arabic name or no category and sums up what they lack', async () => {
     renderAt('/catalogue/new', <NewProductsView />);
-    await screen.findByTestId('row-n1');
-    const activate = screen.getByRole('button', { name: /Activate selected/ }) as HTMLButtonElement;
-    expect(activate.disabled).toBe(true);
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Product n1' }));
+    await screen.findByTestId('row-n2');
+    expect((screen.getByRole('button', { name: /Activate selected/ }) as HTMLButtonElement).disabled).toBe(true);
+    // n2 has neither detail; n3 has an Arabic name but no category.
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Product n2' }));
+    expect((screen.getByRole('button', { name: 'Activate selected (1)' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Product n3' }));
     fireEvent.click(screen.getByRole('button', { name: 'Activate selected (2)' }));
 
-    const result = within(await screen.findByRole('region', { name: 'Activation result' }));
-    expect(result.getByText(/Activated 1 product\. Skipped 1\./)).toBeTruthy();
-    const skipped = result.getByRole('link', { name: 'Product n2' }).closest('tr')!;
-    expect(skipped.textContent).toContain('Arabic name missing');
-    expect(skipped.textContent).toContain('6281000n2');
-    expect(bodyOf(calls(u => u === '/api/products/activate')[0])).toEqual({ ids: ['n1', 'n2'] });
+    const region = await screen.findByRole('region', { name: 'Activation result' });
+    expect(within(region).getByText('Activated 2 products. 1 has no Arabic name and 2 have no category.')).toBeTruthy();
+    expect(region.textContent).not.toMatch(/Skipped/);
+    expect(within(region).queryByRole('table')).toBeNull();
+    expect(screen.queryAllByText(OLD_READINESS)).toHaveLength(0);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(app.showToast).toHaveBeenCalledWith('Activated 2 products', 'success');
+    expect(bodyOf(calls(u => u === '/api/products/activate')[0])).toEqual({ ids: ['n2', 'n3'] });
   });
 
-  it('"Activate all ready" asks first, then sends { all: true }', async () => {
+  it('"Activate all" asks first, sends { all: true }, then sums up and lists only the skipped ids', async () => {
     renderAt('/catalogue/new', <NewProductsView />);
     await screen.findByTestId('row-n1');
-    fireEvent.click(screen.getByRole('button', { name: 'Activate all ready' }));
-    const dialog = within(screen.getByRole('dialog', { name: 'Activate all ready products?' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Activate all' }));
+    const dialog = within(screen.getByRole('dialog', { name: 'Activate all new products?' }));
+    expect(dialog.getByText(/with or without an Arabic name and a category/)).toBeTruthy();
     expect(calls(u => u === '/api/products/activate')).toHaveLength(0);
-    fireEvent.click(dialog.getByRole('button', { name: 'Activate all ready' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Activate all' }));
+
     const result = within(await screen.findByRole('region', { name: 'Activation result' }));
-    expect(result.getByText(/Skipped 2\./)).toBeTruthy();
-    expect(result.getByText('Category missing')).toBeTruthy();
+    expect(result.getByText('Activated 1,336 products. 1,300 have no Arabic name and 1,336 have no category. Skipped 2.')).toBeTruthy();
+    const rows = result.getAllByRole('row').slice(1).map(r => r.textContent);
+    expect(rows).toEqual(['Product n16281000n1Not a new product', 'gone—Not found']);
     expect(bodyOf(calls(u => u === '/api/products/activate')[0])).toEqual({ all: true });
+  });
+
+  it('a 403 on activating shows the permission message, as before', async () => {
+    const base = handler;
+    handler = (u, i) => (u === '/api/products/activate' ? fail(403, 'Permission denied') : base(u, i));
+    renderAt('/catalogue/new', <NewProductsView />);
+    await screen.findByTestId('row-n2');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Product n2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Activate selected (1)' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('You do not have permission to do this.');
+    expect(screen.queryByRole('region', { name: 'Activation result' })).toBeNull();
   });
 
   it('a 409 on an inline save asks to reload', async () => {

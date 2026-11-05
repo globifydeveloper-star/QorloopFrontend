@@ -12,7 +12,6 @@ export type ViewType =
   | 'categories'
   | 'category-detail'
   | 'markups'
-  | 'category-mapping'
   | 'templates'
   | 'outputs-generate'
   | 'onboarding'

@@ -172,7 +172,7 @@ export interface AttentionItem {
   tone: 'info' | 'warning' | 'error';
   title: string;
   detail: string;
-  action: { label: string; target: 'new-products' | 'upload' | 'missing' | 'templates' | 'category-mapping'; source?: UploadRecord['source'] };
+  action: { label: string; target: 'new-products' | 'upload' | 'missing' | 'templates'; source?: UploadRecord['source'] };
 }
 
 /** "Needs attention" list for the dashboard, computed from data. */

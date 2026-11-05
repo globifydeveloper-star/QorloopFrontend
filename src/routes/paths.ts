@@ -21,7 +21,6 @@ const PATHS: Record<ViewType, string> = {
   categories: '/categories',
   'category-detail': '/categories/:id',
   markups: '/pricing',
-  'category-mapping': '/settings/category-mapping',
   templates: '/settings/file-mappings',
   'outputs-generate': '/files',
   onboarding: '/onboarding',
@@ -35,12 +34,15 @@ export function pathFor(view: ViewType, id?: string): string {
   return p.includes(':id') ? p.replace(':id', encodeURIComponent(id ?? '')) : p;
 }
 
+/** URLs of screens that were removed. A bookmark or an old link to one goes to the Dashboard, never a blank page. */
+export const RETIRED_PATHS: readonly string[] = ['/settings/category-mapping'];
+
 /** Canonical view for each static path (a few views share a URL). */
 const STATIC: [string, ViewType][] = [
   ['/', 'dashboard'], ['/uploads', 'uploads'], ['/uploads/review', 'upload-review'], ['/uploads/mapping', 'column-mapping'],
   ['/reports/stock', 'reports-stock'], ['/reports/price', 'reports-price-discrepancies'],
   ['/catalogue', 'catalogue'], ['/catalogue/new', 'new-products'], ['/categories', 'categories'],
-  ['/pricing', 'markups'], ['/settings/category-mapping', 'category-mapping'], ['/settings/file-mappings', 'templates'],
+  ['/pricing', 'markups'], ['/settings/file-mappings', 'templates'],
   ['/files', 'outputs-generate'], ['/onboarding', 'onboarding'], ['/settings', 'settings'], ['/settings/team', 'team'],
   ['/activity', 'activity'],
 ];
@@ -77,7 +79,7 @@ export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {
   'reports-stock': 'reports.view', 'reports-price-discrepancies': 'reports.view',
   catalogue: 'products.view', 'product-detail': 'products.view', 'new-products': 'products.view',
   categories: 'products.view', 'category-detail': 'products.view',
-  markups: 'pricing.view', 'category-mapping': 'categories.manage', templates: 'uploads.view',
+  markups: 'pricing.view', templates: 'uploads.view',
   'outputs-generate': 'files.view', settings: 'settings.view', team: 'team.view',
   activity: 'activity.view',
   onboarding: 'settings.view',

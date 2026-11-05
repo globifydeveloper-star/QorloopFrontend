@@ -63,6 +63,7 @@ const item = (id: string, over: Partial<ProductItem> = {}): ProductItem => ({
 type Rule = (PriceRule & { updatedAt: string }) | null;
 const detail = (id: string, rule: Rule, price: number, over: Partial<ProductDetail> = {}): ProductDetail => ({
   ...item(id), size: null, erpActive: true, createdAt: V1, category: null, subcategory: null, listings: [],
+  arabicNameMissing: false, categoryMissing: true,
   marketplacePrice: { price, source: rule ? 'product' : 'default' },
   pricing: { order: ['offer', 'product', 'subcategory', 'category', 'marketplace', 'default'], productRule: rule, offer: null, chain: chain(rule, price), marketplaces: [] },
   ...over,

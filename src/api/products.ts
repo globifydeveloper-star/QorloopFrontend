@@ -82,6 +82,10 @@ export interface ProductDetail extends ProductItem {
   listings: ProductListing[];
   /** Present only for roles with pricing.view: the rule chain that explains marketplacePrice. */
   pricing?: ProductPricing;
+  /** Derived by the backend (a blank Arabic name counts as missing). Informational only: activation does not check it today. */
+  arabicNameMissing: boolean;
+  /** Derived by the backend. Informational only: activation does not check it today. */
+  categoryMissing: boolean;
 }
 
 export interface UpdateProductRequest {
@@ -89,7 +93,7 @@ export interface UpdateProductRequest {
   nameAr?: string;
   categoryId?: string | null;
   subcategoryId?: string | null;
-  /** `new` cannot be set. Activating needs products.activate and a ready product. */
+  /** `new` cannot be set. Activating (also re-activating) needs products.activate; it does not need an Arabic name or a category. */
   status?: 'active' | 'inactive';
   /** The product's updatedAt as loaded: the backend answers 409 when it has changed since. */
   expectedUpdatedAt?: string;
@@ -99,7 +103,11 @@ export type ActivateRequest = { ids: string[] } | { all: true };
 
 export interface ActivateResult {
   activated: number;
-  /** The first 200 skipped products. */
+  /** How many of the activated products have no Arabic name (informational, never blocks). */
+  arabicNameMissing: number;
+  /** How many of the activated products have no category (informational, never blocks). */
+  categoryMissing: number;
+  /** The first 200 skipped products: unknown ids ("Not found") and products that are not new ("Not a new product"). */
   skipped: { id: string; reason: string }[];
   skippedCount: number;
 }
@@ -118,11 +126,3 @@ export const productsApi = {
   update: (id: string, body: UpdateProductRequest) => api<ProductDetail>(`/api/products/${enc(id)}`, { method: 'PATCH', body }),
   activate: (body: ActivateRequest) => api<ActivateResult>('/api/products/activate', { method: 'POST', body }),
 };
-
-/** Same default rule as the backend (Arabic name and category); the backend decides, this only labels rows. */
-export function readinessGaps(p: Pick<ProductItem, 'nameAr' | 'categoryId'>): string[] {
-  const gaps: string[] = [];
-  if (!p.nameAr?.trim()) gaps.push('Arabic name missing');
-  if (!p.categoryId) gaps.push('Category missing');
-  return gaps;
-}

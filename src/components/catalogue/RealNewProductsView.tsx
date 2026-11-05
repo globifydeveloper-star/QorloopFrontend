@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
-import { ACTIVATE_MAX_IDS, productsApi, readinessGaps, type ActivateRequest, type ActivateResult, type ProductItem, type UpdateProductRequest } from '../../api/products';
+import { ACTIVATE_MAX_IDS, productsApi, type ActivateRequest, type ActivateResult, type ProductItem, type UpdateProductRequest } from '../../api/products';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { ConfirmDialog } from '../uploads/shared';
@@ -20,7 +20,26 @@ interface Outcome extends ActivateResult { names: Record<string, { nameEn: strin
 
 const FILTER = { q: '', tab: 'new' as const };
 
-/** CAT-004: products with status `new`. Give them an Arabic name and a category, then activate the ready ones. */
+const num = (n: number) => n.toLocaleString('en-US');
+const has = (n: number) => `${num(n)} ${n === 1 ? 'has' : 'have'}`;
+
+/** "Activated 1,336 products. 1,300 have no Arabic name and 1,336 have no category." Zero counts are left out. */
+function activationSummary(r: ActivateResult): string {
+  const missing = [
+    r.arabicNameMissing ? `${has(r.arabicNameMissing)} no Arabic name` : '',
+    r.categoryMissing ? `${has(r.categoryMissing)} no category` : '',
+  ].filter(Boolean).join(' and ');
+  return [
+    `Activated ${num(r.activated)} product${r.activated === 1 ? '' : 's'}.`,
+    missing ? `${missing}.` : '',
+    r.skippedCount ? `Skipped ${num(r.skippedCount)}.` : '',
+  ].filter(Boolean).join(' ');
+}
+
+/**
+ * CAT-004: products with status `new`. Arabic name and category can be filled in here; activation does not need them
+ * (the backend reports how many activated products still lack each).
+ */
 export const RealNewProductsView: React.FC = () => {
   const { showToast } = useApp();
   const { can } = useAuth();
@@ -88,10 +107,12 @@ export const RealNewProductsView: React.FC = () => {
       const batches = 'ids' in body
         ? Array.from({ length: Math.ceil(body.ids.length / ACTIVATE_MAX_IDS) }, (_, i) => ({ ids: body.ids.slice(i * ACTIVATE_MAX_IDS, (i + 1) * ACTIVATE_MAX_IDS) }))
         : [body];
-      const total: ActivateResult = { activated: 0, skipped: [], skippedCount: 0 };
+      const total: ActivateResult = { activated: 0, arabicNameMissing: 0, categoryMissing: 0, skipped: [], skippedCount: 0 };
       for (const b of batches) {
         const r = await productsApi.activate(b);
         total.activated += r.activated;
+        total.arabicNameMissing += r.arabicNameMissing;
+        total.categoryMissing += r.categoryMissing;
         total.skipped.push(...r.skipped);
         total.skippedCount += r.skippedCount;
       }
@@ -121,7 +142,7 @@ export const RealNewProductsView: React.FC = () => {
             <Link to={pathFor('catalogue')} className="text-blue-600 hover:underline">Catalogue</Link><span>/</span><span className="text-gray-700">New products</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">New products</h1>
-          <p className="text-xs text-gray-500 mt-0.5">Products from the ERP that are not live yet. A product is ready once it has an Arabic name and a category.</p>
+          <p className="text-xs text-gray-500 mt-0.5">Products from the ERP that are not live yet.</p>
         </div>
         {canActivate && (
           <div className="flex items-center gap-2">
@@ -137,7 +158,7 @@ export const RealNewProductsView: React.FC = () => {
               disabled={activating || total === 0}
               className="h-9 px-4 rounded-lg text-xs font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50"
             >
-              Activate all ready
+              Activate all
             </button>
           </div>
         )}
@@ -150,7 +171,7 @@ export const RealNewProductsView: React.FC = () => {
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-[#027864]" aria-hidden="true" />
-              Activated {outcome.activated} product{outcome.activated === 1 ? '' : 's'}. Skipped {outcome.skippedCount}.
+              {activationSummary(outcome)}
             </p>
             <button onClick={() => setOutcome(null)} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Dismiss</button>
           </div>
@@ -201,7 +222,6 @@ export const RealNewProductsView: React.FC = () => {
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Arabic name</th>
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Ready</th>
                   <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
@@ -209,7 +229,6 @@ export const RealNewProductsView: React.FC = () => {
                 {items.map(p => {
                   const d = draftOf(p);
                   const err = rowErrors[p.id];
-                  const gaps = readinessGaps(p);
                   const busy = saving.has(p.id);
                   return (
                     <tr key={p.id} className="align-top" data-testid={`row-${p.id}`}>
@@ -252,16 +271,6 @@ export const RealNewProductsView: React.FC = () => {
                           </>
                         ) : (tree.data?.find(c => c.id === p.categoryId)?.nameEn ?? '—')}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {gaps.length === 0 ? (
-                          <span className="inline-flex items-center gap-1 text-[#027864] font-semibold"><CheckCircle2 className="w-3 h-3" aria-hidden="true" />Ready</span>
-                        ) : (
-                          <span className="inline-flex flex-col text-amber-800">
-                            <span className="inline-flex items-center gap-1 font-semibold"><AlertCircle className="w-3 h-3" aria-hidden="true" />Not ready</span>
-                            {gaps.map(g => <span key={g} className="text-[11px]">{g}</span>)}
-                          </span>
-                        )}
-                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-right space-y-1">
                         {editable && isDirty(p) && !err?.conflict && (
                           <div className="flex justify-end gap-1">
@@ -302,14 +311,14 @@ export const RealNewProductsView: React.FC = () => {
 
       {confirmAll && (
         <ConfirmDialog
-          title="Activate all ready products?"
-          confirmLabel="Activate all ready"
+          title="Activate all new products?"
+          confirmLabel="Activate all"
           tone="primary"
           busy={activating}
           onConfirm={() => void activate({ all: true })}
           onClose={() => setConfirmAll(false)}
         >
-          Every new product that has an Arabic name and a category goes live ({total} new in total, including ones not shown yet). Products that are not ready are skipped and listed with the reason.
+          Every new product goes live ({num(total)} in total, including ones not shown yet), with or without an Arabic name and a category.
         </ConfirmDialog>
       )}
     </div>

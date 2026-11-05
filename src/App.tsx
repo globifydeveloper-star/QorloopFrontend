@@ -1,9 +1,9 @@
 import React from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { DemoProvider } from './demo';
 import { useAuth } from './auth/AuthContext';
-import { matchView, CONNECTED_VIEWS, VIEW_PERMISSION } from './routes/paths';
+import { matchView, pathFor, CONNECTED_VIEWS, RETIRED_PATHS, VIEW_PERMISSION } from './routes/paths';
 import { AcceptInvitationPage } from './components/auth/AcceptInvitationPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/PasswordResetPages';
@@ -34,7 +34,6 @@ import { MarkupsView } from './components/views/MarkupsView';
 import { TemplatesView } from './components/views/TemplatesView';
 import { SettingsView } from './components/views/SettingsView';
 import { UploadsHistoryView } from './components/views/UploadsHistoryView';
-import { CategoryMappingView } from './components/views/CategoryMappingView';
 import { CategoriesView } from './components/views/CategoriesView';
 import { CategoryDetailView } from './components/views/CategoryDetailView';
 import { realCatalogueEnabled, realOnboardingEnabled } from './lib/features';
@@ -99,8 +98,6 @@ const MainContent: React.FC = () => {
         return <GenerateFilesView />;
       case 'markups':
         return <MarkupsView />;
-      case 'category-mapping':
-        return <CategoryMappingView />;
       case 'templates':
         return <TemplatesView />;
       case 'settings':
@@ -187,6 +184,7 @@ export default function App() {
       <Route path="/session-expired" element={<SessionExpiredPage />} />
       <Route path="/mfa/setup" element={<Guest allow="mfa_setup_required"><MfaSetupPage /></Guest>} />
       <Route path="/mfa/verify" element={<Guest allow="mfa_required"><MfaVerifyPage /></Guest>} />
+      {RETIRED_PATHS.map((path) => <Route key={path} path={path} element={<Navigate to={pathFor('dashboard')} replace />} />)}
       <Route
         path="/*"
         element={

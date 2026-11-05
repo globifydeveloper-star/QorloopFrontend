@@ -75,9 +75,6 @@ const DemoDashboardView: React.FC = () => {
       case 'templates':
         navigate('templates');
         break;
-      case 'category-mapping':
-        navigate('category-mapping');
-        break;
     }
   };
 

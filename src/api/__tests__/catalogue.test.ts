@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../client';
-import { productsApi, readinessGaps } from '../products';
+import { productsApi } from '../products';
 import { categoriesApi, indexCategories, inUseSummary } from '../categories';
 
 const json = (status: number, body: unknown) =>
@@ -58,19 +58,14 @@ describe('productsApi', () => {
     expect((err as ApiError).fieldErrors).toEqual({ nameAr: 'Too long' });
   });
 
-  it('activate POSTs { ids } or { all: true }', async () => {
-    const result = { activated: 1, skipped: [{ id: 'p2', reason: 'Arabic name missing' }], skippedCount: 1 };
+  it('activate POSTs { ids } or { all: true } and returns the missing-detail counts', async () => {
+    const result = { activated: 1, arabicNameMissing: 1, categoryMissing: 1, skipped: [{ id: 'p2', reason: 'Not found' }], skippedCount: 1 };
     fetchMock.mockImplementation(() => Promise.resolve(json(200, { data: result })));
     expect(await productsApi.activate({ ids: ['p1', 'p2'] })).toEqual(result);
     await productsApi.activate({ all: true });
     expect(call(0)).toMatchObject({ url: '/api/products/activate', init: { method: 'POST' } });
     expect(call(0).body).toEqual({ ids: ['p1', 'p2'] });
     expect(call(1).body).toEqual({ all: true });
-  });
-
-  it('readinessGaps mirrors the default rule', () => {
-    expect(readinessGaps({ nameAr: ' ', categoryId: null })).toEqual(['Arabic name missing', 'Category missing']);
-    expect(readinessGaps({ nameAr: 'حليب', categoryId: 'c' })).toEqual([]);
   });
 });
 

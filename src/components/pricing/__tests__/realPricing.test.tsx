@@ -457,7 +457,8 @@ const VIEW: ProductPricingView = {
   },
 };
 const detail = (over: Partial<ProductDetail> = {}): ProductDetail => ({
-  ...item('p1'), size: null, erpActive: true, createdAt: UPDATED, category: null, subcategory: null, listings: [], ...VIEW, ...over,
+  ...item('p1'), size: null, erpActive: true, createdAt: UPDATED, category: null, subcategory: null, listings: [],
+  arabicNameMissing: false, categoryMissing: true, ...VIEW, ...over,
 });
 
 describe('catalogue marketplace price', () => {

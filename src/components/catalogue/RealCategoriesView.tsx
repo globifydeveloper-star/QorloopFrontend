@@ -44,7 +44,7 @@ export const RealCategoriesView: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Categories</h1>
-            <p className="text-xs text-gray-500 mt-0.5">Categories and their subcategories. A new product needs a category before it can be activated.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Categories and their subcategories.</p>
           </div>
           {manage && !adding && (
             <button onClick={() => { create.reset(); setAdding(true); }} className="inline-flex items-center gap-1.5 h-9 px-4 text-xs font-semibold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg">

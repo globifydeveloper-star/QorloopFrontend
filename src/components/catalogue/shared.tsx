@@ -40,7 +40,7 @@ export function storeProduct(qc: QueryClient, p: ProductDetail) {
   });
 }
 const pick = (p: ProductDetail): ProductItem => {
-  const { size: _s, erpActive: _a, createdAt: _c, category: _cat, subcategory: _sub, listings: _l, pricing: _pr, ...item } = p;
+  const { size: _s, erpActive: _a, createdAt: _c, category: _cat, subcategory: _sub, listings: _l, pricing: _pr, arabicNameMissing: _am, categoryMissing: _cm, ...item } = p;
   return item;
 };
 

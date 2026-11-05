@@ -20,7 +20,6 @@ const VIEW_TITLES: Partial<Record<ViewType, [string, string]>> = {
   categories: ['Catalogue', 'Categories'],
   'category-detail': ['Catalogue', 'Category'],
   markups: ['Catalogue', 'Marketplace price'],
-  'category-mapping': ['Catalogue', 'Category mapping'],
   templates: ['Outputs', 'Templates'],
   'outputs-generate': ['Outputs', 'Generated files'],
   settings: ['Workspace', 'Settings'],

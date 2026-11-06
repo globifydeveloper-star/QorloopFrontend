@@ -12,6 +12,7 @@ import { ErrorState, LoadingState } from '../common/States';
 import { realPricingEnabled, realSettingsEnabled } from '../../lib/features';
 import { ProductPricingPanel } from '../pricing/ProductPricingPanel';
 import { ProductHistory } from '../activity/ActivityView';
+import { ProductStockPanel } from '../stock/ProductStockPanel';
 import { qatarDateTime } from '../../lib/format';
 import {
   CATEGORIES_KEY, CONFLICT_TEXT, CategoryOptions, FieldError, NotAvailableYet, ProductStatusPill, isConflict, productErrors,
@@ -55,6 +56,7 @@ export const RealProductDetailView: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Remounted whenever the server copy changes, so a reload replaces the draft. */}
           <EditForm key={`${p.id}:${p.updatedAt}`} product={p} onReload={() => void q.refetch()} reloading={q.isFetching} />
+          <ProductStockPanel product={p} />
           {/* The backend sends marketplacePrice and pricing only to roles with pricing.view. */}
           {pricing && p.marketplacePrice && p.pricing && (
             <ProductPricingPanel product={{ ...p, marketplacePrice: p.marketplacePrice, pricing: p.pricing }} onReload={async () => (await q.refetch()).data} />

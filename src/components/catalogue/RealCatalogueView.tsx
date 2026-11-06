@@ -14,6 +14,7 @@ import { PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 import { CatalogueStockCell } from '../stock/StockCell';
+import { BulkStockDialog } from '../stock/BulkStockDialog';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
@@ -69,7 +70,11 @@ export const RealCatalogueView: React.FC = () => {
   const [bulkOpen, setBulkOpen] = useState(false);
   const bulkFilter = { q: filter.q || undefined, categoryId: filter.categoryId, subcategoryId: filter.subcategoryId };
   const filterSummary = describeFilter(filter.q, filter.categoryId, filter.subcategoryId, names);
-  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canBulk ? 1 : 0);
+  // Bulk stock edit (catalogue.stock_edit) uses the same ticks; its filter selection takes products of any status.
+  const canStockBulk = can('catalogue.stock_edit');
+  const canTick = canBulk || canStockBulk;
+  const [stockBulkOpen, setStockBulkOpen] = useState(false);
+  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -138,18 +143,27 @@ export const RealCatalogueView: React.FC = () => {
           </label>
         </div>
 
-        {canBulk && (
-          <div role="toolbar" aria-label="Bulk price change" className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
+        {canTick && (
+          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : 'Bulk stock edit'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
             <span data-testid="ticked-count">
-              {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked` : 'Tick rows to change their prices together, or change every active product matching the filter.'}
+              {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked`
+                : canBulk ? 'Tick rows to change their prices together, or change every active product matching the filter.'
+                  : 'Tick rows to change their stock together, or change every product matching the filter.'}
             </span>
             <span className="flex items-center gap-2">
               {ticked.size > 0 && (
                 <button type="button" onClick={() => setTick({ key: filterKey, ids: new Set() })} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white hover:bg-gray-50">Clear ticks</button>
               )}
-              <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
-                Bulk price change…
-              </button>
+              {canStockBulk && (
+                <button type="button" onClick={() => setStockBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">
+                  Bulk stock edit…
+                </button>
+              )}
+              {canBulk && (
+                <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
+                  Bulk price change…
+                </button>
+              )}
             </span>
           </div>
         )}
@@ -168,7 +182,7 @@ export const RealCatalogueView: React.FC = () => {
             <table className={`w-full text-left text-xs ${list.isPlaceholderData ? 'opacity-60' : ''}`}>
               <thead className="bg-[#F2F7F6] text-gray-500 uppercase font-semibold text-[10px] tracking-wider border-b border-gray-100">
                 <tr>
-                  {canBulk && (
+                  {canTick && (
                     <th className="pl-4 py-3 w-8">
                       <input type="checkbox" aria-label="Tick every row shown" checked={allTicked} onChange={e => toggle(items.map(p => p.id), e.target.checked)} className="accent-[#027864]" />
                     </th>
@@ -191,7 +205,7 @@ export const RealCatalogueView: React.FC = () => {
                   return (
                     <React.Fragment key={p.id}>
                     <tr className={ticked.has(p.id) ? 'bg-[#F2F7F6]' : 'hover:bg-gray-50'}>
-                      {canBulk && (
+                      {canTick && (
                         <td className="pl-4 py-3">
                           <input type="checkbox" aria-label={`Tick ${p.nameEn}`} checked={ticked.has(p.id)} onChange={e => toggle([p.id], e.target.checked)} className="accent-[#027864]" />
                         </td>
@@ -275,6 +289,17 @@ export const RealCatalogueView: React.FC = () => {
           filterCountPending={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage)}
           filterSummary={filterSummary}
           onClose={() => setBulkOpen(false)}
+          onApplied={() => setTick({ key: filterKey, ids: new Set() })}
+        />
+      )}
+      {stockBulkOpen && (
+        <BulkStockDialog
+          tickedIds={[...ticked]}
+          filter={bulkFilter}
+          // The list's "All" count for this search and category: a stock filter selection takes any status.
+          filterCount={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage) ? undefined : counts?.all}
+          filterSummary={filterSummary}
+          onClose={() => setStockBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}
         />
       )}

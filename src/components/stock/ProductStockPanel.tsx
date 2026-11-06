@@ -6,7 +6,7 @@ import { useApp } from '../../context/AppContext';
 import { qatarDateTime } from '../../lib/format';
 import { ErrorState, LoadingState } from '../common/States';
 import { count } from '../pricing/priceChange';
-import { STOCK_REASON_MAX, stockApi, type ConflictChoice, type ProductStock } from '../../api/stock';
+import { STOCK_REASON_MAX, stockApi, type ConflictChoice, type ProductStock, type ProductStockChange } from '../../api/stock';
 import { productStockKey, useProductStock, invalidateStock } from './queries';
 import { readReason, readStock, stockErrors, unavailableReasons } from './stockLogic';
 
@@ -58,7 +58,8 @@ const StockBody: React.FC<{
     },
     onSuccess: (result, o) => {
       setStaleNote(undefined);
-      const changed = 'changed' in result ? result.changed : true;
+      // PUT and DELETE answer changed; resolve always changes something.
+      const changed = 'changed' in result ? (result as ProductStockChange).changed : true;
       qc.setQueryData(productStockKey(product.id), result);
       invalidateStock(qc, changed, product.id);
       showToast(

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FolderTree, Search, Sparkles, Upload } from 'lucide-react';
+import { AlertTriangle, FolderTree, Search, Sparkles, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import { PRODUCT_TABS, type ProductTab } from '../../api/products';
@@ -13,6 +13,7 @@ import { money2 } from '../../lib/format';
 import { PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
+import { CatalogueStockCell } from '../stock/StockCell';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
@@ -68,7 +69,7 @@ export const RealCatalogueView: React.FC = () => {
   const [bulkOpen, setBulkOpen] = useState(false);
   const bulkFilter = { q: filter.q || undefined, categoryId: filter.categoryId, subcategoryId: filter.subcategoryId };
   const filterSummary = describeFilter(filter.q, filter.categoryId, filter.subcategoryId, names);
-  const columns = 6 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canBulk ? 1 : 0);
+  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canBulk ? 1 : 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -83,6 +84,10 @@ export const RealCatalogueView: React.FC = () => {
           </Link>
           <Link to={pathFor('new-products')} className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
             <Sparkles className="w-3.5 h-3.5 text-gray-500" /> New products
+          </Link>
+          {/* The product list has no stock-conflict filter (GET /api/products takes none), so the conflicts have their own page. */}
+          <Link to={pathFor('stock-conflicts')} className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <AlertTriangle className="w-3.5 h-3.5 text-gray-500" /> Stock conflicts
           </Link>
           {can('uploads.upload') && (
             <button onClick={() => openUploadModal('erp')} className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg">
@@ -173,6 +178,7 @@ export const RealCatalogueView: React.FC = () => {
                   <th className="px-4 py-3 text-right">{showPrice ? 'ERP price (QAR)' : 'ERP price'}</th>
                   {showPrice && <th className="px-4 py-3">Marketplace price (QAR)</th>}
                   <th className="px-4 py-3 text-right">ERP stock</th>
+                  <th className="px-4 py-3 text-right">Catalogue stock</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Category</th>
                   {canEditPrice && <th className="px-4 py-3"><span className="sr-only">Price actions</span></th>}
@@ -205,6 +211,7 @@ export const RealCatalogueView: React.FC = () => {
                         </td>
                       )}
                       <td className="px-4 py-3 text-right font-mono">{p.erpStock}</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap"><CatalogueStockCell catalogueStock={p.catalogueStock} source={p.catalogueStockSource} conflict={p.stockConflict} /></td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <ProductStatusPill status={p.status} />
                         {!p.inLatestErpFile && <div className="mt-1 text-[11px] text-amber-700">Not in latest ERP file</div>}

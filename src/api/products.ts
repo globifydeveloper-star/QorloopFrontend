@@ -33,6 +33,12 @@ export interface ProductItem {
   /** Present only for roles that may change prices. */
   costPrice?: number | null;
   erpStock: number;
+  /** ADR 017: the stock recon and the generated files use (the owner value while an edit exists, else erpStock). */
+  catalogueStock?: number;
+  /** owner = a manual stock edit is in place. */
+  catalogueStockSource?: 'erp' | 'owner';
+  /** An ERP stock change met the owner value; it waits to be resolved. */
+  stockConflict?: boolean;
   status: ProductStatus;
   inLatestErpFile: boolean;
   updatedAt: string;

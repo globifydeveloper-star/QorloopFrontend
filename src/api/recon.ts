@@ -61,6 +61,14 @@ export interface ReconRow {
   nameAr: string | null;
   productStatus: string;
   erpStock: number;
+  /** ADR 017 (absent on a backend without the migration): the catalogue stock, its source and an open conflict. */
+  catalogueStock?: number;
+  catalogueStockSource?: 'erp' | 'owner';
+  stockConflict?: boolean;
+  /** Availability by the catalogue stock (the marketplace reference), next to erpAvailable (the ERP reference). */
+  catalogueAvailable?: boolean | null;
+  stockIssueVsCatalogue?: StockIssue | null;
+  stockIssueVsErp?: StockIssue | null;
   /** For the reference. */
   status: ReconStatus;
   stockIssue: StockIssue | null;

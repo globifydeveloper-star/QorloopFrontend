@@ -9,6 +9,7 @@ import {
 } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { CatalogueStockCell } from '../stock/StockCell';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import {
   Availability, NoReconAccess, PRICE_SOURCE_LABELS, RECON_STATUS_META, REFERENCE_LABELS, RecomputeBanner, ReconStatusPill,
@@ -20,7 +21,7 @@ export type ReportKind = 'stock' | 'price';
 const COPY: Record<ReportKind, { title: string; intro: string; issues: (n: number) => string }> = {
   stock: {
     title: 'Stock report',
-    intro: 'Products whose availability on the marketplace does not match the ERP, most urgent first.',
+    intro: 'Products whose availability on the marketplace does not match the stock you compare against (the catalogue stock, or the ERP stock when comparing with the ERP price), most urgent first.',
     issues: n => `${n} stock ${n === 1 ? 'issue' : 'issues'}`,
   },
   price: {
@@ -175,7 +176,8 @@ const ReportBody: React.FC<{
                   <th className="px-4 py-3">Issue</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">ERP stock</th>
-                  <th className="px-4 py-3">ERP</th>
+                  <th className="px-4 py-3 text-right">Catalogue stock</th>
+                  <th className="px-4 py-3">{reference === 'erp' ? 'ERP' : 'Catalogue'}</th>
                   <th className="px-4 py-3">{name}</th>
                   <th className="px-4 py-3">Last updated</th>
                 </tr>
@@ -205,7 +207,11 @@ const ReportBody: React.FC<{
                       <td className="px-4 py-3"><StockIssuePill issue={r.stockIssue} /></td>
                       <td className="px-4 py-3"><ReconStatusPill status={r.status} /></td>
                       <td className="px-4 py-3 text-right font-mono">{r.erpStock}</td>
-                      <td className="px-4 py-3 whitespace-nowrap"><Availability value={r.erpAvailable} /></td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap"><CatalogueStockCell catalogueStock={r.catalogueStock} source={r.catalogueStockSource} conflict={r.stockConflict} /></td>
+                      {/* The availability the issue was judged on: by the catalogue stock (marketplace reference) or the ERP stock. */}
+                      <td className="px-4 py-3 whitespace-nowrap" data-testid="reference-available">
+                        <Availability value={reference === 'erp' || r.catalogueAvailable === undefined ? r.erpAvailable : r.catalogueAvailable} />
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap"><Availability value={r.actualAvailable} /></td>
                     </>
                   ) : (

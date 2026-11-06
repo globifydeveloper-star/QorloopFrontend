@@ -95,7 +95,8 @@ const ChangeList: React.FC<{
             <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600" aria-hidden />
             <span>
               {count(counts.stockConflicts)} stock {counts.stockConflicts === 1 ? 'change' : 'changes'} from this file met a stock you had edited.
-              Your value stays in effect until you choose.
+              Your value stays in effect until you choose.{' '}
+              {realCatalogueEnabled() && <Link to={pathFor('stock-conflicts')} className="font-semibold underline">Review stock conflicts</Link>}
             </span>
           </p>
         )}

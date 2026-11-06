@@ -17,6 +17,7 @@ const VIEW_TITLES: Partial<Record<ViewType, [string, string]>> = {
   'product-detail': ['Catalogue', 'Product'],
   'new-product': ['Catalogue', 'New products'],
   'new-products': ['Catalogue', 'New products'],
+  'stock-conflicts': ['Catalogue', 'Stock conflicts'],
   categories: ['Catalogue', 'Categories'],
   'category-detail': ['Catalogue', 'Category'],
   markups: ['Catalogue', 'Marketplace price'],

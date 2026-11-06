@@ -48,6 +48,8 @@ export interface ReconSummary {
   reference: ReconReference;
   /** When the summaries were last recomputed. */
   computedAt: string | null;
+  /** Open stock conflicts (ADR 017): the dashboard badge "N stock conflicts". Absent on a backend without the migration. */
+  stockConflicts?: number;
   marketplaces: ReconMarketplaceSummary[];
 }
 

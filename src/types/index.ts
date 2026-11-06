@@ -19,6 +19,7 @@ export type ViewType =
   | 'activity'
   | 'column-mapping'
   | 'new-products'
+  | 'stock-conflicts'
   | 'team';
 
 export type MarketplaceId = 'talabat' | 'snoonu' | 'rafeeq' | 'keeta';

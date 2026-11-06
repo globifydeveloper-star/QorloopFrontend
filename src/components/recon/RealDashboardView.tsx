@@ -5,6 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import type { ReconMarketplaceSummary, ReconReference } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
+import { realCatalogueEnabled } from '../../lib/features';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import {
@@ -78,6 +79,8 @@ const Dashboard: React.FC = () => {
 
       <RecomputeBanner state={recomputeState} />
 
+      {data && <StockConflictsBadge count={data.stockConflicts ?? 0} />}
+
       {summary.isPending ? (
         <LoadingState label="Loading the comparison…" rows={4} />
       ) : summary.isError && !data ? (
@@ -101,6 +104,26 @@ const Dashboard: React.FC = () => {
       )}
     </div>
   );
+};
+
+/**
+ * "N stock conflicts" from stockConflicts in the recon summary, linking to the Stock conflicts page (a real-catalogue
+ * screen: without VITE_REAL_CATALOGUE, or without products.view, it is shown without a link). Hidden at 0.
+ */
+export const StockConflictsBadge: React.FC<{ count: number }> = ({ count: n }) => {
+  const { can } = useAuth();
+  if (n <= 0) return null;
+  const text = `${n.toLocaleString('en-US')} stock ${n === 1 ? 'conflict' : 'conflicts'}`;
+  const body = (
+    <>
+      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" aria-hidden />
+      <span><b data-testid="stock-conflicts-badge">{text}</b>: an ERP file changed a stock you had edited. Your value stays in effect until you choose.</span>
+    </>
+  );
+  const cls = 'flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-200 bg-amber-50 text-xs text-amber-900';
+  return realCatalogueEnabled() && can('products.view')
+    ? <Link to={pathFor('stock-conflicts')} aria-label={`${text}, review them`} className={`${cls} hover:border-amber-300`}>{body}<ChevronRight className="w-3.5 h-3.5 ml-auto" aria-hidden /></Link>
+    : <div role="status" className={cls}>{body}</div>;
 };
 
 const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: ReconReference }> = ({ summary: s, reference }) => {

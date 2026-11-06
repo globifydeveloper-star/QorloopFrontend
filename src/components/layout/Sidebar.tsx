@@ -70,6 +70,7 @@ export const Sidebar: React.FC = () => {
       (currentView === 'product-detail' ||
         currentView === 'new-product' ||
         currentView === 'new-products' ||
+        currentView === 'stock-conflicts' ||
         currentView === 'categories' ||
         currentView === 'category-detail')
     ) {

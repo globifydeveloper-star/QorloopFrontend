@@ -36,6 +36,7 @@ import { SettingsView } from './components/views/SettingsView';
 import { UploadsHistoryView } from './components/views/UploadsHistoryView';
 import { CategoriesView } from './components/views/CategoriesView';
 import { CategoryDetailView } from './components/views/CategoryDetailView';
+import { StockConflictsView } from './components/stock/StockConflictsView';
 import { realCatalogueEnabled, realOnboardingEnabled } from './lib/features';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
@@ -89,6 +90,9 @@ const MainContent: React.FC = () => {
         return realCatalogueEnabled() ? <CategoriesView /> : <DashboardView />;
       case 'category-detail':
         return realCatalogueEnabled() ? <CategoryDetailView /> : <DashboardView />;
+      // Real catalogue only: there is no demo version of the stock conflicts page.
+      case 'stock-conflicts':
+        return realCatalogueEnabled() ? <StockConflictsView /> : <DashboardView />;
       case 'reports':
       case 'reports-stock':
         return <StockMismatchesView />;

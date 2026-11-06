@@ -75,6 +75,9 @@ beforeEach(() => {
     const r = await handler(url, i);
     if (r) return r;
     if (url === '/api/categories' && (i.method ?? 'GET') === 'GET') return ok(TREE);
+    // The product detail's Stock section (ADR 017): the catalogue stock follows the ERP unless a test says otherwise.
+    const stock = /^\/api\/products\/([^/?]+)\/stock$/.exec(url);
+    if (stock && (i.method ?? 'GET') === 'GET') return ok({ productId: decodeURIComponent(stock[1]), erpStock: 7, catalogueStock: 7, source: 'erp', conflict: null, edit: null });
     return fail(404, 'not mocked');
   });
   vi.stubGlobal('fetch', fetchMock);

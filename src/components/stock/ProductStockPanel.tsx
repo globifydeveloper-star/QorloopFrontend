@@ -154,7 +154,7 @@ const StockBody: React.FC<{
       {errors.general && <p role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">{errors.general}</p>}
 
       {canEdit ? (
-        <form aria-label="Edit catalogue stock" onSubmit={save} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+        <form aria-label="Edit catalogue stock" noValidate onSubmit={save} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
           <div>
             <label htmlFor={`${uid}-stock`} className="block text-xs font-semibold text-gray-700">Catalogue stock</label>
             <input

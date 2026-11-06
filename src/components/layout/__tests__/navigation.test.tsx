@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -99,11 +100,12 @@ describe('Category mapping is removed from the navigation', () => {
   });
 
   it('no source file links to the removed screen', () => {
-    const src = new URL('../../../', import.meta.url);
+    // A plain path from the project root: under jsdom import.meta.url is not a file: URL, which node:fs refuses.
+    const src = join(process.cwd(), 'src');
     const offenders = (readdirSync(src, { recursive: true }) as string[])
       .map((f) => f.replace(/\\/g, '/'))
       .filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes('__tests__/') && f !== 'routes/paths.ts')
-      .filter((f) => /category-mapping|CategoryMappingView|'Category mapping'/.test(readFileSync(new URL(f, src), 'utf8')));
+      .filter((f) => /category-mapping|CategoryMappingView|'Category mapping'/.test(readFileSync(join(src, f), 'utf8')));
     expect(offenders).toEqual([]);
   });
 });

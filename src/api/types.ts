@@ -103,6 +103,14 @@ export interface UploadSummary {
   firstImport: boolean;
   /** A few of the catalogue products missing from a full file. Element shape is not part of this contract yet. */
   missingSample: unknown[];
+  /** ERP (ADR 017; older uploads lack them): English name changes. */
+  nameChanges?: number;
+  /** ERP: cost changes, only when the cost column is mapped. */
+  costChanges?: number;
+  /** ERP: stock changes predicted to meet an owner-edited catalogue stock. */
+  stockConflicts?: number;
+  /** Written by the apply (ADR 017): what it really changed; changesRecorded = the per-row change list exists. */
+  applied?: { changesRecorded: boolean; changes: number; stockConflicts: number; stockEditsCleared: number };
 }
 
 export interface UploadRecord {

@@ -15,6 +15,7 @@ import {
   formatBytes, uploadKey, useUploadStatus,
 } from './shared';
 import { DownloadErrorsButton } from './DownloadErrors';
+import { UploadChanges } from '../stock/UploadChanges';
 
 const TAB_LABELS: Record<ReviewTab, string> = {
   price: 'Price changes',
@@ -218,6 +219,7 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
           {upload.status === 'needs_review' && <ReviewTabs id={upload.id} />}
+          {upload.status === 'applied' && upload.source === 'erp' && <UploadChanges uploadId={upload.id} applied={summary?.applied} />}
           {(upload.status === 'needs_review' || upload.status === 'rejected' || upload.status === 'failed') && <RowErrors upload={upload} />}
         </div>
 

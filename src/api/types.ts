@@ -190,7 +190,8 @@ export interface ReviewRow {
   parsed: {
     /** The parsed file row, keyed by Qorloop field. */
     data: Record<string, unknown>;
-    change: { price?: ValueChange; stock?: ValueChange; availability?: ValueChange };
+    /** stockConflict (ERP, ADR 017): this stock change is predicted to meet an owner-edited catalogue stock. */
+    change: { price?: ValueChange; stock?: ValueChange; availability?: ValueChange; stockConflict?: boolean };
   };
 }
 

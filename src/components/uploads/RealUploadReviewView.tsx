@@ -45,6 +45,10 @@ const SUMMARY_COUNTS: { key: keyof UploadSummary; label: string; tone?: (n: numb
   { key: 'rowsWithErrors', label: 'Rows with errors', tone: n => (n > 0 ? 'text-red-600' : undefined) },
   { key: 'priceChanges', label: 'Price changes', tone: () => 'text-blue-600' },
   { key: 'stockChanges', label: 'Stock changes', tone: () => 'text-blue-600' },
+  // ADR 017, ERP only; shown when the server sends them (older uploads have none; cost only with the cost column mapped).
+  { key: 'nameChanges', label: 'Name changes', tone: () => 'text-blue-600' },
+  { key: 'costChanges', label: 'Cost changes', tone: () => 'text-blue-600' },
+  { key: 'stockConflicts', label: 'Stock conflicts (predicted)', tone: n => (n > 0 ? 'text-amber-600' : undefined) },
   { key: 'missingFromFile', label: 'Missing from file', tone: n => (n > 0 ? 'text-amber-600' : undefined) },
   { key: 'unmatched', label: 'Unmatched rows', tone: n => (n > 0 ? 'text-amber-600' : undefined) },
 ];
@@ -54,8 +58,23 @@ const APPLY_COUNTS: { key: keyof UploadSummary; label: string }[] = [
   { key: 'newProducts', label: 'New products' },
   { key: 'priceChanges', label: 'Price changes' },
   { key: 'stockChanges', label: 'Stock changes' },
+  { key: 'nameChanges', label: 'Name changes' },
+  { key: 'costChanges', label: 'Cost changes' },
+  { key: 'stockConflicts', label: 'Stock conflicts (your value stays in effect)' },
   { key: 'missingFromFile', label: 'Missing from file' },
 ];
+
+/**
+ * A count tile is shown when the server sent the count (the ADR 017 counts are missing on older uploads and on
+ * marketplace files), missing-from-file only for a full list, and the predicted conflicts only before the apply (after
+ * it, the Changes section lists the conflicts that really happened).
+ */
+function showsTile(s: UploadSummary, key: keyof UploadSummary, status: UploadDetail['status']): boolean {
+  if (typeof s[key] !== 'number') return false;
+  if (key === 'missingFromFile') return s.contains === 'full';
+  if (key === 'stockConflicts') return status !== 'applied';
+  return true;
+}
 
 const PAGE_SIZE = 50;
 
@@ -198,7 +217,7 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
             <p className="text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-2">This is the first file from this source.</p>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {SUMMARY_COUNTS.filter(c => c.key !== 'missingFromFile' || summary.contains === 'full').map(c => {
+            {SUMMARY_COUNTS.filter(c => showsTile(summary, c.key, upload.status)).map(c => {
               const n = summary[c.key] as number;
               return (
                 <div key={c.key} className="bg-white border border-gray-200 rounded-xl p-3">
@@ -213,6 +232,17 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
               );
             })}
           </div>
+          {upload.source === 'erp' && (
+            <p data-testid="price-precision" className="text-[11px] text-gray-500">
+              Prices are compared to 3 decimals (whole fils), exactly as the apply writes them, so a change of 0.005 QAR counts as a price change.
+            </p>
+          )}
+          {upload.status === 'needs_review' && (summary.stockConflicts ?? 0) > 0 && (
+            <p role="note" data-testid="predicted-conflicts" className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2">
+              {summary.stockConflicts!.toLocaleString()} stock {summary.stockConflicts === 1 ? 'change' : 'changes'} in this file will meet a stock you edited.
+              After you apply, your value stays in effect and each one waits on the Stock conflicts page for you to choose.
+            </p>
+          )}
         </div>
       )}
 
@@ -261,7 +291,7 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
           <p>The following changes from <span className="font-medium text-gray-900">{upload.fileName}</span> will be written to the catalogue:</p>
           {summary && (
             <dl className="mt-3 divide-y divide-gray-100 border border-gray-200 rounded-lg">
-              {APPLY_COUNTS.filter(c => c.key !== 'missingFromFile' || summary.contains === 'full').map(c => (
+              {APPLY_COUNTS.filter(c => showsTile(summary, c.key, upload.status)).map(c => (
                 <div key={c.key} className="flex items-center justify-between px-3 py-2">
                   <dt>{c.label}</dt>
                   <dd className="font-semibold text-gray-900">{(summary[c.key] as number).toLocaleString()}</dd>
@@ -356,6 +386,9 @@ const ReviewTable: React.FC<{ tab: ReviewTab; rows: ReviewRow[] }> = ({ tab, row
                 {changeCols.map(c => (
                   <td key={c} className="py-2.5 px-3 whitespace-nowrap">
                     <OldNew field={c} change={r.parsed.change[c]} />
+                    {c === 'stock' && r.parsed.change.stockConflict && (
+                      <span data-testid="row-conflict" className="block mt-0.5 text-[11px] font-semibold text-amber-800">Conflict with your edited stock (yours stays)</span>
+                    )}
                   </td>
                 ))}
               </tr>
@@ -370,7 +403,8 @@ const ReviewTable: React.FC<{ tab: ReviewTab; rows: ReviewRow[] }> = ({ tab, row
 const showValue = (field: ChangeKey, v: ChangeValue) => {
   if (v === null || v === '') return '—';
   if (field === 'availability' && typeof v === 'boolean') return v ? 'Available' : 'Unavailable';
-  if (typeof v === 'number') return v.toLocaleString(undefined, field === 'price' ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : undefined);
+  // Prices to 3 decimals (whole fils), as the review compares them: 6.325 → 6.33 would hide a real change.
+  if (typeof v === 'number') return v.toLocaleString(undefined, field === 'price' ? { minimumFractionDigits: 2, maximumFractionDigits: 3 } : undefined);
   return String(v);
 };
 

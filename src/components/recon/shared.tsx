@@ -4,10 +4,11 @@ import {
   AlertOctagon, AlertTriangle, CheckCircle2, CircleSlash, EyeOff, FileX, HelpCircle, Sparkles, TrendingDown, XCircle,
 } from 'lucide-react';
 import { ApiError } from '../../api/client';
+import { money2, qatarDateTime } from '../../lib/format';
 import { invalidateOnboarding } from '../onboarding/shared';
 import {
   RECON_PAGE_SIZE, reconApi,
-  type ReconMarketplaceId, type ReconMarketplaceSummary, type ReconPriceSource, type ReconReference, type ReconRowType,
+  type ReconMarketplaceId, type ReconMarketplaceSummary, type ReconPriceSource, type ReconReference, type ReconRow, type ReconRowType,
   type ReconStatus, type ReconSummary, type StockIssue,
 } from '../../api/recon';
 
@@ -191,6 +192,75 @@ export const Availability: React.FC<{ value: boolean | null }> = ({ value }) =>
   value === null ? <span className="text-gray-500">Not listed</span>
     : value ? <span className="inline-flex items-center gap-1 text-[#027864]"><CheckCircle2 className="w-3 h-3" aria-hidden />Available</span>
       : <span className="inline-flex items-center gap-1 text-gray-700"><CircleSlash className="w-3 h-3" aria-hidden />Unavailable</span>;
+
+// ───────── Marketplace values next to the catalogue's ─────────
+
+/** actualAvailable / actualPrice are null when the product has no listing in the marketplace's file. */
+export const NOT_IN_FILE = 'Not in the file';
+
+/**
+ * Where the marketplace values come from. The API gives the upload time per marketplace (summary lastUploadAt), not per
+ * row: after a partial file a row can still carry an older file's listing, so this names the latest file only.
+ */
+export function fileNote(s: Pick<ReconMarketplaceSummary, 'marketplaceId' | 'lastUploadAt'>): string {
+  const name = marketplaceName(s.marketplaceId);
+  return s.lastUploadAt
+    ? `Marketplace values are from the latest ${name} file, uploaded ${qatarDateTime(s.lastUploadAt)} (Qatar time).`
+    : `No ${name} file has been uploaded yet.`;
+}
+
+/** The marketplace's availability from its file, or "Not in the file". */
+export const MarketplaceAvailability: React.FC<{ value: boolean | null }> = ({ value }) =>
+  value === null ? <span className="text-gray-500">{NOT_IN_FILE}</span> : <Availability value={value} />;
+
+/**
+ * The side the comparison judged the row on: the catalogue (stock and availability by the catalogue stock) for the
+ * marketplace reference, the ERP for the ERP reference, or on a backend without catalogue availability.
+ */
+export function ownSide(row: ReconRow, reference: ReconReference): { label: 'Catalogue' | 'ERP'; available: boolean | null; stock: number } {
+  const byErp = reference === 'erp' || row.catalogueAvailable === undefined;
+  return byErp
+    ? { label: 'ERP', available: row.erpAvailable, stock: row.erpStock }
+    : { label: 'Catalogue', available: row.catalogueAvailable ?? null, stock: row.catalogueStock ?? row.erpStock };
+}
+
+/** "Available (stock 12)" with the availability badge; "Unknown" when the comparison has no value. */
+export const OwnAvailability: React.FC<{ available: boolean | null; stock: number }> = ({ available, stock }) => (
+  <span className="inline-flex flex-wrap items-center gap-1">
+    {available === null ? <span className="text-gray-500">Unknown</span> : <Availability value={available} />}{' '}
+    <span className="text-gray-500">(stock {stock.toLocaleString('en-US')})</span>
+  </span>
+);
+
+const Labelled: React.FC<{ label: string; testId: string; children: React.ReactNode }> = ({ label, testId, children }) => (
+  <div data-testid={testId} className="flex flex-wrap items-center gap-1">
+    <span className="font-semibold text-gray-500">{label}:</span>{' '}{children}
+  </div>
+);
+
+/**
+ * The two values of a row side by side (stacked on a phone): "Catalogue: Available (stock N)" and "Marketplace:
+ * Available", or for a price row "Expected price" and "Marketplace price". The problem label stays where it was.
+ */
+export const RowValues: React.FC<{ row: ReconRow; kind: 'stock' | 'price'; reference: ReconReference }> = ({ row, kind, reference }) => {
+  if (kind === 'price') {
+    return (
+      <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 text-[11px] text-gray-800">
+        <Labelled label="Expected price" testId="value-expected">{row.expectedPrice === null ? '—' : `${money2(row.expectedPrice)} QAR`}</Labelled>
+        <Labelled label="Marketplace price" testId="value-marketplace">
+          {row.actualPrice === null ? <span className="text-gray-500">{NOT_IN_FILE}</span> : `${money2(row.actualPrice)} QAR`}
+        </Labelled>
+      </div>
+    );
+  }
+  const own = ownSide(row, reference);
+  return (
+    <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 text-[11px] text-gray-800">
+      <Labelled label={own.label} testId="value-own"><OwnAvailability available={own.available} stock={own.stock} /></Labelled>
+      <Labelled label="Marketplace" testId="value-marketplace"><MarketplaceAvailability value={row.actualAvailable} /></Labelled>
+    </div>
+  );
+};
 
 /** The recompute this browser started: in progress, or taking longer than expected. */
 export const RecomputeBanner: React.FC<{ state: RecomputeState | null }> = ({ state }) =>

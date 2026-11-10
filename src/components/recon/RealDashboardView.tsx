@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
 import {
-  NoReconAccess, RecomputeBanner, REFERENCE_LABELS, STOCK_ISSUE_META, freshnessText, marketplaceName, qatarDateTime,
+  NoReconAccess, RecomputeBanner, REFERENCE_LABELS, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
 } from './shared';
 
@@ -215,6 +215,7 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
   return (
     <div aria-label={`Needs attention on ${name}`} role="region" className="border-t border-gray-100 pt-3">
       <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Needs attention</h3>
+      {s.stock > 0 && <p data-testid="file-note" className="mt-0.5 text-[11px] text-gray-500">{fileNote(s)}</p>}
       {s.stock === 0 ? (
         <p className="mt-2 text-xs text-gray-500">No stock issues on {name}.</p>
       ) : rows.isPending ? (
@@ -231,20 +232,23 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
               <li
                 key={r.productId} data-testid="attention-row" data-issue={r.stockIssue ?? ''}
                 onClick={editable ? e => { if (rowClickOpens(e)) setEditing(r.productId); } : undefined}
-                className={`py-2 flex items-center gap-3 text-xs ${editable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                className={`py-2 flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-3 text-xs ${editable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
               >
                 {meta && (
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${meta.tone}`}>
+                  <span className={`self-start inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${meta.tone}`}>
                     <meta.Icon className="w-3 h-3" aria-hidden /> {meta.label}
                   </span>
                 )}
-                <span className="min-w-0 flex-1 truncate">
-                  {can('products.view')
-                    ? <Link to={pathFor('product-detail', r.productId)} className="font-semibold text-gray-900 hover:text-[#027864] hover:underline">{r.nameEn}</Link>
-                    : <span className="font-semibold text-gray-900">{r.nameEn}</span>}
-                  <span className="ml-2 font-mono text-[11px] text-gray-500">{r.barcode}</span>
-                </span>
-                {editable && <QuickEditButton row={r} onOpen={setEditing} />}
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <div className="truncate">
+                    {can('products.view')
+                      ? <Link to={pathFor('product-detail', r.productId)} className="font-semibold text-gray-900 hover:text-[#027864] hover:underline">{r.nameEn}</Link>
+                      : <span className="font-semibold text-gray-900">{r.nameEn}</span>}
+                    <span className="ml-2 font-mono text-[11px] text-gray-500">{r.barcode}</span>
+                  </div>
+                  <RowValues row={r} kind="stock" reference={reference} />
+                </div>
+                {editable && <span className="self-start"><QuickEditButton row={r} onOpen={setEditing} /></span>}
               </li>
             );
           })}

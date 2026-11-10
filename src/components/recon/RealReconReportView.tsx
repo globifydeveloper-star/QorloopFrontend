@@ -13,8 +13,9 @@ import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import {
-  Availability, NoReconAccess, PRICE_SOURCE_LABELS, RECON_STATUS_META, REFERENCE_LABELS, RecomputeBanner, ReconStatusPill,
-  StockIssuePill, freshnessText, marketplaceName, money2, priceDifference, qatarDateTime, useRecomputeState, useReconRows, useReconSummary,
+  MarketplaceAvailability, NOT_IN_FILE, NoReconAccess, OwnAvailability, PRICE_SOURCE_LABELS, RECON_STATUS_META, REFERENCE_LABELS,
+  RecomputeBanner, ReconStatusPill, StockIssuePill, fileNote, freshnessText, marketplaceName, money2, ownSide, priceDifference,
+  qatarDateTime, useRecomputeState, useReconRows, useReconSummary,
 } from './shared';
 
 export type ReportKind = 'stock' | 'price';
@@ -149,6 +150,7 @@ const ReportBody: React.FC<{
           <span className="text-gray-400"> · </span>{s.total} total ({s.stock} stock, {s.price} price)
           <span className="text-gray-400"> · </span>
           <span className={s.stale ? 'text-amber-800 font-semibold' : ''}>{freshnessText(s) ?? 'Upload time unknown'}{s.stale ? ' (out of date)' : ''}</span>
+          <p data-testid="file-note" className="mt-0.5 text-[11px] text-gray-500">{fileNote(s)}</p>
         </div>
         <label className="flex items-center gap-2 text-xs text-gray-600">
           Status
@@ -180,7 +182,7 @@ const ReportBody: React.FC<{
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3 text-right">Catalogue stock</th>
                   <th className="px-4 py-3">{reference === 'erp' ? 'ERP' : 'Catalogue'}</th>
-                  <th className="px-4 py-3">{name}</th>
+                  <th className="px-4 py-3">Marketplace</th>
                   <th className="px-4 py-3">Last updated</th>
                   {linkable && <th className="px-4 py-3"><span className="sr-only">Edit</span></th>}
                 </tr>
@@ -188,8 +190,8 @@ const ReportBody: React.FC<{
                 <tr>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">{REFERENCE_LABELS[reference]} (QAR)</th>
-                  <th className="px-4 py-3 text-right">{name} price (QAR)</th>
+                  <th className="px-4 py-3 text-right">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{REFERENCE_LABELS[reference]}</span></th>
+                  <th className="px-4 py-3 text-right">Marketplace price (QAR) <span className="block font-normal normal-case tracking-normal">On {name}</span></th>
                   <th className="px-4 py-3 text-right">Difference (QAR)</th>
                   <th className="px-4 py-3">Price rule</th>
                   <th className="px-4 py-3">Last updated</th>
@@ -213,16 +215,16 @@ const ReportBody: React.FC<{
                       <td className="px-4 py-3 text-right font-mono">{r.erpStock}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap"><CatalogueStockCell catalogueStock={r.catalogueStock} source={r.catalogueStockSource} conflict={r.stockConflict} /></td>
                       {/* The availability the issue was judged on: by the catalogue stock (marketplace reference) or the ERP stock. */}
-                      <td className="px-4 py-3 whitespace-nowrap" data-testid="reference-available">
-                        <Availability value={reference === 'erp' || r.catalogueAvailable === undefined ? r.erpAvailable : r.catalogueAvailable} />
+                      <td className="px-4 py-3 min-w-[140px]" data-testid="reference-available">
+                        <OwnAvailability {...ownSide(r, reference)} />
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap"><Availability value={r.actualAvailable} /></td>
+                      <td className="px-4 py-3 whitespace-nowrap" data-testid="marketplace-available"><MarketplaceAvailability value={r.actualAvailable} /></td>
                     </>
                   ) : (
                     <>
                       <td className="px-4 py-3"><ReconStatusPill status={r.status} /></td>
                       <td className="px-4 py-3 text-right font-mono" data-testid="expected">{money2(r.expectedPrice)}</td>
-                      <td className="px-4 py-3 text-right font-mono" data-testid="actual">{r.actualPrice === null ? 'Not listed' : money2(r.actualPrice)}</td>
+                      <td className="px-4 py-3 text-right font-mono" data-testid="actual">{r.actualPrice === null ? NOT_IN_FILE : money2(r.actualPrice)}</td>
                       <td className="px-4 py-3 text-right font-mono" data-testid="difference">{priceDifference(r.actualPrice, r.expectedPrice)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {reference === 'erp' ? 'ERP price' : r.marketplacePriceSource ? PRICE_SOURCE_LABELS[r.marketplacePriceSource] : '—'}

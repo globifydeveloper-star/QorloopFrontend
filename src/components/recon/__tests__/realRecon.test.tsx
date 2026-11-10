@@ -359,7 +359,13 @@ describe('stock report (RPT-001)', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Snoonu (0)' }));
     await waitFor(() => expect(params(calls(isRows).at(-1)![0] as string)).toMatchObject({ marketplaceId: 'snoonu', status: 'missing_from_erp' }));
 
+    // A row click opens the quick edit drawer on the page; the product name still opens the product page.
     fireEvent.click((await screen.findByText('Product 1')).closest('tr')!);
+    expect(screen.getByRole('dialog', { name: 'Product 1' })).toBeTruthy();
+    expect(screen.getByTestId('where').textContent).toBe('/reports/stock?status=missing_from_erp');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Product 1' }));
     expect(screen.getByTestId('where').textContent).toBe('/catalogue/1');
   });
 
@@ -404,6 +410,8 @@ describe('stock report (RPT-001)', () => {
     renderAt('/reports/stock?marketplace=talabat', <StockMismatchesView />);
     fireEvent.click((await screen.findByText('Product 1')).closest('tr')!);
     expect(screen.queryByRole('link', { name: 'Product 1' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Edit Product 1' })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(screen.getByTestId('where').textContent).toBe('/reports/stock?marketplace=talabat');
     cleanup();
 

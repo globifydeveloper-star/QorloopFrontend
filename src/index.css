@@ -79,3 +79,12 @@
 @layer base {
   td > .flex.items-center.gap-3 > div:last-child { min-width: 160px; }
 }
+
+/* Side drawer (src/components/common/SideDrawer.tsx): slides in from the right; no motion when the user asks for less. */
+@keyframes q-drawer-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes q-drawer-fade { from { opacity: 0; } to { opacity: 1; } }
+.q-drawer { animation: q-drawer-in 200ms ease-out; }
+.q-drawer-backdrop { animation: q-drawer-fade 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .q-drawer, .q-drawer-backdrop { animation: none; }
+}

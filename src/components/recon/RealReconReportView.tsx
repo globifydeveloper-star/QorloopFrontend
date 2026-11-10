@@ -1,5 +1,6 @@
-import React from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
 import { Slash, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
@@ -131,13 +132,14 @@ const ReportBody: React.FC<{
   onStatus: (v: string | undefined) => void; stale: boolean;
 }> = ({ kind, summary: s, reference, status, onStatus, stale }) => {
   const { can } = useAuth();
-  const navigate = useNavigate();
   const rows = useReconRows({ marketplaceId: s.marketplaceId, type: kind, status, reference });
   const items = rows.data?.pages.flatMap(p => p.items) ?? [];
   const name = marketplaceName(s.marketplaceId);
   const count = kind === 'stock' ? s.stock : s.price;
   const linkable = can('products.view');
-  const open = (r: ReconRow) => { if (linkable) navigate(pathFor('product-detail', r.productId)); };
+  // A row click (or its Edit button) opens the quick edit drawer; the product name still opens the full page.
+  const [editing, setEditing] = useState<string | null>(null);
+  const open = (e: React.MouseEvent, r: ReconRow) => { if (linkable && rowClickOpens(e)) setEditing(r.productId); };
 
   return (
     <>
@@ -180,6 +182,7 @@ const ReportBody: React.FC<{
                   <th className="px-4 py-3">{reference === 'erp' ? 'ERP' : 'Catalogue'}</th>
                   <th className="px-4 py-3">{name}</th>
                   <th className="px-4 py-3">Last updated</th>
+                  {linkable && <th className="px-4 py-3"><span className="sr-only">Edit</span></th>}
                 </tr>
               ) : (
                 <tr>
@@ -190,12 +193,13 @@ const ReportBody: React.FC<{
                   <th className="px-4 py-3 text-right">Difference (QAR)</th>
                   <th className="px-4 py-3">Price rule</th>
                   <th className="px-4 py-3">Last updated</th>
+                  {linkable && <th className="px-4 py-3"><span className="sr-only">Edit</span></th>}
                 </tr>
               )}
             </thead>
             <tbody className="divide-y divide-gray-100 text-gray-700">
               {items.map(r => (
-                <tr key={r.productId} onClick={() => open(r)} className={linkable ? 'hover:bg-gray-50 cursor-pointer' : ''}>
+                <tr key={r.productId} onClick={e => open(e, r)} className={linkable ? 'hover:bg-gray-50 cursor-pointer' : ''}>
                   <td className="px-4 py-3 min-w-[220px]">
                     {linkable
                       ? <Link to={pathFor('product-detail', r.productId)} onClick={e => e.stopPropagation()} className="font-semibold text-gray-900 hover:text-[#027864] hover:underline">{r.nameEn}</Link>
@@ -226,6 +230,7 @@ const ReportBody: React.FC<{
                     </>
                   )}
                   <td className="px-4 py-3 whitespace-nowrap" data-testid="updated">{qatarDateTime(r.lastUpdated)}</td>
+                  {linkable && <td className="px-4 py-3 text-right"><QuickEditButton row={r} onOpen={setEditing} /></td>}
                 </tr>
               ))}
             </tbody>
@@ -249,6 +254,12 @@ const ReportBody: React.FC<{
             {rows.isFetchingNextPage ? 'Loading…' : 'Load more'}
           </button>
         </div>
+      )}
+      {editing && (
+        <QuickEditDrawer
+          list={{ kind, rows: items, summary: s, reference, more: Boolean(rows.hasNextPage) }}
+          productId={editing} onNavigate={setEditing} onClose={() => setEditing(null)}
+        />
       )}
     </>
   );

@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { RECON_REFERENCES, type ReconReference, type ReconRowType, type ReconStatus } from '../../api/recon';
+import { RECON_REFERENCES, type ReconMarketplaceSummary, type ReconReference, type ReconRowType, type ReconStatus } from '../../api/recon';
 import type { ExportState } from '../../api/marketplaceValues';
 import { pathFor } from '../../routes/paths';
 
@@ -73,6 +73,21 @@ export function useUpdateFilesState() {
     return next;
   }, { replace: !('step' in patch || 'marketplace' in patch) });
   return [state, set] as const;
+}
+
+/** Permission to change the values to export (Owner, Admin, Catalogue Manager); every other role reads only. */
+export const EDIT_PERMISSION = 'marketplace.values_edit';
+
+/** What every step gets from the screen. */
+export interface StepProps {
+  summary: ReconMarketplaceSummary;
+  /** Every marketplace on a tab, for "Export both". */
+  marketplaces: ReconMarketplaceSummary[];
+  reference: ReconReference;
+  /** The store's default (pricing settings), from the summary. */
+  storeReference: ReconReference;
+  state: UpdateFilesState;
+  set: (patch: Partial<UpdateFilesState>) => void;
 }
 
 /** The Dashboard card's "Update marketplace file" and other links into this screen. */

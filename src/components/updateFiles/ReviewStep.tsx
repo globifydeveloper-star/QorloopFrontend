@@ -7,8 +7,7 @@ import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { count } from '../pricing/priceChange';
 import { REFERENCE_LABELS, fileNote, freshnessText, marketplaceName, qatarDateTime } from '../recon/shared';
-import type { StepProps } from './UpdateFilesView';
-import type { Show } from './urlState';
+import type { Show, StepProps } from './urlState';
 
 /**
  * REVIEW: how old the marketplace file is (the Dashboard's rule: summary.stale, from the store's staleHours), what needs

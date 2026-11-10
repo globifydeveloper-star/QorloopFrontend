@@ -2,27 +2,14 @@ import React, { useRef } from 'react';
 import { Check, Lock, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
-import type { ReconMarketplaceSummary, ReconReference } from '../../api/recon';
+import type { ReconMarketplaceSummary } from '../../api/recon';
 import { readExportCounts } from '../../api/marketplaceValues';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { NoReconAccess, marketplaceName, useReconSummary } from '../recon/shared';
 import { count } from '../pricing/priceChange';
 import { ReviewStep } from './ReviewStep';
-import { STEPS, STEP_LABELS, useUpdateFilesState, type Step, type UpdateFilesState } from './urlState';
-
-/** Permission to change the values to export (Owner, Admin, Catalogue Manager); every other role reads only. */
-export const EDIT_PERMISSION = 'marketplace.values_edit';
-
-export interface StepProps {
-  summary: ReconMarketplaceSummary;
-  /** Every marketplace on a tab, for "Export both". */
-  marketplaces: ReconMarketplaceSummary[];
-  reference: ReconReference;
-  /** The store's default (pricing settings), from the summary. */
-  storeReference: ReconReference;
-  state: UpdateFilesState;
-  set: (patch: Partial<UpdateFilesState>) => void;
-}
+import { AdjustStep } from './AdjustStep';
+import { EDIT_PERMISSION, STEPS, STEP_LABELS, useUpdateFilesState, type Step, type StepProps } from './urlState';
 
 /**
  * "Update marketplace files" (/update-files), the main screen: for Talabat and Snoonu together, review what differs,
@@ -92,6 +79,7 @@ const UpdateFiles: React.FC = () => {
 
 const StepBody: React.FC<StepProps & { step: Step }> = ({ step, ...props }) => {
   if (step === 'review') return <ReviewStep {...props} />;
+  if (step === 'adjust') return <AdjustStep {...props} />;
   // Placeholder until the step is built.
   return (
     <section aria-label={STEP_LABELS[step]} className="bg-white border border-gray-200 rounded-2xl p-5 text-xs text-gray-600">

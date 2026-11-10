@@ -12,13 +12,14 @@ import {
   LogOut,
   Users,
   History,
+  FilePen,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ViewType } from '../../types';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLE_LABELS } from '../../api/types';
 import { VIEW_PERMISSION } from '../../routes/paths';
-import { realSettingsEnabled } from '../../lib/features';
+import { realMarketplaceValuesEnabled, realSettingsEnabled } from '../../lib/features';
 import logo from '../../assets/qorloop-logo.png';
 
 type NavItem = { label: string; view: ViewType; icon: React.ElementType; count?: number; countTone?: 'brand' | 'muted' };
@@ -40,6 +41,8 @@ export const Sidebar: React.FC = () => {
       title: 'Main',
       items: [
         { label: 'Dashboard', view: 'dashboard', icon: LayoutDashboard },
+        // The main screen: update the marketplace values and export the files (real backend only).
+        ...(realMarketplaceValuesEnabled() ? [{ label: 'Update files', view: 'update-files' as const, icon: FilePen }] : []),
         { label: 'Uploads', view: 'uploads', icon: Upload },
         { label: 'Reports', view: 'reports', icon: BarChart2 },
       ],

@@ -1,5 +1,5 @@
 import type { ViewType } from '../types';
-import { realCatalogueEnabled, realFilesEnabled, realOnboardingEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled, realUploadsEnabled } from '../lib/features';
+import { realCatalogueEnabled, realFilesEnabled, realOnboardingEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled, realUploadsEnabled, realMarketplaceValuesEnabled } from '../lib/features';
 
 /**
  * Real URLs for every screen. The existing views still call `navigate('<view>')`; AppContext translates that
@@ -29,6 +29,7 @@ const PATHS: Record<ViewType, string> = {
   activity: '/activity',
   team: '/settings/team',
   'how-it-works': '/how-it-works',
+  'update-files': '/update-files',
 };
 
 export function pathFor(view: ViewType, id?: string): string {
@@ -46,7 +47,7 @@ const STATIC: [string, ViewType][] = [
   ['/catalogue', 'catalogue'], ['/catalogue/new', 'new-products'], ['/catalogue/stock-conflicts', 'stock-conflicts'], ['/categories', 'categories'],
   ['/pricing', 'markups'], ['/settings/file-mappings', 'templates'],
   ['/files', 'outputs-generate'], ['/onboarding', 'onboarding'], ['/settings', 'settings'], ['/settings/team', 'team'],
-  ['/activity', 'activity'], ['/how-it-works', 'how-it-works'],
+  ['/activity', 'activity'], ['/how-it-works', 'how-it-works'], ['/update-files', 'update-files'],
 ];
 
 export function matchView(pathname: string): { view: ViewType; id?: string } | null {
@@ -73,6 +74,7 @@ export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   ...(realFilesEnabled() ? (['outputs-generate'] as const) : []),
   ...(realSettingsEnabled() ? (['settings', 'activity'] as const) : []),
   ...(realOnboardingEnabled() ? (['onboarding'] as const) : []),
+  ...(realMarketplaceValuesEnabled() ? (['update-files'] as const) : []),
 ]);
 
 /**
@@ -91,4 +93,5 @@ export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {
   'outputs-generate': 'files.view', settings: 'settings.view', team: 'team.view',
   activity: 'activity.view',
   onboarding: 'settings.view',
+  'update-files': 'recon.view',
 };

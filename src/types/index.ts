@@ -21,7 +21,8 @@ export type ViewType =
   | 'new-products'
   | 'stock-conflicts'
   | 'team'
-  | 'how-it-works';
+  | 'how-it-works'
+  | 'update-files';
 
 export type MarketplaceId = 'talabat' | 'snoonu' | 'rafeeq' | 'keeta';
 

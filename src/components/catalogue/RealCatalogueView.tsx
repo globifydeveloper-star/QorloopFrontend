@@ -1,14 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FolderTree, Search, Sparkles, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
-import { PRODUCT_TABS, type ProductTab } from '../../api/products';
+import { MARKETPLACE_STATUS_FILTERS, PRODUCT_TABS, type MarketplaceStatusFilter, type ProductTab } from '../../api/products';
 import { indexCategories, type Category } from '../../api/categories';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
-import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductList } from './shared';
-import { realPricingEnabled } from '../../lib/features';
+import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductCounts, useProductList } from './shared';
+import { ComparisonCell, MARKETPLACE_STATUS_LABELS, MarketplaceValuesCell, marketplaceNote, newestUpload } from './MarketplaceColumns';
+import { marketplaceName, useReconSummary } from '../recon/shared';
+import { MARKETPLACE_IDS } from '../../lib/pricing';
+import { realPricingEnabled, realReconEnabled } from '../../lib/features';
 import { money2 } from '../../lib/format';
 import { PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
@@ -37,20 +41,43 @@ export const RealCatalogueView: React.FC = () => {
   const [search, setSearch] = useState('');
   // "" = all; "c:<id>" = a category; "s:<id>" = a subcategory
   const [category, setCategory] = useState('');
+  // "" = no marketplace columns
+  const [marketplaceId, setMarketplaceId] = useState('');
+  const [marketplaceStatus, setMarketplaceStatus] = useState<MarketplaceStatusFilter | ''>('');
   const q = useDebounced(search.trim());
 
   const filter = useMemo(() => ({
     q, tab,
     categoryId: category.startsWith('c:') ? category.slice(2) : undefined,
     subcategoryId: category.startsWith('s:') ? category.slice(2) : undefined,
-  }), [q, tab, category]);
+    ...(marketplaceId ? { marketplaceId, ...(marketplaceStatus ? { marketplaceStatus } : {}) } : {}),
+  }), [q, tab, category, marketplaceId, marketplaceStatus]);
   const list = useProductList(filter);
   const tree = useCategoryTree();
   const names = useMemo(() => indexCategories(tree.data), [tree.data]);
+  // The marketplaces to offer and the time of the last comparison, when the recon is on and may be seen.
+  const summary = useReconSummary(undefined, { enabled: realReconEnabled() && can('recon.view') });
+  const marketplaceChoices = summary.data?.marketplaces.map(m => m.marketplaceId) ?? MARKETPLACE_IDS;
 
   const items = list.data?.pages.flatMap(p => p.items) ?? [];
   const counts = list.data?.pages[0]?.counts;
-  const filtered = Boolean(q || category);
+  const filtered = Boolean(q || category || (marketplaceId && marketplaceStatus));
+  const marketplaceProblem = marketplaceId ? list.data?.pages[0]?.marketplaceProblem : undefined;
+  // A missing marketplace object means "not available": no extra columns.
+  const showMarketplace = Boolean(marketplaceId) && !marketplaceProblem && items.some(p => p.marketplace);
+  const marketplaceMissing = Boolean(marketplaceId) && !marketplaceProblem && items.length > 0 && !showMarketplace && !list.isPlaceholderData;
+  const mpName = marketplaceId ? marketplaceName(marketplaceId) : '';
+  const newest = showMarketplace ? newestUpload(items) : null;
+  // A new comparison changes the stored statuses the list shows: refetch it once the summary moves on.
+  const qc = useQueryClient();
+  const computedAt = summary.data?.computedAt ?? null;
+  const seenComputedAt = useRef(computedAt);
+  useEffect(() => {
+    if (seenComputedAt.current && computedAt && computedAt !== seenComputedAt.current && marketplaceId) {
+      void qc.invalidateQueries({ queryKey: ['products', 'list'] });
+    }
+    seenComputedAt.current = computedAt;
+  }, [computedAt, marketplaceId, qc]);
   // The backend adds marketplacePrice only for pricing.view.
   const showPrice = realPricingEnabled() && can('pricing.view');
   // Inline price edit (pricing.edit): one row's editor open at a time, under the row.
@@ -74,7 +101,17 @@ export const RealCatalogueView: React.FC = () => {
   const canStockBulk = can('catalogue.stock_edit');
   const canTick = canBulk || canStockBulk;
   const [stockBulkOpen, setStockBulkOpen] = useState(false);
-  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0);
+  // The bulk changes take no marketplace status: with that filter on, the list's counts are narrowed, so count apart.
+  const narrowedByStatus = Boolean(marketplaceId && marketplaceStatus && !marketplaceProblem);
+  const plainCounts = useProductCounts(
+    { q: filter.q, tab: 'all', categoryId: filter.categoryId, subcategoryId: filter.subcategoryId },
+    narrowedByStatus && (bulkOpen || stockBulkOpen),
+  );
+  const bulkCounts = narrowedByStatus ? plainCounts.data : counts;
+  const bulkCountPending = narrowedByStatus
+    ? plainCounts.isPending || plainCounts.isFetching
+    : list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage);
+  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0) + (showMarketplace ? 2 : 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -141,7 +178,47 @@ export const RealCatalogueView: React.FC = () => {
               ))}
             </select>
           </label>
+          <label className="md:w-44">
+            <span className="sr-only">Marketplace values</span>
+            <select
+              value={marketplaceId}
+              onChange={e => { setMarketplaceId(e.target.value); if (!e.target.value) setMarketplaceStatus(''); }}
+              className="w-full h-9 px-2 text-xs border border-gray-300 rounded-lg bg-white"
+            >
+              <option value="">No marketplace values</option>
+              {marketplaceChoices.map(id => <option key={id} value={id}>{`On ${marketplaceName(id)}`}</option>)}
+            </select>
+          </label>
+          {marketplaceId && !marketplaceProblem && (
+            <label className="md:w-44">
+              <span className="sr-only">{`Status on ${mpName}`}</span>
+              <select
+                value={marketplaceStatus}
+                onChange={e => setMarketplaceStatus(e.target.value as MarketplaceStatusFilter | '')}
+                className="w-full h-9 px-2 text-xs border border-gray-300 rounded-lg bg-white"
+              >
+                <option value="">{`Any status on ${mpName}`}</option>
+                {MARKETPLACE_STATUS_FILTERS.map(s => <option key={s} value={s}>{MARKETPLACE_STATUS_LABELS[s]}</option>)}
+              </select>
+            </label>
+          )}
         </div>
+
+        {marketplaceProblem && (
+          <div role="status" className="px-4 py-2.5 border-b border-gray-100 bg-amber-50 text-xs text-amber-800">
+            {`${mpName} values cannot be shown: ${/[.!?]$/.test(marketplaceProblem) ? marketplaceProblem : `${marketplaceProblem}.`} The list below is the catalogue without them.`}
+          </div>
+        )}
+        {marketplaceMissing && (
+          <div role="status" className="px-4 py-2.5 border-b border-gray-100 bg-amber-50 text-xs text-amber-800">
+            {`${mpName} values are not available from this server yet; the list below is the catalogue without them.`}
+          </div>
+        )}
+        {showMarketplace && (
+          <p data-testid="marketplace-note" className="px-4 py-2.5 border-b border-gray-100 text-[11px] text-gray-500">
+            {marketplaceNote(marketplaceId, items, computedAt)}
+          </p>
+        )}
 
         {canTick && (
           <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : 'Bulk stock edit'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
@@ -149,6 +226,7 @@ export const RealCatalogueView: React.FC = () => {
               {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked`
                 : canBulk ? 'Tick rows to change their prices together, or change every active product matching the filter.'
                   : 'Tick rows to change their stock together, or change every product matching the filter.'}
+              {narrowedByStatus && ` A bulk change uses the search and category only, not the ${mpName} status.`}
             </span>
             <span className="flex items-center gap-2">
               {ticked.size > 0 && (
@@ -193,6 +271,8 @@ export const RealCatalogueView: React.FC = () => {
                   {showPrice && <th className="px-4 py-3">Marketplace price (QAR)</th>}
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3 text-right">Catalogue stock</th>
+                  {showMarketplace && <th className="px-4 py-3">{`On ${mpName}`}</th>}
+                  {showMarketplace && <th className="px-4 py-3">{`Compared with ${mpName}`}</th>}
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Category</th>
                   {canEditPrice && <th className="px-4 py-3"><span className="sr-only">Price actions</span></th>}
@@ -226,6 +306,8 @@ export const RealCatalogueView: React.FC = () => {
                       )}
                       <td className="px-4 py-3 text-right font-mono">{p.erpStock}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap"><CatalogueStockCell catalogueStock={p.catalogueStock} source={p.catalogueStockSource} conflict={p.stockConflict} /></td>
+                      {showMarketplace && <td className="px-4 py-3 whitespace-nowrap" data-testid="marketplace-cell"><MarketplaceValuesCell m={p.marketplace} newest={newest} /></td>}
+                      {showMarketplace && <td className="px-4 py-3" data-testid="comparison-cell"><ComparisonCell m={p.marketplace} /></td>}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <ProductStatusPill status={p.status} />
                         {!p.inLatestErpFile && <div className="mt-1 text-[11px] text-amber-700">Not in latest ERP file</div>}
@@ -285,8 +367,8 @@ export const RealCatalogueView: React.FC = () => {
           tickedIds={[...ticked]}
           filter={bulkFilter}
           // The list's own count for this search and category: exactly the active products a filter selection takes.
-          filterActiveCount={list.isPlaceholderData ? undefined : counts?.active}
-          filterCountPending={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage)}
+          filterActiveCount={bulkCountPending ? undefined : bulkCounts?.active}
+          filterCountPending={bulkCountPending}
           filterSummary={filterSummary}
           onClose={() => setBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}
@@ -297,7 +379,7 @@ export const RealCatalogueView: React.FC = () => {
           tickedIds={[...ticked]}
           filter={bulkFilter}
           // The list's "All" count for this search and category: a stock filter selection takes any status.
-          filterCount={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage) ? undefined : counts?.all}
+          filterCount={bulkCountPending ? undefined : bulkCounts?.all}
           filterSummary={filterSummary}
           onClose={() => setStockBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}

@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import type { ReconRow, ReconRowType } from '../../api/recon';
-import { readMarketplaceSource } from '../../api/marketplaceValues';
+import type { ReconMarketplaceId, ReconRow, ReconRowType } from '../../api/recon';
+import { readMarketplaceSource, type ValueFilter } from '../../api/marketplaceValues';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { count, priceText } from '../pricing/priceChange';
@@ -12,14 +12,15 @@ import { ExportStateBadge, ExportValueEditor, PRICE_INPUT_ATTR } from './ExportV
 import { FileAge } from './ReviewStep';
 import { valuesOf } from './logic';
 import { useAdjustRows } from './queries';
-import { EDIT_PERMISSION, SHOWS, SHOW_LABELS, TYPES, TYPE_LABELS, type Show, type StepProps } from './urlState';
+import { EDIT_PERMISSION, SHOWS, SHOW_FILTER, SHOW_LABELS, TYPES, TYPE_LABELS, type Show, type StepProps } from './urlState';
+import { BULK_LABELS, BulkValuesDialog, type BulkKind } from './BulkValuesDialog';
 
 /**
  * ADJUST: the products that need a change on this marketplace (server pages, urgent first), with the marketplace's
  * values, the catalogue's, and the value to export, editable in place. Rows stay where they are after a save (their state
  * badge changes); "Refresh the list" applies the filter again.
  */
-export const AdjustStep: React.FC<StepProps & { bulk?: (ctx: AdjustContext) => React.ReactNode }> = ({ summary: s, reference, state, set, bulk }) => {
+export const AdjustStep: React.FC<StepProps> = ({ summary: s, reference, state, set }) => {
   const { can } = useAuth();
   const canEdit = can(EDIT_PERMISSION);
   const name = marketplaceName(s.marketplaceId);
@@ -57,7 +58,12 @@ export const AdjustStep: React.FC<StepProps & { bulk?: (ctx: AdjustContext) => R
 
       {s.stale && <FileAge summary={s} />}
 
-      {canEdit && bulk?.(ctx)}
+      {canEdit && items.length > 0 && (
+        <BulkActions ctx={ctx} marketplaceId={s.marketplaceId}
+          filter={{ type: state.type, reference, ...SHOW_FILTER[state.show] }}
+          filterSummary={`${SHOW_LABELS[state.show]} · ${TYPE_LABELS[state.type]}`}
+          onGoToExport={() => set({ step: 'export' })} />
+      )}
 
       {rows.isPending ? <LoadingState label={`Loading ${name} products…`} rows={5} />
         : rows.isError && !rows.data ? <ErrorState error={rows.error} title="We could not load the products" onRetry={() => void rows.refetch()} />
@@ -122,6 +128,50 @@ export const AdjustStep: React.FC<StepProps & { bulk?: (ctx: AdjustContext) => R
 
 /** What the bulk actions need from the list. */
 export interface AdjustContext { rows: ReconRow[]; more: boolean; loadedAll: boolean; ticked: string[]; clearTicked: () => void }
+
+/**
+ * "Use catalogue values for all N rows" (the usual case, prominent) and the other bulk actions, on the ticked rows or
+ * on every product in the list (also the rows not loaded yet). N is shown when the whole list is loaded; the preview
+ * always gives the exact number before anything changes.
+ */
+const BulkActions: React.FC<{
+  ctx: AdjustContext; marketplaceId: ReconMarketplaceId; filter: ValueFilter; filterSummary: string; onGoToExport: () => void;
+}> = ({ ctx, marketplaceId, filter, filterSummary, onGoToExport }) => {
+  const [open, setOpen] = useState<{ kind: BulkKind; auto: boolean } | null>(null);
+  const n = ctx.ticked.length;
+  const allLabel = ctx.loadedAll ? `Use catalogue values for all ${count(ctx.rows.length)} rows` : 'Use catalogue values for every row in this list';
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-[#027864]/30 bg-[#F2F7F6] px-4 py-3">
+        <p className="flex-1 text-xs text-gray-700">
+          The usual case: export what the catalogue says. This removes any adjustment in this list, so each file writes the catalogue&apos;s availability and price.
+        </p>
+        <button type="button" data-testid="use-catalogue-all" onClick={() => setOpen({ kind: 'use_catalogue', auto: true })}
+          className="shrink-0 inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold text-white bg-[#027864] hover:bg-[#02604F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#027864]">
+          {allLabel}
+        </button>
+      </div>
+      <div role="toolbar" aria-label="Change many products" className="flex flex-wrap items-center gap-2 text-xs">
+        <span data-testid="ticked-count" className="font-semibold text-gray-700">{n > 0 ? `${count(n)} ticked:` : 'Change many:'}</span>
+        {(Object.keys(BULK_LABELS) as BulkKind[]).map(k => (
+          <button key={k} type="button" onClick={() => setOpen({ kind: k, auto: false })}
+            className="h-8 px-3 rounded-lg border border-gray-300 bg-white font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#027864]">
+            {BULK_LABELS[k]}
+          </button>
+        ))}
+        {n > 0 && <button type="button" onClick={ctx.clearTicked} className="h-8 px-2 font-semibold text-[#027864] hover:underline">Clear ticks</button>}
+      </div>
+      {open && (
+        <BulkValuesDialog
+          marketplaceId={marketplaceId} initialKind={open.kind} autoPreview={open.auto}
+          tickedIds={ctx.ticked} filter={filter} filterSummary={filterSummary} rows={ctx.rows}
+          onClose={() => setOpen(null)} onApplied={ctx.clearTicked}
+          onGoToExport={() => { setOpen(null); onGoToExport(); }}
+        />
+      )}
+    </div>
+  );
+};
 
 const Filters: React.FC<{ show: Show; type: ReconRowType; onShow: (s: Show) => void; onType: (t: ReconRowType) => void }> = ({ show, type, onShow, onType }) => (
   <div className="flex flex-wrap items-end gap-3">

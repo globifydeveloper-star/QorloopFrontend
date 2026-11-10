@@ -26,7 +26,7 @@ const keyOf = (s: FileSelection) => `${s.marketplaceId}|${s.kind}|${s.scope}|${s
 const errorText = (e: unknown) => (e instanceof ApiError && e.status === 404 ? 'This file is no longer available.' : reconErrorText(e));
 
 /** Fetch a signed URL only now and hand it straight to the browser; it is never kept in state. */
-async function startDownload(id: string) {
+export async function startDownload(id: string) {
   const { url, fileName } = await generatedFilesApi.download(id);
   const a = document.createElement('a');
   a.href = url;

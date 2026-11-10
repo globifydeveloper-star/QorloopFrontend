@@ -9,6 +9,7 @@ import { NoReconAccess, marketplaceName, useReconSummary } from '../recon/shared
 import { count } from '../pricing/priceChange';
 import { ReviewStep } from './ReviewStep';
 import { AdjustStep } from './AdjustStep';
+import { ExportPanel } from './ExportPanel';
 import { EDIT_PERMISSION, STEPS, STEP_LABELS, useUpdateFilesState, type Step, type StepProps } from './urlState';
 
 /**
@@ -57,6 +58,8 @@ const UpdateFiles: React.FC = () => {
           {!can(EDIT_PERMISSION) && <ReadOnlyNote />}
           <StepBody step={state.step} {...props} />
         </div>
+        {/* Talabat and Snoonu together, under every step except Export (which shows the same in full). */}
+        {state.step !== 'export' && <ExportPanel marketplaces={marketplaces} reference={reference} variant="bar" onOpenExport={() => set({ step: 'export' })} />}
       </>
     );
   }
@@ -80,12 +83,7 @@ const UpdateFiles: React.FC = () => {
 const StepBody: React.FC<StepProps & { step: Step }> = ({ step, ...props }) => {
   if (step === 'review') return <ReviewStep {...props} />;
   if (step === 'adjust') return <AdjustStep {...props} />;
-  // Placeholder until the step is built.
-  return (
-    <section aria-label={STEP_LABELS[step]} className="bg-white border border-gray-200 rounded-2xl p-5 text-xs text-gray-600">
-      {STEP_LABELS[step]}: {marketplaceName(props.summary.marketplaceId)}
-    </section>
-  );
+  return <ExportPanel marketplaces={props.marketplaces} reference={props.reference} variant="full" />;
 };
 
 /** Review, Adjust, Export: each is a link-like button; the current one has aria-current="step". */

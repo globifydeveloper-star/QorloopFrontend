@@ -15,7 +15,7 @@ import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { Chain, PriceSourceChip } from '../pricing/shared';
 import { count } from '../pricing/priceChange';
 import {
-  Availability, REFERENCE_LABELS, STOCK_ISSUE_META, StockIssuePill, freshnessText, marketplaceName, money2, priceDifference,
+  Availability, MarketplaceAvailability, NOT_IN_FILE, REFERENCE_LABELS, STOCK_ISSUE_META, StockIssuePill, freshnessText, marketplaceName, money2, priceDifference,
   qatarDateTime, useRecomputeState,
 } from './shared';
 
@@ -190,7 +190,7 @@ const StockDiffers: React.FC<{ row: ReconRow; list: QuickEditList }> = ({ row, l
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <dl className={box} aria-label={`On ${name}`}>
           <h4 className="text-[11px] font-bold uppercase tracking-wider text-gray-500 pt-1">On {name}</h4>
-          <Fact label="Availability" testId="marketplace-available"><Availability value={row.actualAvailable} /></Fact>
+          <Fact label="Availability" testId="marketplace-available"><MarketplaceAvailability value={row.actualAvailable} /></Fact>
           <Fact label="From the file uploaded">
             {s.lastUploadAt ? `${qatarDateTime(s.lastUploadAt)} (Qatar time)` : 'Unknown'}
           </Fact>
@@ -246,7 +246,7 @@ const PriceDiffers: React.FC<{ row: ReconRow; list: QuickEditList }> = ({ row, l
   return (
     <Section title="What differs">
       <dl className={box}>
-        <Fact label={`Price on ${name}`} testId="qe-actual">{row.actualPrice === null ? 'Not listed' : `${money2(row.actualPrice)} QAR`}</Fact>
+        <Fact label={`Price on ${name}`} testId="qe-actual">{row.actualPrice === null ? NOT_IN_FILE : `${money2(row.actualPrice)} QAR`}</Fact>
         <Fact label={`Expected (${REFERENCE_LABELS[list.reference]})`} testId="qe-expected">{row.expectedPrice === null ? '—' : `${money2(row.expectedPrice)} QAR`}</Fact>
         <Fact label="Difference" testId="qe-difference">{priceDifference(row.actualPrice, row.expectedPrice)} QAR</Fact>
         <Fact label="Set by" testId="qe-source">

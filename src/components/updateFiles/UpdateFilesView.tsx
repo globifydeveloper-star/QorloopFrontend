@@ -7,6 +7,7 @@ import { readExportCounts } from '../../api/marketplaceValues';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { NoReconAccess, marketplaceName, useReconSummary } from '../recon/shared';
 import { count } from '../pricing/priceChange';
+import { ReviewStep } from './ReviewStep';
 import { STEPS, STEP_LABELS, useUpdateFilesState, type Step, type UpdateFilesState } from './urlState';
 
 /** Permission to change the values to export (Owner, Admin, Catalogue Manager); every other role reads only. */
@@ -89,12 +90,15 @@ const UpdateFiles: React.FC = () => {
   );
 };
 
-/** Placeholder until each step is built. */
-const StepBody: React.FC<StepProps & { step: Step }> = ({ step, summary }) => (
-  <section aria-label={STEP_LABELS[step]} className="bg-white border border-gray-200 rounded-2xl p-5 text-xs text-gray-600">
-    {STEP_LABELS[step]}: {marketplaceName(summary.marketplaceId)}
-  </section>
-);
+const StepBody: React.FC<StepProps & { step: Step }> = ({ step, ...props }) => {
+  if (step === 'review') return <ReviewStep {...props} />;
+  // Placeholder until the step is built.
+  return (
+    <section aria-label={STEP_LABELS[step]} className="bg-white border border-gray-200 rounded-2xl p-5 text-xs text-gray-600">
+      {STEP_LABELS[step]}: {marketplaceName(props.summary.marketplaceId)}
+    </section>
+  );
+};
 
 /** Review, Adjust, Export: each is a link-like button; the current one has aria-current="step". */
 export const StepIndicator: React.FC<{ step: Step; onStep: (s: Step) => void }> = ({ step, onStep }) => {

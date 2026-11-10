@@ -24,6 +24,7 @@ import { DashboardView } from '../../views/DashboardView';
 import { StockMismatchesView } from '../../views/StockMismatchesView';
 import { PriceDiscrepanciesView } from '../../views/PriceDiscrepanciesView';
 import { DemoProvider } from '../../../demo';
+import { REAL_FLAGS } from '../../../../vitest.setup';
 import { freshnessText, priceDifference, qatarDateTime, reconTiming } from '../shared';
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -330,7 +331,7 @@ describe('stock report (RPT-001)', () => {
     const r2 = within(screen.getByText('Product 2').closest('tr')!);
     expect(r2.getByTestId('stock-issue').textContent).toBe('Lost sales');
     expect(r2.getByText('14')).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Talabat' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Marketplace' })).toBeTruthy();
   });
 
   it('filters by status and marketplace on the server, loads more by cursor and opens the product', async () => {
@@ -439,22 +440,22 @@ describe('price report (RPT-002)', () => {
     renderAt('/reports/price?marketplace=talabat&reference=marketplace', <PriceDiscrepanciesView />);
     const r5 = within((await screen.findByText('Product 5')).closest('tr')!);
     expect(params(calls(isRows)[0][0] as string)).toEqual({ marketplaceId: 'talabat', type: 'price', reference: 'marketplace', limit: '50' });
-    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR)' })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Talabat price (QAR)' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) Marketplace price' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR) On Talabat' })).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'Difference (QAR)' })).toBeTruthy();
     expect(r5.getByTestId('expected').textContent).toBe('12.50');
     expect(r5.getByTestId('actual').textContent).toBe('13.00');
     expect(r5.getByTestId('difference').textContent).toBe('+0.50');
     expect(r5.getByText('Offer')).toBeTruthy();
     const r6 = within(screen.getByText('Product 6').closest('tr')!);
-    expect(r6.getByTestId('actual').textContent).toBe('Not listed');
+    expect(r6.getByTestId('actual').textContent).toBe('Not in the file');
     expect(r6.getByTestId('recon-status').textContent).toBe('Not listed');
     expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Talabat (2)', 'Snoonu (1)', 'Keeta (No data)']);
     expect(screen.getByTestId('report-counts').textContent).toContain('2 price mismatches on Talabat');
     expect(screen.getByRole('button', { name: 'Marketplace price' }).getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(screen.getByRole('button', { name: 'ERP price' }));
-    await screen.findByRole('columnheader', { name: 'ERP price (QAR)' });
+    await screen.findByRole('columnheader', { name: 'Expected price (QAR) ERP price' });
     await waitFor(() => expect(within(screen.getByText('Product 5').closest('tr')!).getByTestId('expected').textContent).toBe('11.00'));
     expect(params(calls(isSummary).at(-1)![0] as string)).toEqual({ reference: 'erp' });
     expect(params(calls(isRows).at(-1)![0] as string)).toMatchObject({ reference: 'erp', type: 'price' });
@@ -468,12 +469,103 @@ describe('price report (RPT-002)', () => {
     await screen.findByText('Product 1');
     expect(screen.getByRole('button', { name: 'ERP price' }).getAttribute('aria-pressed')).toBe('true');
     expect(params(calls(isRows)[0][0] as string).reference).toBe('erp');
-    expect(screen.getByRole('columnheader', { name: 'ERP price (QAR)' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) ERP price' })).toBeTruthy();
   });
 
   it('shows an empty state when there are no price mismatches', async () => {
     handler = (u, i) => (isRows(u, method(i)) ? ok({ reference: 'marketplace', items: [], nextCursor: null }) : backend(u, i));
     renderAt('/reports/price?marketplace=snoonu', <PriceDiscrepanciesView />);
     expect(await screen.findByText('No price mismatches on Snoonu')).toBeTruthy();
+  });
+});
+
+// Read when this file loads, before any beforeEach turns a flag on: the global setup switches every VITE_REAL_* flag off.
+const FLAGS_AT_LOAD = REAL_FLAGS.map(f => import.meta.env[f]);
+
+describe('marketplace values next to the catalogue values', () => {
+  // One row per problem type, as GET /api/recon/rows sends them (catalogue fields from ADR 017).
+  const OUT_OF_STOCK = row('11', { stockIssue: 'available_but_out_of_stock', catalogueAvailable: false, catalogueStock: 0, erpStock: 0, erpAvailable: false, actualAvailable: true });
+  const LOST_SALES = row('12', { stockIssue: 'unavailable_but_in_stock', catalogueAvailable: true, catalogueStock: 9, catalogueStockSource: 'owner', erpStock: 14, erpAvailable: true, actualAvailable: false });
+  const MISSING = row('13', { status: 'missing_from_erp', stockIssue: 'available_but_out_of_stock', catalogueAvailable: false, catalogueStock: 0, erpAvailable: false, actualAvailable: true });
+  const NOT_IN_FILE_ROW = row('14', { status: 'not_listed', stockIssue: null, catalogueAvailable: true, catalogueStock: 6, erpStock: 6, actualAvailable: null, actualPrice: null });
+  const STOCK_CASES = [OUT_OF_STOCK, LOST_SALES, MISSING, NOT_IN_FILE_ROW];
+  const PRICE_CASES = [
+    row('21', { priceMismatch: true, expectedPrice: 12.5, actualPrice: 13.75, marketplacePriceSource: 'category' }),
+    row('22', { status: 'not_listed', priceMismatch: false, expectedPrice: 9, actualPrice: null, actualAvailable: null }),
+  ];
+  const rowsWith = (items: ReconRow[]): Handler => (u, i) =>
+    isRows(u, method(i)) ? ok({ reference: params(u).reference ?? 'marketplace', items, nextCursor: null }) : backend(u, i);
+  const text = (scope: ReturnType<typeof within>, id: string) => scope.getByTestId(id).textContent;
+
+  it('the global setup kept every VITE_REAL_* flag off', () => {
+    expect(FLAGS_AT_LOAD).toEqual(REAL_FLAGS.map(() => ''));
+  });
+
+  it('Dashboard "Needs attention": catalogue and marketplace values for each problem type, the problem label and the file note', async () => {
+    handler = rowsWith(STOCK_CASES);
+    renderAt('/', <DashboardView />);
+    const attention = within(await screen.findByRole('region', { name: 'Needs attention on Talabat' }));
+    const items = await attention.findAllByTestId('attention-row');
+    expect(items).toHaveLength(4);
+    const [a, b, c, d] = items.map(el => within(el));
+    expect(a.getByText('Available but out of stock')).toBeTruthy();
+    expect(text(a, 'value-own')).toBe('Catalogue: Unavailable (stock 0)');
+    expect(text(a, 'value-marketplace')).toBe('Marketplace: Available');
+    expect(b.getByText('Lost sales')).toBeTruthy();
+    expect(text(b, 'value-own')).toBe('Catalogue: Available (stock 9)');
+    expect(text(b, 'value-marketplace')).toBe('Marketplace: Unavailable');
+    expect(text(c, 'value-own')).toBe('Catalogue: Unavailable (stock 0)');
+    expect(text(c, 'value-marketplace')).toBe('Marketplace: Available');
+    expect(text(d, 'value-marketplace')).toBe('Marketplace: Not in the file');
+    // Availability uses the app's badge (icon + word), never colour alone.
+    expect(a.getByTestId('value-marketplace').querySelector('svg')).toBeTruthy();
+    expect(attention.getByTestId('file-note').textContent).toBe('Marketplace values are from the latest Talabat file, uploaded 01 Nov 2026, 21:00 (Qatar time).');
+    // Stacked on a phone, side by side from the sm breakpoint.
+    expect(a.getByTestId('value-own').parentElement!.className).toContain('flex-col sm:flex-row');
+  });
+
+  it('stock report: a Marketplace column next to the catalogue column, "Not in the file" when the file has no listing', async () => {
+    handler = rowsWith(STOCK_CASES);
+    renderAt('/reports/stock?marketplace=talabat', <StockMismatchesView />);
+    await screen.findByText('Product 11');
+    expect(screen.getByRole('columnheader', { name: 'Catalogue' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Marketplace' })).toBeTruthy();
+    const r = (id: string) => within(screen.getByText(`Product ${id}`).closest('tr')!);
+    expect(r('11').getByTestId('stock-issue').textContent).toBe('Available but out of stock');
+    expect(text(r('11'), 'reference-available')).toBe('Unavailable (stock 0)');
+    expect(text(r('11'), 'marketplace-available')).toBe('Available');
+    expect(r('12').getByTestId('stock-issue').textContent).toBe('Lost sales');
+    expect(text(r('12'), 'reference-available')).toBe('Available (stock 9)');
+    expect(text(r('12'), 'marketplace-available')).toBe('Unavailable');
+    expect(r('13').getByTestId('recon-status').textContent).toBe('Missing from ERP');
+    expect(text(r('13'), 'marketplace-available')).toBe('Available');
+    expect(text(r('14'), 'marketplace-available')).toBe('Not in the file');
+    expect(screen.getByTestId('file-note').textContent).toBe('Marketplace values are from the latest Talabat file, uploaded 01 Nov 2026, 21:00 (Qatar time).');
+  });
+
+  it('stock report against the ERP: the ERP column shows the ERP availability and stock', async () => {
+    handler = rowsWith([LOST_SALES]);
+    renderAt('/reports/stock?marketplace=talabat&reference=erp', <StockMismatchesView />);
+    const r = within((await screen.findByText('Product 12')).closest('tr')!);
+    expect(screen.getByRole('columnheader', { name: 'ERP' })).toBeTruthy();
+    expect(text(r, 'reference-available')).toBe('Available (stock 14)');
+    expect(text(r, 'marketplace-available')).toBe('Unavailable');
+  });
+
+  it('price report: Expected price and Marketplace price side by side, "Not in the file" for a missing price', async () => {
+    handler = rowsWith(PRICE_CASES);
+    renderAt('/reports/price?marketplace=snoonu', <PriceDiscrepanciesView />);
+    await screen.findByText('Product 21');
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) Marketplace price' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR) On Snoonu' })).toBeTruthy();
+    const r21 = within(screen.getByText('Product 21').closest('tr')!);
+    expect(text(r21, 'expected')).toBe('12.50');
+    expect(text(r21, 'actual')).toBe('13.75');
+    expect(text(r21, 'difference')).toBe('+1.25');
+    const r22 = within(screen.getByText('Product 22').closest('tr')!);
+    expect(text(r22, 'expected')).toBe('9.00');
+    expect(text(r22, 'actual')).toBe('Not in the file');
+    expect(r22.getByTestId('recon-status').textContent).toBe('Not listed');
+    expect(screen.getByTestId('file-note').textContent).toBe('Marketplace values are from the latest Snoonu file, uploaded 02 Nov 2026, 10:00 (Qatar time).');
   });
 });

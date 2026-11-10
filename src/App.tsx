@@ -3,7 +3,8 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { DemoProvider } from './demo';
 import { useAuth } from './auth/AuthContext';
-import { matchView, pathFor, CONNECTED_VIEWS, RETIRED_PATHS, VIEW_PERMISSION } from './routes/paths';
+import { matchView, pathFor, CONNECTED_VIEWS, RETIRED_PATHS, STATIC_CONTENT_VIEWS, VIEW_PERMISSION } from './routes/paths';
+import { HowItWorksView } from './components/help/HowItWorksView';
 import { AcceptInvitationPage } from './components/auth/AcceptInvitationPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/PasswordResetPages';
@@ -110,6 +111,8 @@ const MainContent: React.FC = () => {
         return <ActivityView />;
       case 'team':
         return <TeamView />;
+      case 'how-it-works':
+        return <HowItWorksView />;
       default:
         return <DashboardView />;
     }
@@ -124,7 +127,7 @@ const MainContent: React.FC = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
-        {allowed && !CONNECTED_VIEWS.has(currentView) && (
+        {allowed && !CONNECTED_VIEWS.has(currentView) && !STATIC_CONTENT_VIEWS.has(currentView) && (
           <div role="note" className="px-8 py-2 text-xs bg-amber-50 border-b border-amber-200 text-amber-900">
             <b>Sample data.</b> This screen is not connected to the server yet; what you see here is not your store&apos;s real data.
           </div>

@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   Settings,
   HelpCircle,
+  BookOpen,
   LogOut,
   Users,
   History,
@@ -159,6 +160,8 @@ export const Sidebar: React.FC = () => {
         {allowed('team') && <NavButton item={{ label: 'Team', view: 'team', icon: Users }} />}
         {realSettingsEnabled() && allowed('activity') && <NavButton item={{ label: 'Activity', view: 'activity', icon: History }} />}
         {allowed('settings') && <NavButton item={{ label: 'Settings', view: 'settings', icon: Settings }} />}
+        {/* Static guide for every signed-in role; Help & onboarding stays for the setup checklist. */}
+        <NavButton item={{ label: 'How it works', view: 'how-it-works', icon: BookOpen }} />
         <NavButton item={{ label: 'Help & onboarding', view: 'onboarding', icon: HelpCircle }} />
 
         <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5">

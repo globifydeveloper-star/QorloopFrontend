@@ -26,6 +26,43 @@ afterEach(() => {
 
 const page = { items: [], nextCursor: 'c2', counts: { all: 3, active: 1, inactive: 0, new: 2, missing: 0 } };
 
+describe('marketplace values in the product list (docs/products-api.md)', () => {
+  const values = {
+    marketplaceId: 'talabat', reference: 'erp', available: false, price: '12.500', inFile: true, comparison: 'mismatch',
+    stockIssue: 'unavailable_but_in_stock', priceIssue: 'marketplace_price_higher', sourceUploadedAt: '2026-11-08T10:00:00.000Z',
+  };
+
+  it('sends marketplaceId and marketplaceStatus, never the status without the marketplace', async () => {
+    fetchMock.mockImplementation(() => Promise.resolve(json(200, { data: page })));
+    await productsApi.list({ marketplaceId: 'talabat', marketplaceStatus: 'mismatch' });
+    expect(call().url).toBe('/api/products?marketplaceId=talabat&marketplaceStatus=mismatch');
+    await productsApi.list({ marketplaceStatus: 'mismatch' });
+    expect(call(1).url).toBe('/api/products');
+  });
+
+  it('keeps a well-formed object (ignoring unknown fields) and drops a missing, malformed or other-marketplace one', async () => {
+    const items = [
+      { id: 'a', marketplace: { ...values, export: { later: true } } },
+      { id: 'b' },
+      { id: 'c', marketplace: { marketplaceId: 'talabat', comparison: 'mismatch' } },
+      { id: 'd', marketplace: { ...values, marketplaceId: 'keeta' } },
+      { id: 'e', marketplace: { ...values, inFile: false, comparison: 'not_in_file', available: true, price: '1.000', stockIssue: 'unavailable_but_in_stock' } },
+    ];
+    fetchMock.mockImplementation(() => Promise.resolve(json(200, { data: { ...page, items } })));
+    const got = (await productsApi.list({ marketplaceId: 'talabat' })).items.map(i => i.marketplace);
+    expect(got[0]).toEqual(values);
+    expect(got.slice(1, 4)).toEqual([undefined, undefined, undefined]);
+    // Not in the file: no file values and no issues, whatever else came along.
+    expect(got[4]).toMatchObject({ inFile: false, available: null, price: null, stockIssue: null, priceIssue: null, sourceUploadedAt: null });
+  });
+
+  it('leaves the items alone when no marketplace was asked for', async () => {
+    const items = [{ id: 'a', marketplace: values }];
+    fetchMock.mockImplementation(() => Promise.resolve(json(200, { data: { ...page, items } })));
+    expect((await productsApi.list({})).items).toEqual(items);
+  });
+});
+
 describe('productsApi', () => {
   it('list sends only the set query parameters and unwraps { data }', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(json(200, { data: page })));

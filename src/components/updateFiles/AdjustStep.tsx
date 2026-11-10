@@ -41,7 +41,7 @@ export const AdjustStep: React.FC<StepProps> = ({ summary: s, reference, state, 
     const at = items.findIndex(r => r.productId === from);
     const to = items[at + dir];
     if (!to) return;
-    document.querySelector<HTMLInputElement>(`[${PRICE_INPUT_ATTR}="${CSS.escape(to.productId)}"]`)?.focus();
+    [...document.querySelectorAll<HTMLInputElement>(`[${PRICE_INPUT_ATTR}]`)].find(el => el.getAttribute(PRICE_INPUT_ATTR) === to.productId)?.focus();
   };
 
   const ctx: AdjustContext = { rows: items, more, loadedAll: !more && !rows.isPending, ticked: [...ticked], clearTicked: () => setTicked(new Set()) };

@@ -13,7 +13,9 @@ import type { Show, StepProps } from './urlState';
  * REVIEW: how old the marketplace file is (the Dashboard's rule: summary.stale, from the store's staleHours), what needs
  * a change, what is waiting for export, pinned or blocked, and which price the comparison uses.
  */
-export const ReviewStep: React.FC<StepProps> = ({ summary: s, reference, storeReference, set }) => {
+export const ReviewStep: React.FC<StepProps> = ({ summary: s, reference, state, set }) => {
+  // The summary names the store default only when no reference was asked for.
+  const isDefault = state.reference === undefined;
   const name = marketplaceName(s.marketplaceId);
   const c = readExportCounts(s);
   const go = (show: Show) => set({ step: 'adjust', show });
@@ -41,9 +43,9 @@ export const ReviewStep: React.FC<StepProps> = ({ summary: s, reference, storeRe
 
       <div className="space-y-2">
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Prices are compared with</h3>
-        <CompareAgainstToggle value={reference} onChange={r => set({ reference: r === storeReference ? undefined : r })} />
+        <CompareAgainstToggle value={reference} onChange={r => set({ reference: r })} />
         <p data-testid="reference-used" className="text-xs text-gray-700">
-          Using the <b>{REFERENCE_LABELS[reference]}</b>{reference === storeReference ? ' (your store default)' : ''}.
+          Using the <b>{REFERENCE_LABELS[reference]}</b>{isDefault ? ' (your store default)' : ''}.
         </p>
         {reference === 'erp' && (
           <p role="alert" data-testid="erp-warning" className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-900">

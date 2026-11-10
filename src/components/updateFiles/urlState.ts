@@ -83,9 +83,8 @@ export interface StepProps {
   summary: ReconMarketplaceSummary;
   /** Every marketplace on a tab, for "Export both". */
   marketplaces: ReconMarketplaceSummary[];
+  /** The one asked for in the URL, else the store's default (named by the summary). */
   reference: ReconReference;
-  /** The store's default (pricing settings), from the summary. */
-  storeReference: ReconReference;
   state: UpdateFilesState;
   set: (patch: Partial<UpdateFilesState>) => void;
 }

@@ -50,7 +50,7 @@ const UpdateFiles: React.FC = () => {
       </section>
     );
   } else {
-    const props: StepProps = { summary: selected, marketplaces, reference, storeReference: summary.data!.reference, state, set };
+    const props: StepProps = { summary: selected, marketplaces, reference, state, set };
     body = (
       <>
         <MarketplaceTabs marketplaces={marketplaces} selected={selected.marketplaceId} onSelect={id => set({ marketplace: id })} />

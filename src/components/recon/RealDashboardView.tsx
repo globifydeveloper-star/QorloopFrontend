@@ -9,6 +9,7 @@ import { realCatalogueEnabled } from '../../lib/features';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
+import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
 import {
   NoReconAccess, RecomputeBanner, REFERENCE_LABELS, STOCK_ISSUE_META, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
@@ -207,6 +208,9 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
   const rows = useReconRows({ marketplaceId: s.marketplaceId, type: 'stock', reference }, { enabled: s.stock > 0, limit: ATTENTION_ROWS });
   const items = rows.data?.pages[0]?.items ?? [];
   const name = marketplaceName(s.marketplaceId);
+  // Quick edit loads the product and its stock, so it needs products.view.
+  const editable = can('products.view');
+  const [editing, setEditing] = useState<string | null>(null);
 
   return (
     <div aria-label={`Needs attention on ${name}`} role="region" className="border-t border-gray-100 pt-3">
@@ -224,7 +228,11 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
           {items.map(r => {
             const meta = r.stockIssue ? STOCK_ISSUE_META[r.stockIssue] : undefined;
             return (
-              <li key={r.productId} data-testid="attention-row" data-issue={r.stockIssue ?? ''} className="py-2 flex items-center gap-3 text-xs">
+              <li
+                key={r.productId} data-testid="attention-row" data-issue={r.stockIssue ?? ''}
+                onClick={editable ? e => { if (rowClickOpens(e)) setEditing(r.productId); } : undefined}
+                className={`py-2 flex items-center gap-3 text-xs ${editable ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+              >
                 {meta && (
                   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[11px] font-semibold whitespace-nowrap ${meta.tone}`}>
                     <meta.Icon className="w-3 h-3" aria-hidden /> {meta.label}
@@ -236,6 +244,7 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
                     : <span className="font-semibold text-gray-900">{r.nameEn}</span>}
                   <span className="ml-2 font-mono text-[11px] text-gray-500">{r.barcode}</span>
                 </span>
+                {editable && <QuickEditButton row={r} onOpen={setEditing} />}
               </li>
             );
           })}
@@ -245,6 +254,12 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
         <Link to={reportLink('stock', s.marketplaceId, reference)} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#027864] hover:underline">
           See all {s.stock} stock {s.stock === 1 ? 'issue' : 'issues'} <ChevronRight className="w-3.5 h-3.5" aria-hidden />
         </Link>
+      )}
+      {editing && (
+        <QuickEditDrawer
+          list={{ kind: 'stock', rows: items, summary: s, reference, more: s.stock > items.length }}
+          productId={editing} onNavigate={setEditing} onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );

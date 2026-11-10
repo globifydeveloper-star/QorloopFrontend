@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Info, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
@@ -17,7 +17,11 @@ type Op = { kind: 'set'; stock: number; reason?: string } | { kind: 'reset' } | 
  * catalogue value, when and why, and an open conflict with "Use ERP" / "Keep mine". With catalogue.stock_edit: set a
  * value (optional reason) or go back to the ERP stock. Every write sends the values shown; a 409 reloads the newer ones.
  */
-export const ProductStockPanel: React.FC<{ product: { id: string; nameEn: string; status: string; erpActive?: boolean; inLatestErpFile?: boolean } }> = ({ product }) => {
+export const ProductStockPanel: React.FC<{
+  product: { id: string; nameEn: string; status: string; erpActive?: boolean; inLatestErpFile?: boolean };
+  /** Told whether the form holds an unsaved value or reason (the quick edit drawer asks before discarding it). */
+  onDirtyChange?: (dirty: boolean) => void;
+}> = ({ product, onDirtyChange }) => {
   const q = useProductStock(product.id);
   // Kept here, outside the form that remounts on reload, so the 409 message stays next to the newer values.
   const [staleNote, setStaleNote] = useState<string>();
@@ -29,7 +33,7 @@ export const ProductStockPanel: React.FC<{ product: { id: string; nameEn: string
       </div>
       {q.isPending ? <LoadingState label="Loading stock…" rows={2} />
         : q.isError ? <ErrorState error={q.error} title="We could not load the stock" onRetry={() => void q.refetch()} />
-          : <StockBody key={stamp(q.data)} stock={q.data} product={product} staleNote={staleNote} setStaleNote={setStaleNote} reload={async () => { await q.refetch(); }} />}
+          : <StockBody key={stamp(q.data)} stock={q.data} product={product} staleNote={staleNote} setStaleNote={setStaleNote} reload={async () => { await q.refetch(); }} onDirtyChange={onDirtyChange} />}
     </section>
   );
 };
@@ -40,7 +44,8 @@ const stamp = (s: ProductStock) => `${s.erpStock}:${s.catalogueStock}:${s.edit?.
 const StockBody: React.FC<{
   stock: ProductStock; product: { id: string; nameEn: string; status: string; erpActive?: boolean; inLatestErpFile?: boolean };
   staleNote?: string; setStaleNote: (v: string | undefined) => void; reload: () => Promise<void>;
-}> = ({ stock: s, product, staleNote, setStaleNote, reload }) => {
+  onDirtyChange?: (dirty: boolean) => void;
+}> = ({ stock: s, product, staleNote, setStaleNote, reload, onDirtyChange }) => {
   const uid = useId();
   const { can } = useAuth();
   const { showToast } = useApp();
@@ -49,6 +54,10 @@ const StockBody: React.FC<{
   const [value, setValue] = useState(String(s.catalogueStock));
   const [reason, setReason] = useState('');
   const [local, setLocal] = useState<{ stock?: string; reason?: string }>({});
+  // The form remounts on every server copy (see stamp), so "dirty" is always against the values shown.
+  const dirty = canEdit && (value.trim() !== String(s.catalogueStock) || reason.trim() !== '');
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const op = useMutation({
     mutationFn: (o: Op) => {

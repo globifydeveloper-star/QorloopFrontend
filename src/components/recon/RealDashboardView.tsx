@@ -8,6 +8,7 @@ import { pathFor } from '../../routes/paths';
 import { realCatalogueEnabled } from '../../lib/features';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
+import { HOW_IT_WORKS } from '../../content/howItWorks';
 import {
   NoReconAccess, RecomputeBanner, REFERENCE_LABELS, STOCK_ISSUE_META, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
@@ -92,9 +93,12 @@ const Dashboard: React.FC = () => {
           <EmptyState
             title="No comparison yet"
             hint="Enable a marketplace and upload your ERP file; each marketplace then gets a card here."
-            action={can('uploads.upload') ? (
-              <button onClick={() => openUploadModal('erp')} className="mt-2 h-9 px-3.5 text-xs font-semibold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg">Upload ERP file</button>
-            ) : undefined}
+            action={<>
+              {can('uploads.upload') && (
+                <button onClick={() => openUploadModal('erp')} className="mt-2 h-9 px-3.5 text-xs font-semibold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg">Upload ERP file</button>
+              )}
+              <HowItWorksLink />
+            </>}
           />
         </div>
       ) : (
@@ -105,6 +109,11 @@ const Dashboard: React.FC = () => {
     </div>
   );
 };
+
+/** Shown in the Dashboard's empty states: the static guide at /how-it-works. */
+const HowItWorksLink: React.FC = () => (
+  <Link to={pathFor('how-it-works')} className="mt-1 inline-block text-xs font-semibold text-[#027864] hover:underline">{HOW_IT_WORKS.dashboardEmptyLink}</Link>
+);
 
 /**
  * "N stock conflicts" from stockConflicts in the recon summary, linking to the Stock conflicts page (a real-catalogue
@@ -154,6 +163,7 @@ const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: R
           <div className="flex-1">
             <div className="text-sm font-semibold text-gray-800">No data</div>
             <div className="text-xs text-gray-500">Upload a {name} file to compare</div>
+            <HowItWorksLink />
           </div>
           {can('uploads.upload') && (
             <button onClick={() => openUploadModal(s.marketplaceId)} className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100">

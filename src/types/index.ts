@@ -20,7 +20,8 @@ export type ViewType =
   | 'column-mapping'
   | 'new-products'
   | 'stock-conflicts'
-  | 'team';
+  | 'team'
+  | 'how-it-works';
 
 export type MarketplaceId = 'talabat' | 'snoonu' | 'rafeeq' | 'keeta';
 

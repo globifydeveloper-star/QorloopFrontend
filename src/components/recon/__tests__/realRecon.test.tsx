@@ -164,6 +164,8 @@ describe('dashboard (DASH-001)', () => {
     const keeta = card('Keeta');
     expect(keeta.getByText('No data')).toBeTruthy();
     expect(keeta.getByText('Upload a Keeta file to compare')).toBeTruthy();
+    expect(keeta.getByRole('link', { name: 'How Qorloop works' }).getAttribute('href')).toBe('/how-it-works');
+    expect(card('Talabat').queryByRole('link', { name: 'How Qorloop works' })).toBeNull();
     expect(keeta.queryByTestId('tile-total')).toBeNull();
     expect(keeta.queryByText('0')).toBeNull();
     fireEvent.click(keeta.getByRole('button', { name: 'Upload Keeta file' }));
@@ -203,6 +205,7 @@ describe('dashboard (DASH-001)', () => {
     expect(await screen.findByText('No comparison yet')).toBeTruthy();
     expect(screen.getByText(/Last compared never/)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Upload ERP file' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'How Qorloop works' }).getAttribute('href')).toBe('/how-it-works');
   });
 
   it('shows the error with a retry', async () => {

@@ -48,6 +48,20 @@ beforeEach(() => {
 afterEach(() => { cleanup(); clients.forEach(q => q.clear()); clients = []; onboardingTiming.pollMs = defaultPollMs; vi.unstubAllGlobals(); });
 
 describe('get-started checklist', () => {
+  it('links to How it works from the card, on the Dashboard and on the Help & onboarding page', async () => {
+    for (const ui of [<OnboardingChecklist />, <OnboardingPage />]) {
+      const { unmount } = mount(ui);
+      await screen.findByRole('progressbar');
+      const card = within(screen.getByRole('region', { name: 'Get started' }));
+      const link = card.getByRole('link', { name: 'New to Qorloop? Read How it works.' });
+      expect(link.getAttribute('href')).toBe('/how-it-works');
+      expect(matchView('/how-it-works')).toEqual({ view: 'how-it-works' });
+      fireEvent.click(link);
+      expect(screen.getByTestId('where').textContent).toBe('/how-it-works');
+      unmount();
+    }
+  });
+
   it('shows loading, then four required steps with step one next and separate optional work for a new tenant', async () => {
     mount(); expect(screen.getByRole('status', { name: 'Loading get-started checklist…' })).toBeTruthy();
     expect((await screen.findByRole('progressbar')).getAttribute('aria-valuenow')).toBe('0');

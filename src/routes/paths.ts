@@ -28,6 +28,7 @@ const PATHS: Record<ViewType, string> = {
   settings: '/settings',
   activity: '/activity',
   team: '/settings/team',
+  'how-it-works': '/how-it-works',
 };
 
 export function pathFor(view: ViewType, id?: string): string {
@@ -45,7 +46,7 @@ const STATIC: [string, ViewType][] = [
   ['/catalogue', 'catalogue'], ['/catalogue/new', 'new-products'], ['/catalogue/stock-conflicts', 'stock-conflicts'], ['/categories', 'categories'],
   ['/pricing', 'markups'], ['/settings/file-mappings', 'templates'],
   ['/files', 'outputs-generate'], ['/onboarding', 'onboarding'], ['/settings', 'settings'], ['/settings/team', 'team'],
-  ['/activity', 'activity'],
+  ['/activity', 'activity'], ['/how-it-works', 'how-it-works'],
 ];
 
 export function matchView(pathname: string): { view: ViewType; id?: string } | null {
@@ -73,6 +74,12 @@ export const CONNECTED_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>([
   ...(realSettingsEnabled() ? (['settings', 'activity'] as const) : []),
   ...(realOnboardingEnabled() ? (['onboarding'] as const) : []),
 ]);
+
+/**
+ * Screens with fixed help text and no store data at all (no API call, no demo store), so the "Sample data" note does
+ * not apply. They are open to every signed-in role: none of them is in VIEW_PERMISSION.
+ */
+export const STATIC_CONTENT_VIEWS: ReadonlySet<ViewType> = new Set<ViewType>(['how-it-works']);
 
 /** UI hint only (the server decides): permission a role needs to see each screen in the navigation. */
 export const VIEW_PERMISSION: Partial<Record<ViewType, string>> = {

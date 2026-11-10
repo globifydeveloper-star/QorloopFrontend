@@ -58,6 +58,7 @@ const NAV: [string, string][] = [
   ['Templates', '/settings/file-mappings'],
   ['Team', '/settings/team'],
   ['Settings', '/settings'],
+  ['How it works', '/how-it-works'],
   ['Help & onboarding', '/onboarding'],
 ];
 

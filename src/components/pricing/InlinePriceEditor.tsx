@@ -1,4 +1,4 @@
-import React, { useId, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -50,15 +50,23 @@ export const InlinePriceEditor: React.FC<{
   /** In a list row nothing else explains the price: show the current rule chain too. */
   showChain?: boolean;
   onClose?: () => void;
-}> = ({ product: p, onReload, showChain, onClose }) => {
+  /** The marketplace selected at first (the one a mismatch row was seen on); ignored when it is not enabled. */
+  initialMarketplace?: PricingMarketplaceId;
+  /** Told whether the form holds a price that differs from the saved rule (the quick edit drawer asks before discarding it). */
+  onDirtyChange?: (dirty: boolean) => void;
+}> = ({ product: p, onReload, showChain, onClose, initialMarketplace, onDirtyChange }) => {
   const uid = useId();
   const qc = useQueryClient();
   const { showToast } = useApp();
   const markets = usePricingMarketplaces();
   const rule = p.pricing?.productRule ?? null;
-  const [choice, setChoice] = useState<PricingMarketplaceId>();
+  const [choice, setChoice] = useState<PricingMarketplaceId | undefined>(initialMarketplace);
   const mp = choice && markets.ids.includes(choice) ? choice : markets.ids[0];
   const [draft, setDraft] = useState<Draft>(() => draftFrom(rule));
+  const saved = draftFrom(rule);
+  const dirty = draft.value.trim() !== '' && (draft.mode !== saved.mode || draft.value.trim() !== saved.value);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const [local, setLocal] = useState<string>();
   const [done, setDone] = useState<{ kind: 'set' | 'removed'; result: InlinePricing }>();
   const [stale, setStale] = useState<'reloading' | 'reloaded'>();
@@ -252,10 +260,18 @@ const InlineResult: React.FC<{ kind: 'set' | 'removed'; result: InlinePricing }>
 };
 
 /** The editor under a catalogue row: loads the product (its rule version, offer and chain) when it opens. */
-export const RowPriceEditor: React.FC<{ productId: string; onClose: () => void }> = ({ productId, onClose }) => {
+export const RowPriceEditor: React.FC<{
+  productId: string; onClose?: () => void; showChain?: boolean;
+  initialMarketplace?: PricingMarketplaceId; onDirtyChange?: (dirty: boolean) => void;
+}> = ({ productId, onClose, showChain = true, initialMarketplace, onDirtyChange }) => {
   const q = useQuery({ queryKey: productKey(productId), queryFn: ({ signal }) => productsApi.get(productId, signal), retry: false });
   if (q.isPending) return <LoadingState label="Loading the product's price…" rows={2} />;
   if (q.isError) return <ErrorState error={q.error} title="We could not load this product's price" onRetry={() => void q.refetch()} />;
   if (!q.data.pricing) return <p className="p-3 text-xs text-gray-600">You cannot see this product&apos;s pricing.</p>;
-  return <InlinePriceEditor product={q.data} onReload={async () => (await q.refetch()).data} showChain onClose={onClose} />;
+  return (
+    <InlinePriceEditor
+      product={q.data} onReload={async () => (await q.refetch()).data} showChain={showChain} onClose={onClose}
+      initialMarketplace={initialMarketplace} onDirtyChange={onDirtyChange}
+    />
+  );
 };

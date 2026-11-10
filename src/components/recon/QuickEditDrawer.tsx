@@ -14,6 +14,10 @@ import { ProductStockPanel } from '../stock/ProductStockPanel';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { Chain, PriceSourceChip } from '../pricing/shared';
 import { count } from '../pricing/priceChange';
+import { realMarketplaceValuesEnabled } from '../../lib/features';
+import { ExportStateBadge, ExportValueEditor } from '../updateFiles/ExportValueEditor';
+import { valuesOf } from '../updateFiles/logic';
+import { EDIT_PERMISSION, updateFilesLink } from '../updateFiles/urlState';
 import {
   Availability, MarketplaceAvailability, NOT_IN_FILE, REFERENCE_LABELS, STOCK_ISSUE_META, StockIssuePill, freshnessText, marketplaceName, money2, priceDifference,
   qatarDateTime, useRecomputeState,
@@ -66,8 +70,8 @@ export const QuickEditDrawer: React.FC<{
   onNavigate: (productId: string) => void;
   onClose: () => void;
   /**
-   * SLOT "Value to export for this marketplace" (not built yet): a future section showing the value the generated
-   * file will carry for this product on this marketplace. It renders after "Fix it" when given.
+   * SLOT "Value to export for this marketplace", after "Fix it". Without it, the drawer shows the shared editor from the
+   * "Update marketplace files" screen (VITE_REAL_MARKETPLACE_VALUES and a row with its export value only).
    */
   marketplaceExportValue?: React.ReactNode;
 }> = ({ list, productId, onNavigate, onClose, marketplaceExportValue }) => {
@@ -110,8 +114,32 @@ export const QuickEditDrawer: React.FC<{
       {list.kind === 'stock'
         ? <><StockDiffers row={row} list={list} /><StockFix row={row} onDirtyChange={onDirtyChange} /></>
         : <><PriceDiffers row={row} list={list} /><PriceFix row={row} list={list} onDirtyChange={onDirtyChange} /></>}
-      {marketplaceExportValue && <div data-slot="marketplace-export-value">{marketplaceExportValue}</div>}
+      {marketplaceExportValue
+        ? <div data-slot="marketplace-export-value">{marketplaceExportValue}</div>
+        : <DefaultExportValue row={row} marketplaceId={list.summary.marketplaceId} />}
     </SideDrawer>
+  );
+};
+
+/**
+ * The slot's default (VITE_REAL_MARKETPLACE_VALUES, a row that carries its export value): the same editor and state
+ * badge as the "Update marketplace files" Adjust table, and a link there. Nothing otherwise.
+ */
+const DefaultExportValue: React.FC<{ row: ReconRow; marketplaceId: string }> = ({ row, marketplaceId }) => {
+  const { can } = useAuth();
+  if (!realMarketplaceValuesEnabled() || !valuesOf(row)) return null;
+  const name = marketplaceName(marketplaceId);
+  return (
+    <div data-slot="marketplace-export-value">
+      <Section title={`Value to export to ${name}`}>
+        <ExportStateBadge row={row} />
+        <ExportValueEditor row={row} marketplaceId={marketplaceId} canEdit={can(EDIT_PERMISSION)} />
+        {!can(EDIT_PERMISSION) && <p className="text-[11px] text-gray-500">Your role can see this value but not change it.</p>}
+        <Link to={updateFilesLink(marketplaceId, 'adjust')} className="inline-block text-xs font-semibold text-[#027864] hover:underline">
+          Update the {name} file
+        </Link>
+      </Section>
+    </div>
   );
 };
 

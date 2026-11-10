@@ -14,7 +14,8 @@ import {
   ComparedBadge, MarketplaceAvailabilityCell, MarketplacePriceCell, StackedMarketplaceValues, marketplaceNote, newestUpload,
 } from './MarketplaceColumns';
 import { marketplaceName, useReconSummary } from '../recon/shared';
-import { realPricingEnabled, realReconEnabled, realSettingsEnabled } from '../../lib/features';
+import { realMarketplaceValuesEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled } from '../../lib/features';
+import { updateFilesLink } from '../updateFiles/urlState';
 import { money2 } from '../../lib/format';
 import { PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
@@ -259,6 +260,9 @@ export const RealCatalogueView: React.FC = () => {
         {showMarketplace && (
           <p data-testid="marketplace-note" className="px-4 py-2.5 border-b border-gray-100 text-[11px] text-gray-500">
             {marketplaceNote(marketplaceId, latestUpload, computedAt)}
+            {realMarketplaceValuesEnabled() && can('recon.view') && (
+              <> <Link to={updateFilesLink(marketplaceId, 'adjust')} data-testid="catalogue-update-files" className="font-semibold text-[#027864] hover:underline">{`Update the ${mpName} file`}</Link></>
+            )}
           </p>
         )}
 

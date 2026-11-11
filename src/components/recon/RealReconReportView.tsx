@@ -10,6 +10,7 @@ import {
 } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import {
@@ -51,7 +52,9 @@ const Report: React.FC<{ kind: ReportKind }> = ({ kind }) => {
   const [params, setParams] = useSearchParams();
   const refParam = params.get('reference');
   const statusParam = params.get('status');
-  const requested = isReference(refParam) ? refParam : undefined;
+  // Without Advanced (?advanced=1, or a link naming reference=erp) the report compares with My pricing.
+  const [advanced] = useAdvanced();
+  const requested: ReconReference | undefined = !advanced ? 'marketplace' : isReference(refParam) ? refParam : undefined;
   const status = isStatus(statusParam) ? statusParam : undefined;
 
   const summary = useReconSummary(requested);
@@ -75,7 +78,9 @@ const Report: React.FC<{ kind: ReportKind }> = ({ kind }) => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{copy.title}</h1>
           <p className="text-xs text-gray-500 mt-0.5">{copy.intro} Times are Qatar time.</p>
         </div>
-        <CompareAgainstToggle value={reference} onChange={r => set('reference', r)} disabled={!reference} />
+        <AdvancedDisclosure id="report-advanced">
+          <CompareAgainstToggle value={reference} onChange={r => setParams(p => { const q = new URLSearchParams(p); q.set('reference', r); q.set('advanced', '1'); return q; }, { replace: true })} disabled={!reference} />
+        </AdvancedDisclosure>
       </div>
 
       <RecomputeBanner state={recomputeState} />

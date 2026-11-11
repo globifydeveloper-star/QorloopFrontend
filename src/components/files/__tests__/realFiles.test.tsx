@@ -96,10 +96,12 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-function renderView() {
+function renderView(path = '/files') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><MemoryRouter><GenerateFilesView /></MemoryRouter></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[path]}><GenerateFilesView /></MemoryRouter></QueryClientProvider>);
 }
+const advancedBtn = () => screen.getByRole('button', { name: 'Advanced' });
+const openAdvanced = () => { if (advancedBtn().getAttribute('aria-expanded') !== 'true') fireEvent.click(advancedBtn()); };
 const choose = () => within(screen.getByRole('region', { name: 'Choose the file' }));
 const previewBtn = () => screen.getByRole('button', { name: /Preview/ });
 const generateBtn = () => screen.getByRole('button', { name: /Generate file/ });
@@ -129,8 +131,12 @@ describe('generate files (OUT-001)', () => {
     await screen.findByRole('region', { name: 'Choose the file' });
     const radios = choose().getAllByRole('radio', { name: /Talabat|Snoonu|Keeta|Rafeeq/ });
     expect(radios.map(r => r.closest('label')!.textContent)).toEqual([expect.stringContaining('Talabat'), expect.stringContaining('Snoonu')]);
-    expect(screen.getByRole('radio', { name: 'My pricing (store default)' })).toHaveProperty('checked', true);
+    // The reference choice is under Advanced, closed by default: the file uses My pricing.
+    expect(advancedBtn().getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('radio', { name: /My pricing|ERP price/ })).toBeNull();
     expect(screen.getByRole('note').textContent).toBe('Prices in this file use My pricing.');
+    openAdvanced();
+    expect(screen.getByRole('radio', { name: 'My pricing (store default)' })).toHaveProperty('checked', true);
     const newProducts = screen.getByRole('radio', { name: /New products/ });
     expect(newProducts).toHaveProperty('disabled', true);
     expect(newProducts.closest('label')!.textContent).toContain('Not available yet');
@@ -209,6 +215,7 @@ describe('generate files (OUT-001)', () => {
 
   it('sends the chosen reference and the banner names it', async () => {
     await ready();
+    openAdvanced();
     fireEvent.click(screen.getByRole('radio', { name: 'ERP price' }));
     expect(screen.getByRole('note').textContent).toBe('Prices in this file use the ERP price.');
     fireEvent.click(previewBtn());
@@ -388,5 +395,61 @@ describe('permissions from /api/auth/me', () => {
     await waitFor(() => expect(screen.getByTestId('job-state').dataset.state).toBe('done'));
     expect(screen.getByTestId('job-state').textContent).toBe('The file is ready.');
     expect(calls(isDownload).length).toBe(0);
+  });
+});
+
+describe('ERP price only under Advanced, with an "I understand" gate', () => {
+  const warning = () => screen.queryByTestId('erp-price-warning');
+  const understand = () => screen.getByRole('checkbox', { name: 'I understand' });
+
+  it('without Advanced the preview and the file use My pricing', async () => {
+    await ready();
+    fireEvent.click(previewBtn());
+    await screen.findByRole('region', { name: 'Preview' });
+    expect(bodyOf(calls(isPreview)[0]![1]).reference).toBe('marketplace');
+    expect(warning()).toBeNull();
+    expect(generateBtn()).toHaveProperty('disabled', false);
+  });
+
+  it('a link with ?advanced=1 opens the choice', async () => {
+    renderView('/files?advanced=1');
+    await screen.findByRole('region', { name: 'Choose the file' });
+    expect(advancedBtn().getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('radio', { name: 'ERP price' })).toBeTruthy();
+  });
+
+  it('a price file against the ERP price shows the red warning and needs "I understand" before Generate', async () => {
+    await ready();
+    openAdvanced();
+    fireEvent.click(screen.getByRole('radio', { name: 'ERP price' }));
+    expect(within(warning()!).getByRole('alert').textContent).toContain('Never upload a file made against the ERP price to a real marketplace.');
+    fireEvent.click(previewBtn());
+    await screen.findByRole('region', { name: 'Preview' });
+    expect(generateBtn()).toHaveProperty('disabled', true);
+    fireEvent.click(understand());
+    expect(generateBtn()).toHaveProperty('disabled', false);
+    fireEvent.click(generateBtn());
+    await waitFor(() => expect(calls(isGenerate).length).toBe(1));
+    expect(bodyOf(calls(isGenerate)[0]![1]).reference).toBe('erp');
+  });
+
+  it('a stock-only file needs no consent; switching back to a price file asks again', async () => {
+    await ready();
+    openAdvanced();
+    fireEvent.click(screen.getByRole('radio', { name: 'ERP price' }));
+    fireEvent.click(understand());
+    fireEvent.click(screen.getByRole('radio', { name: 'Stock' }));
+    expect(warning()).toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: 'Price' }));
+    expect(understand()).toHaveProperty('checked', false);
+  });
+
+  it('closing Advanced goes back to My pricing', async () => {
+    await ready();
+    openAdvanced();
+    fireEvent.click(screen.getByRole('radio', { name: 'ERP price' }));
+    fireEvent.click(advancedBtn());
+    expect(warning()).toBeNull();
+    expect(screen.getByRole('note').textContent).toBe('Prices in this file use My pricing.');
   });
 });

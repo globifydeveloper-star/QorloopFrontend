@@ -135,7 +135,7 @@ export const PricingSettingsForm: React.FC<{
       <section aria-label="Compare prices with" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Compare prices with</h2>
-          <p className="text-xs text-gray-500">The price the dashboard and reports compare marketplace prices with, unless someone switches it on the screen.</p>
+          <p className="text-xs text-gray-500">The dashboard, reports and generated files always use My pricing. This default only applies when someone opens Advanced on those screens.</p>
         </div>
         <fieldset className="flex flex-wrap gap-4 text-sm" disabled={!editable}>
           <legend className="sr-only">Store default for compare prices with</legend>

@@ -15,6 +15,7 @@ import {
 import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure } from '../common/AdvancedDisclosure';
 import {
   MARKETPLACE_IDS,
   MARKETPLACE_NAMES,
@@ -183,7 +184,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
 
       {/* Filter / Search Bar */}
       <div className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-xs flex flex-wrap items-center gap-3 text-xs">
-        <CompareAgainstToggle />
+        <AdvancedDisclosure id="price-report-advanced"><CompareAgainstToggle /></AdvancedDisclosure>
 
         <div className="relative flex-1 min-w-[240px]">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />

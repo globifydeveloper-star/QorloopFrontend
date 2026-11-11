@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Info,
   Download,
@@ -12,6 +12,8 @@ import { MarketplaceId } from '../../types';
 import { MARKETPLACE_IDS, REFERENCE_IN_TEXT, REFERENCE_LABELS, checkProductPrices } from '../../lib/pricing';
 import { realFilesEnabled } from '../../lib/features';
 import { RealGenerateFilesView } from '../files/RealGenerateFilesView';
+import { AdvancedDisclosure } from '../common/AdvancedDisclosure';
+import { ErpPriceFileWarning } from '../common/ErpPriceFileWarning';
 
 // Stock mismatch counts come from the latest stock reconciliation (unchanged demo figures).
 const STOCK_MISMATCHES: Record<MarketplaceId, number> = {
@@ -53,6 +55,9 @@ const DemoGenerateFilesView: React.FC = () => {
   const [globalContent, setGlobalContent] = useState<'mismatches' | 'all'>('mismatches');
   const [fileFormat, setFileFormat] = useState<'xlsx' | 'csv'>('xlsx');
   const [priceRounding, setPriceRounding] = useState('Keep current prices');
+  /** "I understand" under the ERP price warning; cleared whenever the price choice changes. */
+  const [understood, setUnderstood] = useState(false);
+  useEffect(() => setUnderstood(false), [compareReference]);
 
   // Price mismatches per marketplace, against the selected reference price.
   const priceMismatches = useMemo(() => {
@@ -270,9 +275,11 @@ const DemoGenerateFilesView: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4 text-xs">
           <h2 className="text-sm font-bold text-gray-900">File options</h2>
 
-          {/* Price in file */}
+          {/* Price in file: My pricing unless Advanced is opened */}
           <div className="space-y-2">
-            <label className="block font-semibold text-gray-900">Price in file</label>
+            <div className="block font-semibold text-gray-900">Price in file</div>
+            <p className="text-[11px] text-gray-500">{REFERENCE_LABELS[compareReference]}</p>
+            <AdvancedDisclosure id="files-advanced">
             <div className="space-y-2">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -306,6 +313,8 @@ const DemoGenerateFilesView: React.FC = () => {
                 </div>
               </label>
             </div>
+            </AdvancedDisclosure>
+            {compareReference === 'erp' && <ErpPriceFileWarning understood={understood} onChange={setUnderstood} />}
           </div>
 
           {/* File content */}
@@ -399,7 +408,8 @@ const DemoGenerateFilesView: React.FC = () => {
           <div className="space-y-2 pt-3">
             <button
               onClick={handleGenerate}
-              className="w-full py-2.5 text-xs font-bold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg transition-colors shadow-xs"
+              disabled={compareReference === 'erp' && !understood}
+              className="w-full py-2.5 text-xs font-bold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg transition-colors shadow-xs disabled:opacity-50"
             >
               Generate files ({selectedCount} marketplaces)
             </button>

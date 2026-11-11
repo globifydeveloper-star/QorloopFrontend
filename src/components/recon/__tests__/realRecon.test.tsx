@@ -129,7 +129,7 @@ describe('dashboard (DASH-001)', () => {
     const talabat = await screen.findByRole('region', { name: 'Talabat' });
     expect(screen.getAllByRole('region').filter(r => ['Talabat', 'Snoonu', 'Rafeeq', 'Keeta'].includes(r.getAttribute('aria-label')!)).map(r => r.getAttribute('aria-label')))
       .toEqual(['Talabat', 'Snoonu', 'Keeta']);
-    expect(params(calls(isSummary)[0][0] as string)).toEqual({}); // store default, no reference sent
+    expect(params(calls(isSummary)[0][0] as string)).toEqual({ reference: 'marketplace' }); // My pricing: Advanced is closed
 
     const t = within(talabat);
     expect(t.getByTestId('tile-total').textContent).toBe('9');
@@ -172,6 +172,10 @@ describe('dashboard (DASH-001)', () => {
     fireEvent.click(keeta.getByRole('button', { name: 'Upload Keeta file' }));
     expect(app.openUploadModal).toHaveBeenCalledWith('keeta');
 
+    // The ERP price option is behind a closed Advanced disclosure; opening it shows the switch on My pricing.
+    expect(screen.queryByRole('button', { name: 'ERP price (advanced)' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Advanced' }));
+    expect(screen.getByRole('group', { name: 'Compare prices with' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'My pricing' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText(/Last compared 02 Nov 2026, 11:00/)).toBeTruthy();
     expect(screen.getByText(/Prices are compared with My pricing\./)).toBeTruthy();
@@ -189,7 +193,7 @@ describe('dashboard (DASH-001)', () => {
       }
       return backend(u, i);
     };
-    renderAt('/', <DashboardView />);
+    renderAt('/?advanced=1', <DashboardView />);
     await screen.findByRole('region', { name: 'Talabat' });
     expect(screen.getByRole('button', { name: 'ERP price (advanced)' }).getAttribute('aria-pressed')).toBe('true');
     expect(params(calls(isRows)[0][0] as string).reference).toBe('erp');
@@ -450,7 +454,7 @@ describe('price report (RPT-002)', () => {
       }
       return backend(u, i);
     };
-    renderAt('/reports/price?marketplace=talabat&reference=marketplace', <PriceDiscrepanciesView />);
+    renderAt('/reports/price?marketplace=talabat&reference=marketplace&advanced=1', <PriceDiscrepanciesView />);
     const r5 = within((await screen.findByText('Product 5')).closest('tr')!);
     expect(params(calls(isRows)[0][0] as string)).toEqual({ marketplaceId: 'talabat', type: 'price', reference: 'marketplace', limit: '50' });
     expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) from your pricing' })).toBeTruthy();
@@ -472,13 +476,13 @@ describe('price report (RPT-002)', () => {
     await waitFor(() => expect(within(screen.getByText('Product 5').closest('tr')!).getByTestId('expected').textContent).toBe('11.00'));
     expect(params(calls(isSummary).at(-1)![0] as string)).toEqual({ reference: 'erp' });
     expect(params(calls(isRows).at(-1)![0] as string)).toMatchObject({ reference: 'erp', type: 'price' });
-    expect(screen.getByTestId('where').textContent).toBe('/reports/price?marketplace=talabat&reference=erp');
+    expect(screen.getByTestId('where').textContent).toBe('/reports/price?marketplace=talabat&reference=erp&advanced=1');
     expect(screen.queryByText('Product 6')).toBeNull();
   });
 
-  it('without a reference in the URL uses the store default from the summary', async () => {
+  it('with Advanced open and no reference in the URL uses the store default from the summary', async () => {
     handler = (u, i) => (isSummary(u, method(i)) && !params(u).reference ? ok(summary({ reference: 'erp' })) : backend(u, i));
-    renderAt('/reports/price', <PriceDiscrepanciesView />);
+    renderAt('/reports/price?advanced=1', <PriceDiscrepanciesView />);
     await screen.findByText('Product 1');
     expect(screen.getByRole('button', { name: 'ERP price (advanced)' }).getAttribute('aria-pressed')).toBe('true');
     expect(params(calls(isRows)[0][0] as string).reference).toBe('erp');

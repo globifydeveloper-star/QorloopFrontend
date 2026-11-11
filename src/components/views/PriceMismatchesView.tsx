@@ -11,6 +11,7 @@ import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
 import { MarketplacePill } from '../common/MarketplaceBadge';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure } from '../common/AdvancedDisclosure';
 import {
   MARKETPLACE_IDS,
   MARKETPLACE_NAMES,
@@ -164,7 +165,7 @@ export const PriceMismatchesView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              <CompareAgainstToggle />
+              <AdvancedDisclosure id="price-report-advanced"><CompareAgainstToggle /></AdvancedDisclosure>
               <select className="text-xs border border-gray-200 rounded-lg py-1.5 px-2 bg-white text-gray-700">
                 <option>Show 25 rows</option>
                 <option>Show 50 rows</option>

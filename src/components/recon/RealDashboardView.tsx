@@ -7,6 +7,7 @@ import type { ReconMarketplaceSummary, ReconReference } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
 import { realCatalogueEnabled } from '../../lib/features';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
@@ -18,7 +19,7 @@ import {
 /** Rows shown under "Needs attention" on each card; the full list is the stock report. */
 export const ATTENTION_ROWS = 5;
 
-/** A report link that keeps the marketplace and the compare-against choice. */
+/** A report link that keeps the marketplace and the compare choice (reference=erp opens Advanced on the report). */
 export const reportLink = (kind: 'stock' | 'price', marketplaceId: string, reference: ReconReference) =>
   `${pathFor(kind === 'stock' ? 'reports-stock' : 'reports-price-discrepancies')}?${new URLSearchParams({ marketplace: marketplaceId, reference })}`;
 
@@ -31,8 +32,11 @@ export const RealDashboardView: React.FC = () => {
 const Dashboard: React.FC = () => {
   const { openUploadModal, showToast } = useApp();
   const { can } = useAuth();
-  // undefined: the store's default (pricing settings); the server names it in the reply.
-  const [requested, setRequested] = useState<ReconReference | undefined>(undefined);
+  // Without Advanced the Dashboard compares with My pricing. Inside it, undefined is the store's default (pricing
+  // settings); the server names it in the reply.
+  const [advanced] = useAdvanced();
+  const [chosen, setRequested] = useState<ReconReference | undefined>(undefined);
+  const requested: ReconReference | undefined = advanced ? chosen : 'marketplace';
   const summary = useReconSummary(requested);
   const recomputeState = useRecomputeState();
   const recompute = useRecompute(summary.data);
@@ -61,7 +65,9 @@ const Dashboard: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <CompareAgainstToggle value={reference} onChange={setRequested} disabled={!reference} />
+          <AdvancedDisclosure id="dashboard-advanced">
+            <CompareAgainstToggle value={reference} onChange={setRequested} disabled={!reference} />
+          </AdvancedDisclosure>
           {can('pricing.edit') && (
             <button
               onClick={runRecompute}

@@ -1,14 +1,21 @@
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FolderTree, Search, Sparkles, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
-import { PRODUCT_TABS, type ProductTab } from '../../api/products';
+import { PRODUCT_TABS, type MarketplaceStatusFilter, type ProductTab } from '../../api/products';
+import { settingsApi } from '../../api/settings';
 import { indexCategories, type Category } from '../../api/categories';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
-import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductList } from './shared';
-import { realPricingEnabled } from '../../lib/features';
+import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductCounts, useProductList } from './shared';
+import {
+  ComparedBadge, MarketplaceAvailabilityCell, MarketplacePriceCell, StackedMarketplaceValues, marketplaceNote, newestUpload,
+} from './MarketplaceColumns';
+import { CATALOGUE_PANEL_ID, CatalogueTabs, catalogueTabId } from './CatalogueTabs';
+import { marketplaceName, useReconSummary } from '../recon/shared';
+import { realPricingEnabled, realReconEnabled, realSettingsEnabled } from '../../lib/features';
 import { money2 } from '../../lib/format';
 import { PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
@@ -39,18 +46,62 @@ export const RealCatalogueView: React.FC = () => {
   const [category, setCategory] = useState('');
   const q = useDebounced(search.trim());
 
+  // The marketplace tabs: the enabled marketplaces that have a file. Settings list them for settings.view; otherwise the
+  // recon summary does (recon.view). Neither readable, or none with a file: no tabs, the catalogue as before.
+  const fromSettings = realSettingsEnabled() && can('settings.view');
+  const enabled = useQuery({
+    queryKey: ['settings', 'marketplaces'], queryFn: ({ signal }) => settingsApi.marketplaces(signal), enabled: fromSettings, retry: false,
+  });
+  const summary = useReconSummary(undefined, { enabled: realReconEnabled() && can('recon.view') });
+  const choices: { marketplaceId: string; lastUploadAt: string | null }[] =
+    (enabled.data?.items ?? summary.data?.marketplaces ?? []).filter(m => m.hasData);
+  // The active tab lives in the URL (?marketplace=talabat&mismatches=1); a marketplace that is not offered (no file,
+  // not enabled, or not readable) opens the Catalogue tab.
+  const [params, setParams] = useSearchParams();
+  const chosen = choices.find(c => c.marketplaceId === params.get('marketplace'));
+  const marketplaceId = chosen?.marketplaceId ?? '';
+  const onlyMismatches = Boolean(marketplaceId) && params.get('mismatches') === '1';
+  const marketplaceStatus: MarketplaceStatusFilter | '' = onlyMismatches ? 'mismatch' : '';
+  const setView = (id: string, mismatches: boolean, replace: boolean) => setParams(prev => {
+    const next = new URLSearchParams(prev);
+    if (id) next.set('marketplace', id); else next.delete('marketplace');
+    if (id && mismatches) next.set('mismatches', '1'); else next.delete('mismatches');
+    return next;
+  }, { replace });
+  // A new tab is a history entry (Back returns to the previous tab) and starts without "Only mismatches".
+  const selectTab = (id: string) => { if (id !== marketplaceId) setView(id, false, false); };
+  const setOnlyMismatches = (on: boolean) => setView(marketplaceId, on, true);
+
   const filter = useMemo(() => ({
     q, tab,
     categoryId: category.startsWith('c:') ? category.slice(2) : undefined,
     subcategoryId: category.startsWith('s:') ? category.slice(2) : undefined,
-  }), [q, tab, category]);
+    ...(marketplaceId ? { marketplaceId, ...(marketplaceStatus ? { marketplaceStatus } : {}) } : {}),
+  }), [q, tab, category, marketplaceId, marketplaceStatus]);
   const list = useProductList(filter);
   const tree = useCategoryTree();
   const names = useMemo(() => indexCategories(tree.data), [tree.data]);
 
   const items = list.data?.pages.flatMap(p => p.items) ?? [];
   const counts = list.data?.pages[0]?.counts;
-  const filtered = Boolean(q || category);
+  const filtered = Boolean(q || category || onlyMismatches);
+  const marketplaceProblem = marketplaceId ? list.data?.pages[0]?.marketplaceProblem : undefined;
+  // A missing marketplace object means "not available": no extra columns.
+  const showMarketplace = Boolean(marketplaceId) && !marketplaceProblem && items.some(p => p.marketplace);
+  const marketplaceMissing = Boolean(marketplaceId) && !marketplaceProblem && items.length > 0 && !showMarketplace && !list.isPlaceholderData;
+  const mpName = marketplaceId ? marketplaceName(marketplaceId) : '';
+  // The latest file of that marketplace (settings or summary), else the newest one among the shown rows.
+  const latestUpload = showMarketplace ? chosen?.lastUploadAt ?? newestUpload(items) : null;
+  // A new comparison changes the stored statuses the list shows: refetch it once the summary moves on.
+  const qc = useQueryClient();
+  const computedAt = summary.data?.computedAt ?? null;
+  const seenComputedAt = useRef(computedAt);
+  useEffect(() => {
+    if (seenComputedAt.current && computedAt && computedAt !== seenComputedAt.current && marketplaceId) {
+      void qc.invalidateQueries({ queryKey: ['products', 'list'] });
+    }
+    seenComputedAt.current = computedAt;
+  }, [computedAt, marketplaceId, qc]);
   // The backend adds marketplacePrice only for pricing.view.
   const showPrice = realPricingEnabled() && can('pricing.view');
   // Inline price edit (pricing.edit): one row's editor open at a time, under the row.
@@ -74,7 +125,17 @@ export const RealCatalogueView: React.FC = () => {
   const canStockBulk = can('catalogue.stock_edit');
   const canTick = canBulk || canStockBulk;
   const [stockBulkOpen, setStockBulkOpen] = useState(false);
-  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0);
+  // The bulk changes take no marketplace status: with that filter on, the list's counts are narrowed, so count apart.
+  const narrowedByStatus = Boolean(marketplaceId && marketplaceStatus && !marketplaceProblem);
+  const plainCounts = useProductCounts(
+    { q: filter.q, tab: 'all', categoryId: filter.categoryId, subcategoryId: filter.subcategoryId },
+    narrowedByStatus && (bulkOpen || stockBulkOpen),
+  );
+  const bulkCounts = narrowedByStatus ? plainCounts.data : counts;
+  const bulkCountPending = narrowedByStatus
+    ? plainCounts.isPending || plainCounts.isFetching
+    : list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage);
+  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0) + (showMarketplace ? 3 : 0);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -102,7 +163,12 @@ export const RealCatalogueView: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      {choices.length > 0 && <CatalogueTabs marketplaceIds={choices.map(c => c.marketplaceId)} active={marketplaceId} onSelect={selectTab} />}
+
+      <div
+        className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden"
+        {...(choices.length > 0 ? { role: 'tabpanel', id: CATALOGUE_PANEL_ID, 'aria-labelledby': catalogueTabId(marketplaceId) } : {})}
+      >
         <div role="tablist" aria-label="Product status" className="flex flex-wrap gap-1 px-4 pt-3 border-b border-gray-100">
           {PRODUCT_TABS.map(t => (
             <button
@@ -149,6 +215,7 @@ export const RealCatalogueView: React.FC = () => {
               {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked`
                 : canBulk ? 'Tick rows to change their prices together, or change every active product matching the filter.'
                   : 'Tick rows to change their stock together, or change every product matching the filter.'}
+              {narrowedByStatus && ' A bulk change uses the search and category only, not "Only mismatches".'}
             </span>
             <span className="flex items-center gap-2">
               {ticked.size > 0 && (
@@ -168,14 +235,41 @@ export const RealCatalogueView: React.FC = () => {
           </div>
         )}
 
+        {marketplaceId && !marketplaceProblem && (
+          <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 border-b border-gray-100 text-xs">
+            <label className="inline-flex items-center gap-2 text-gray-700">
+              <input type="checkbox" checked={onlyMismatches} onChange={e => setOnlyMismatches(e.target.checked)} className="accent-[#027864]" />
+              Only mismatches
+            </label>
+            <span className="text-gray-500">{`Read-only: the ${mpName} values come from its latest file.`}</span>
+          </div>
+        )}
+        {marketplaceProblem && (
+          <div role="status" className="px-4 py-2.5 border-b border-gray-100 bg-amber-50 text-xs text-amber-800">
+            {`${mpName} values cannot be shown: ${/[.!?]$/.test(marketplaceProblem) ? marketplaceProblem : `${marketplaceProblem}.`} The list below is the catalogue without them.`}
+          </div>
+        )}
+        {marketplaceMissing && (
+          <div role="status" className="px-4 py-2.5 border-b border-gray-100 bg-amber-50 text-xs text-amber-800">
+            {`${mpName} values are not available from this server yet; the list below is the catalogue without them.`}
+          </div>
+        )}
+        {showMarketplace && (
+          <p data-testid="marketplace-note" className="px-4 py-2.5 border-b border-gray-100 text-[11px] text-gray-500">
+            {marketplaceNote(marketplaceId, latestUpload, computedAt)}
+          </p>
+        )}
+
         {list.isPending ? (
           <LoadingState label="Loading products…" rows={8} />
         ) : list.isError && !list.data ? (
           <ErrorState error={list.error} title="We could not load the catalogue" onRetry={() => void list.refetch()} />
         ) : items.length === 0 ? (
           <EmptyState
-            title={filtered ? 'No products match this search' : tab === 'all' ? 'No products yet' : `No ${TAB_LABELS[tab].toLowerCase()} products`}
-            hint={filtered ? 'Try another name, barcode or category.' : tab === 'all' ? 'Import an ERP file to add your products.' : undefined}
+            title={onlyMismatches && !q && !category ? `No mismatches on ${mpName}`
+              : filtered ? 'No products match this search' : tab === 'all' ? 'No products yet' : `No ${TAB_LABELS[tab].toLowerCase()} products`}
+            hint={onlyMismatches && !q && !category ? `No product shown here differs from ${mpName}'s latest file.`
+              : filtered ? 'Try another name, barcode or category.' : tab === 'all' ? 'Import an ERP file to add your products.' : undefined}
           />
         ) : (
           <div className="overflow-x-auto" aria-busy={list.isFetching}>
@@ -193,6 +287,9 @@ export const RealCatalogueView: React.FC = () => {
                   {showPrice && <th className="px-4 py-3">Marketplace price (QAR)</th>}
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3 text-right">Catalogue stock</th>
+                  {showMarketplace && <th className="hidden md:table-cell px-4 py-3">{`Availability on ${mpName}`}</th>}
+                  {showMarketplace && <th className="hidden md:table-cell px-4 py-3 text-right">{`Price on ${mpName}`}</th>}
+                  {showMarketplace && <th className="hidden md:table-cell px-4 py-3">Compared</th>}
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Category</th>
                   {canEditPrice && <th className="px-4 py-3"><span className="sr-only">Price actions</span></th>}
@@ -215,6 +312,7 @@ export const RealCatalogueView: React.FC = () => {
                         <Link to={pathFor('product-detail', p.id)} className="font-semibold text-gray-900 hover:text-[#027864] hover:underline">{p.nameEn}</Link>
                         {p.nameAr ? <div dir="rtl" lang="ar" className="text-[11px] text-gray-500 text-left">{p.nameAr}</div>
                           : <div className="text-[11px] text-amber-700">No Arabic name</div>}
+                        {showMarketplace && <StackedMarketplaceValues m={p.marketplace} name={mpName} latest={latestUpload} />}
                       </td>
                       <td className="px-4 py-3 text-right font-mono whitespace-nowrap">{showPrice ? money2(p.erpPrice) : qar(p.erpPrice)}</td>
                       {showPrice && (
@@ -226,6 +324,9 @@ export const RealCatalogueView: React.FC = () => {
                       )}
                       <td className="px-4 py-3 text-right font-mono">{p.erpStock}</td>
                       <td className="px-4 py-3 text-right whitespace-nowrap"><CatalogueStockCell catalogueStock={p.catalogueStock} source={p.catalogueStockSource} conflict={p.stockConflict} /></td>
+                      {showMarketplace && <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap" data-testid="mp-availability-cell"><MarketplaceAvailabilityCell m={p.marketplace} /></td>}
+                      {showMarketplace && <td className="hidden md:table-cell px-4 py-3 text-right whitespace-nowrap" data-testid="mp-price-cell"><MarketplacePriceCell m={p.marketplace} latest={latestUpload} /></td>}
+                      {showMarketplace && <td className="hidden md:table-cell px-4 py-3" data-testid="mp-compared-cell"><ComparedBadge m={p.marketplace} /></td>}
                       <td className="px-4 py-3 whitespace-nowrap">
                         <ProductStatusPill status={p.status} />
                         {!p.inLatestErpFile && <div className="mt-1 text-[11px] text-amber-700">Not in latest ERP file</div>}
@@ -285,8 +386,8 @@ export const RealCatalogueView: React.FC = () => {
           tickedIds={[...ticked]}
           filter={bulkFilter}
           // The list's own count for this search and category: exactly the active products a filter selection takes.
-          filterActiveCount={list.isPlaceholderData ? undefined : counts?.active}
-          filterCountPending={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage)}
+          filterActiveCount={bulkCountPending ? undefined : bulkCounts?.active}
+          filterCountPending={bulkCountPending}
           filterSummary={filterSummary}
           onClose={() => setBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}
@@ -297,7 +398,7 @@ export const RealCatalogueView: React.FC = () => {
           tickedIds={[...ticked]}
           filter={bulkFilter}
           // The list's "All" count for this search and category: a stock filter selection takes any status.
-          filterCount={list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage) ? undefined : counts?.all}
+          filterCount={bulkCountPending ? undefined : bulkCounts?.all}
           filterSummary={filterSummary}
           onClose={() => setStockBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}

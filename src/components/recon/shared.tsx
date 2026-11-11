@@ -4,6 +4,7 @@ import {
   AlertOctagon, AlertTriangle, CheckCircle2, CircleSlash, EyeOff, FileX, HelpCircle, Sparkles, TrendingDown, XCircle,
 } from 'lucide-react';
 import { ApiError } from '../../api/client';
+import { qatarDateTime } from '../../lib/format';
 import { invalidateOnboarding } from '../onboarding/shared';
 import {
   RECON_PAGE_SIZE, reconApi,
@@ -45,13 +46,14 @@ const newer = (a: string | null, than: string | null) => a !== null && (than ===
  * GET /api/recon/summary. Without a reference the backend answers with the store's default and names it in `reference`.
  * While a recompute is pending it polls until computedAt moves past the one seen when it was asked for.
  */
-export function useReconSummary(reference?: ReconReference) {
+export function useReconSummary(reference?: ReconReference, opts: { enabled?: boolean } = {}) {
   const qc = useQueryClient();
   const pending = useRecomputeState();
   const polling = Boolean(pending && !pending.timedOut);
   const q = useQuery({
     queryKey: summaryKey(reference),
     queryFn: ({ signal }) => reconApi.summary(reference, signal),
+    enabled: opts.enabled ?? true,
     retry: false,
     placeholderData: keepPreviousData,
     refetchInterval: polling ? reconTiming.pollMs : false,
@@ -191,6 +193,26 @@ export const Availability: React.FC<{ value: boolean | null }> = ({ value }) =>
   value === null ? <span className="text-gray-500">Not listed</span>
     : value ? <span className="inline-flex items-center gap-1 text-[#027864]"><CheckCircle2 className="w-3 h-3" aria-hidden />Available</span>
       : <span className="inline-flex items-center gap-1 text-gray-700"><CircleSlash className="w-3 h-3" aria-hidden />Unavailable</span>;
+
+// ───────── Marketplace values next to the catalogue's ─────────
+
+/** The marketplace's values are null when the product has no listing in the marketplace's file. */
+export const NOT_IN_FILE = 'Not in the file';
+
+/**
+ * Where the marketplace values come from. The API gives the upload time per marketplace (summary lastUploadAt), not per
+ * row: after a partial file a row can still carry an older file's listing, so this names the latest file only.
+ */
+export function fileNote(s: Pick<ReconMarketplaceSummary, 'marketplaceId' | 'lastUploadAt'>): string {
+  const name = marketplaceName(s.marketplaceId);
+  return s.lastUploadAt
+    ? `Marketplace values are from the latest ${name} file, uploaded ${qatarDateTime(s.lastUploadAt)} (Qatar time).`
+    : `No ${name} file has been uploaded yet.`;
+}
+
+/** The marketplace's availability from its file, or "Not in the file". */
+export const MarketplaceAvailability: React.FC<{ value: boolean | null }> = ({ value }) =>
+  value === null ? <span className="text-gray-500">{NOT_IN_FILE}</span> : <Availability value={value} />;
 
 /** The recompute this browser started: in progress, or taking longer than expected. */
 export const RecomputeBanner: React.FC<{ state: RecomputeState | null }> = ({ state }) =>

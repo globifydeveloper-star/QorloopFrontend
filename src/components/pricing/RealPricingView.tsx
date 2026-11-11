@@ -14,6 +14,7 @@ import { useCategoryTree } from '../catalogue/shared';
 import { ConfirmDialog } from '../uploads/shared';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { AdoptPricesWizard } from './AdoptPricesWizard';
+import { DEFAULT_RULE_ANCHOR, PriceSourceGuide } from './PriceSourceGuide';
 import {
   CATEGORY_RULES_KEY, FieldError, PRICING_SETTINGS_KEY, ROUNDING_LABELS, RuleFields, draftOf, fieldErrors, inputCls,
   invalidatePriced, pricingErrorText, ruleFromDraft, ruleText, type RuleDraft,
@@ -42,6 +43,8 @@ export const RealPricingView: React.FC = () => {
           </button>
         )}
       </div>
+
+      <PriceSourceGuide onAdopt={() => setAdopting(true)} />
 
       {!editable && (
         <p role="note" className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-xs text-gray-600">You can view the pricing but not change it.</p>
@@ -114,7 +117,7 @@ export const PricingSettingsForm: React.FC<{
     <form aria-label="Pricing settings" onSubmit={submit} className="space-y-6">
       {screenError ? <ErrorState error={save.error} onRetry={() => save.reset()} /> : errors.general && !Object.keys(other.fields).length && <p role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">{errors.general}</p>}
 
-      <section aria-label="Default marketplace price" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <section id={DEFAULT_RULE_ANCHOR} aria-label="Default marketplace price" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Default marketplace price</h2>
           <p className="text-xs text-gray-500">Used for every product that no offer, product, subcategory, category or marketplace rule covers.</p>

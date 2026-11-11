@@ -16,6 +16,7 @@ import {
 import { MarketplaceId, PriceMode, PriceRounding, PriceRule } from '../../types';
 import { realPricingEnabled } from '../../lib/features';
 import { RealPricingView } from '../pricing/RealPricingView';
+import { DEFAULT_RULE_ANCHOR, PriceSourceGuide } from '../pricing/PriceSourceGuide';
 
 const MODE_OPTIONS: { id: PriceMode; label: string }[] = [
   { id: 'percent', label: 'Markup % on ERP' },
@@ -127,10 +128,13 @@ const DemoMarkupsView: React.FC = () => {
         </div>
       </div>
 
+      {/* The demo has no adopt flow: only the markup choice has a button here. */}
+      <PriceSourceGuide />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
           {/* Default rule */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4">
+          <div id={DEFAULT_RULE_ANCHOR} className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold text-gray-900">Default marketplace price</h2>

@@ -594,3 +594,45 @@ describe('product detail pricing', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('We could not load this product');
   });
 });
+
+describe('price-source card "How do you set your marketplace prices?"', () => {
+  const card = async () => within(await screen.findByRole('region', { name: 'How do you set your marketplace prices?' }));
+
+  it('explains the ERP price and My pricing and offers two plain choices', async () => {
+    handler = backend;
+    renderAt('/pricing', <MarkupsView />);
+    const c = await card();
+    expect(c.getByText(/The ERP price alone is usually not your selling price, because you add a markup/)).toBeTruthy();
+    expect(c.getByText(/Qorloop compares the prices on each marketplace with “My pricing”/)).toBeTruthy();
+    expect(c.getByRole('heading', { name: 'My prices are the ERP price plus my markup' })).toBeTruthy();
+    expect(c.getByRole('heading', { name: 'My prices are already set in the marketplace' })).toBeTruthy();
+    expect(calls((_u, m) => m !== 'GET')).toHaveLength(0); // nothing is stored
+  });
+
+  it('"Set my markup" opens the default rule setting (category rules follow it)', async () => {
+    handler = backend;
+    renderAt('/pricing', <MarkupsView />);
+    const c = await card();
+    await screen.findByRole('region', { name: 'Default marketplace price' });
+    fireEvent.click(c.getByRole('button', { name: 'Set my markup' }));
+    const section = screen.getByRole('region', { name: 'Default marketplace price' });
+    expect(section.contains(document.activeElement)).toBe(true);
+  });
+
+  it('"Use my current marketplace prices" opens the existing Adopt current marketplace prices flow', async () => {
+    handler = backend;
+    renderAt('/pricing', <MarkupsView />);
+    fireEvent.click((await card()).getByRole('button', { name: 'Use my current marketplace prices' }));
+    expect(screen.getByRole('dialog', { name: 'Adopt current marketplace prices' })).toBeTruthy();
+  });
+
+  it('a role without pricing.edit sees the text read-only, with no buttons', async () => {
+    perms.delete('pricing.edit');
+    handler = backend;
+    renderAt('/pricing', <MarkupsView />);
+    const c = await card();
+    expect(c.queryByRole('button')).toBeNull();
+    expect(c.getByTestId('price-source-read-only').textContent).toBe('Only someone who can change pricing can make these choices.');
+    expect(c.getByText(/The ERP price alone is usually not your selling price/)).toBeTruthy();
+  });
+});

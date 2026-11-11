@@ -13,7 +13,7 @@ import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import {
-  MarketplaceAvailability, NOT_IN_FILE, NoReconAccess, OwnAvailability, PRICE_SOURCE_LABELS, RECON_STATUS_META, REFERENCE_LABELS,
+  MarketplaceAvailability, NOT_IN_FILE, NoReconAccess, OwnAvailability, PRICE_SOURCE_LABELS, RECON_STATUS_META,
   RecomputeBanner, ReconStatusPill, StockIssuePill, fileNote, freshnessText, marketplaceName, money2, ownSide, priceDifference,
   qatarDateTime, useRecomputeState, useReconRows, useReconSummary,
 } from './shared';
@@ -190,8 +190,8 @@ const ReportBody: React.FC<{
                 <tr>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{REFERENCE_LABELS[reference]}</span></th>
-                  <th className="px-4 py-3 text-right">Marketplace price (QAR) <span className="block font-normal normal-case tracking-normal">On {name}</span></th>
+                  <th className="px-4 py-3 text-right">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{reference === 'erp' ? 'from the ERP price' : 'from your pricing'}</span></th>
+                  <th className="px-4 py-3 text-right">Price on {name} (QAR)</th>
                   <th className="px-4 py-3 text-right">Difference (QAR)</th>
                   <th className="px-4 py-3">Price rule</th>
                   <th className="px-4 py-3">Last updated</th>

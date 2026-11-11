@@ -324,14 +324,14 @@ describe('permissions', () => {
     handler = (u, i) => (isList(u, method(i)) ? list([item('p1')]) : h(u, i));
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product p1');
-    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR)' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) The price your pricing rules give this product' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Change the price of/ })).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByRole('toolbar', { name: 'Bulk price change' })).toBeNull();
     cleanup();
 
     renderAt('/catalogue/p1', <ProductDetailView />);
-    await screen.findByRole('region', { name: 'Marketplace price' });
+    await screen.findByRole('region', { name: 'Expected price' });
     expect(screen.queryByRole('form', { name: 'Change the price' })).toBeNull();
   });
 
@@ -723,7 +723,7 @@ describe('VITE_REAL_PRICING off', () => {
     handler = (u, i) => (isList(u, method(i)) ? list([item('p1')]) : h(u, i));
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product p1');
-    expect(screen.queryByRole('columnheader', { name: 'Marketplace price (QAR)' })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Expected price (QAR) The price your pricing rules give this product' })).toBeNull();
     expect(screen.queryByRole('button', { name: /Change the price of/ })).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByRole('toolbar', { name: 'Bulk price change' })).toBeNull();
@@ -732,8 +732,8 @@ describe('VITE_REAL_PRICING off', () => {
     renderAt('/catalogue/p1', <ProductDetailView />);
     await screen.findByRole('heading', { name: 'Product p1' });
     expect(screen.queryByRole('form', { name: 'Change the price' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Marketplace price' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Marketplace price rules' }).textContent).toContain('Not available yet');
+    expect(screen.queryByRole('region', { name: 'Expected price' })).toBeNull();
+    expect(screen.getByRole('region', { name: 'Pricing rules' }).textContent).toContain('Not available yet');
     expect(calls(is('GET', '/api/recon/summary'))).toHaveLength(0);
     expect(calls((u, m) => m !== 'GET')).toHaveLength(0);
   });

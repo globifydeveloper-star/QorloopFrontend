@@ -11,6 +11,9 @@ import { money2, qatarDateTime } from '../../lib/format';
 export const PRICING_SETTINGS_KEY = ['pricing', 'settings'] as const;
 export const CATEGORY_RULES_KEY = ['pricing', 'category-rules'] as const;
 
+/** One line under "Expected price (QAR)" in the catalogue list and on the product page. */
+export const EXPECTED_PRICE_HINT = 'The price your pricing rules give this product';
+
 /** Everything that depends on prices: product lists and details, and the reconciliation (recomputed by the backend). */
 export function invalidatePriced(qc: QueryClient) {
   invalidateOnboarding(qc);

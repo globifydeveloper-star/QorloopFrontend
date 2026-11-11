@@ -10,7 +10,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { invalidateOnboarding } from '../onboarding/shared';
-import { REFERENCE_LABELS, marketplaceName, money2, qatarDateTime, reconErrorText, useReconSummary } from '../recon/shared';
+import { REFERENCE_IN_TEXT, REFERENCE_LABELS, marketplaceName, money2, qatarDateTime, reconErrorText, useReconSummary } from '../recon/shared';
 
 export const KIND_LABELS: Record<FileKind, string> = { stock: 'Stock', price: 'Price', stock_price: 'Stock and price' };
 export const SCOPE_LABELS: Record<FileScope, string> = { mismatches: 'Only products that need a change', all: 'All listed products' };
@@ -176,7 +176,7 @@ export const RealGenerateFilesView: React.FC = () => {
 
           <div role="note" className="flex items-start gap-2 p-3 rounded-lg bg-blue-50/70 text-blue-900 border border-blue-100 text-xs">
             <Info className="w-4 h-4 shrink-0 text-blue-600 mt-px" aria-hidden />
-            <span>Prices in this file use the <b>{REFERENCE_LABELS[seen?.referenceUsed ?? ref]}</b>.</span>
+            <span>Prices in this file use <b>{REFERENCE_IN_TEXT[seen?.referenceUsed ?? ref]}</b>.</span>
           </div>
 
           {seen && seen.warnings.length > 0 && (

@@ -9,7 +9,7 @@ import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import { MarketplaceBadge } from '../common/MarketplaceBadge';
 import { MarketplaceId } from '../../types';
-import { MARKETPLACE_IDS, REFERENCE_LABELS, checkProductPrices } from '../../lib/pricing';
+import { MARKETPLACE_IDS, REFERENCE_IN_TEXT, REFERENCE_LABELS, checkProductPrices } from '../../lib/pricing';
 import { realFilesEnabled } from '../../lib/features';
 import { RealGenerateFilesView } from '../files/RealGenerateFilesView';
 
@@ -113,8 +113,8 @@ const DemoGenerateFilesView: React.FC = () => {
           <span className="font-semibold">
             Files include only the products that need to be updated (mismatches) by default.
           </span>{' '}
-          You can choose to include all products if required by a marketplace. Prices in the files use your{' '}
-          <span className="font-semibold">{REFERENCE_LABELS[compareReference]}</span>.
+          You can choose to include all products if required by a marketplace. Prices in the files use{" "}
+          <span className="font-semibold">{REFERENCE_IN_TEXT[compareReference]}</span>.
         </div>
       </div>
 
@@ -283,9 +283,9 @@ const DemoGenerateFilesView: React.FC = () => {
                   className="mt-0.5 accent-[#027864]"
                 />
                 <div>
-                  <div className="font-semibold text-gray-900">Marketplace price (default)</div>
+                  <div className="font-semibold text-gray-900">My pricing (default)</div>
                   <div className="text-[11px] text-gray-500">
-                    The price you set in Marketplace Price — same on all marketplaces.
+                    The price your pricing rules give each product — same on all marketplaces.
                   </div>
                 </div>
               </label>

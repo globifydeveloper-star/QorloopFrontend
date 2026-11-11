@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
 import {
-  NoReconAccess, RecomputeBanner, REFERENCE_LABELS, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
+  NoReconAccess, RecomputeBanner, REFERENCE_IN_TEXT, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
 } from './shared';
 
@@ -56,7 +56,7 @@ const Dashboard: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            {data ? <>Last compared {data.computedAt ? qatarDateTime(data.computedAt) : 'never'} (Qatar time). Prices are compared against your {REFERENCE_LABELS[data.reference]}.</>
+            {data ? <>Last compared {data.computedAt ? qatarDateTime(data.computedAt) : 'never'} (Qatar time). Prices are compared with {REFERENCE_IN_TEXT[data.reference]}.</>
               : 'Your ERP compared with each marketplace.'}
           </p>
         </div>

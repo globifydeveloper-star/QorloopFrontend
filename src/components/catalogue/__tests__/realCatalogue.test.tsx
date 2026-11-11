@@ -205,7 +205,7 @@ describe('product detail (CAT-002)', () => {
     expect(listings.getByText('Unavailable')).toBeTruthy();
     const erp = within(screen.getByRole('region', { name: 'From the ERP' }));
     expect(erp.getByText('QAR 9.00')).toBeTruthy();
-    for (const t of ['Marketplace price rules', 'Price discrepancies', 'Change history']) {
+    for (const t of ['Pricing rules', 'Price discrepancies', 'Change history']) {
       expect(within(screen.getByRole('region', { name: t })).getByText('Not available yet')).toBeTruthy();
     }
   });

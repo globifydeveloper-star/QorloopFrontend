@@ -172,8 +172,10 @@ describe('dashboard (DASH-001)', () => {
     fireEvent.click(keeta.getByRole('button', { name: 'Upload Keeta file' }));
     expect(app.openUploadModal).toHaveBeenCalledWith('keeta');
 
-    expect(screen.getByRole('button', { name: 'Marketplace price' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'My pricing' }).getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByText(/Last compared 02 Nov 2026, 11:00/)).toBeTruthy();
+    expect(screen.getByText(/Prices are compared with My pricing\./)).toBeTruthy();
+    expect(screen.queryByText(/Marketplace price/)).toBeNull();
     expect(demoUsed).toBe(false);
   });
 
@@ -189,14 +191,14 @@ describe('dashboard (DASH-001)', () => {
     };
     renderAt('/', <DashboardView />);
     await screen.findByRole('region', { name: 'Talabat' });
-    expect(screen.getByRole('button', { name: 'ERP price' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'ERP price (advanced)' }).getAttribute('aria-pressed')).toBe('true');
     expect(params(calls(isRows)[0][0] as string).reference).toBe('erp');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Marketplace price' }));
+    fireEvent.click(screen.getByRole('button', { name: 'My pricing' }));
     await waitFor(() => expect(card('Talabat').getByTestId('tile-price').textContent).toBe('7'));
     expect(card('Talabat').getByTestId('tile-total').textContent).toBe('10');
     expect(params(calls(isSummary).at(-1)![0] as string)).toEqual({ reference: 'marketplace' });
-    expect(screen.getByRole('button', { name: 'Marketplace price' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'My pricing' }).getAttribute('aria-pressed')).toBe('true');
     await waitFor(() => expect(params(calls(isRows).at(-1)![0] as string).reference).toBe('marketplace'));
   });
 
@@ -451,8 +453,8 @@ describe('price report (RPT-002)', () => {
     renderAt('/reports/price?marketplace=talabat&reference=marketplace', <PriceDiscrepanciesView />);
     const r5 = within((await screen.findByText('Product 5')).closest('tr')!);
     expect(params(calls(isRows)[0][0] as string)).toEqual({ marketplaceId: 'talabat', type: 'price', reference: 'marketplace', limit: '50' });
-    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) Marketplace price' })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR) On Talabat' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) from your pricing' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Price on Talabat (QAR)' })).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'Difference (QAR)' })).toBeTruthy();
     expect(r5.getByTestId('expected').textContent).toBe('12.50');
     expect(r5.getByTestId('actual').textContent).toBe('13.00');
@@ -463,10 +465,10 @@ describe('price report (RPT-002)', () => {
     expect(r6.getByTestId('recon-status').textContent).toBe('Not listed');
     expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Talabat (2)', 'Snoonu (1)', 'Keeta (No data)']);
     expect(screen.getByTestId('report-counts').textContent).toContain('2 price mismatches on Talabat');
-    expect(screen.getByRole('button', { name: 'Marketplace price' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'My pricing' }).getAttribute('aria-pressed')).toBe('true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'ERP price' }));
-    await screen.findByRole('columnheader', { name: 'Expected price (QAR) ERP price' });
+    fireEvent.click(screen.getByRole('button', { name: 'ERP price (advanced)' }));
+    await screen.findByRole('columnheader', { name: 'Expected price (QAR) from the ERP price' });
     await waitFor(() => expect(within(screen.getByText('Product 5').closest('tr')!).getByTestId('expected').textContent).toBe('11.00'));
     expect(params(calls(isSummary).at(-1)![0] as string)).toEqual({ reference: 'erp' });
     expect(params(calls(isRows).at(-1)![0] as string)).toMatchObject({ reference: 'erp', type: 'price' });
@@ -478,9 +480,9 @@ describe('price report (RPT-002)', () => {
     handler = (u, i) => (isSummary(u, method(i)) && !params(u).reference ? ok(summary({ reference: 'erp' })) : backend(u, i));
     renderAt('/reports/price', <PriceDiscrepanciesView />);
     await screen.findByText('Product 1');
-    expect(screen.getByRole('button', { name: 'ERP price' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: 'ERP price (advanced)' }).getAttribute('aria-pressed')).toBe('true');
     expect(params(calls(isRows)[0][0] as string).reference).toBe('erp');
-    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) ERP price' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) from the ERP price' })).toBeTruthy();
   });
 
   it('shows an empty state when there are no price mismatches', async () => {
@@ -563,12 +565,12 @@ describe('marketplace values next to the catalogue values', () => {
     expect(text(r, 'marketplace-available')).toBe('Unavailable');
   });
 
-  it('price report: Expected price and Marketplace price side by side, "Not in the file" for a missing price', async () => {
+  it('price report: Expected price and the price on the marketplace side by side, "Not in the file" for a missing price', async () => {
     handler = rowsWith(PRICE_CASES);
     renderAt('/reports/price?marketplace=snoonu', <PriceDiscrepanciesView />);
     await screen.findByText('Product 21');
-    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) Marketplace price' })).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR) On Snoonu' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) from your pricing' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Price on Snoonu (QAR)' })).toBeTruthy();
     const r21 = within(screen.getByText('Product 21').closest('tr')!);
     expect(text(r21, 'expected')).toBe('12.50');
     expect(text(r21, 'actual')).toBe('13.75');

@@ -66,7 +66,7 @@ export const RealProductDetailView: React.FC = () => {
         </div>
         <div className="space-y-6">
           <ErpData product={p} />
-          {!pricing && <NotAvailableYet title="Marketplace price rules" hint="Price rules for this product are not connected to the server yet." />}
+          {!pricing && <NotAvailableYet title="Pricing rules" hint="Price rules for this product are not connected to the server yet." />}
           <NotAvailableYet title="Price discrepancies" hint="Discrepancy checks for this product are not connected to the server yet." />
           {!realSettingsEnabled() && <NotAvailableYet title="Change history" hint="The change history is not connected to the server yet." />}
         </div>

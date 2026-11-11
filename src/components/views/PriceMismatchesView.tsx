@@ -14,7 +14,7 @@ import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import {
   MARKETPLACE_IDS,
   MARKETPLACE_NAMES,
-  REFERENCE_LABELS,
+  REFERENCE_IN_TEXT,
   checkProductPrices,
   formatDiff,
   formatQar,
@@ -73,7 +73,7 @@ export const PriceMismatchesView: React.FC = () => {
     return true;
   });
 
-  const referenceLabel = REFERENCE_LABELS[compareReference];
+  const referenceInText = REFERENCE_IN_TEXT[compareReference];
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-150">
@@ -96,7 +96,7 @@ export const PriceMismatchesView: React.FC = () => {
               Price mismatches
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Products where the price listed on a marketplace does not match your {referenceLabel.toLowerCase()}.
+              Products where the price listed on a marketplace does not match {referenceInText}.
             </p>
           </div>
 
@@ -182,7 +182,7 @@ export const PriceMismatchesView: React.FC = () => {
                   <th className="py-2.5 px-3">Product</th>
                   <th className="py-2.5 px-3">Barcode</th>
                   <th className="py-2.5 px-3 text-right">ERP price (QAR)</th>
-                  <th className="py-2.5 px-3 text-right">Marketplace price (QAR)</th>
+                  <th className="py-2.5 px-3 text-right">Expected price (QAR)</th>
                   <th className="py-2.5 px-3 text-right">Listed price (QAR)</th>
                   <th className="py-2.5 px-3 text-right">Difference</th>
                   <th className="py-2.5 px-3">Marketplace</th>
@@ -258,7 +258,7 @@ export const PriceMismatchesView: React.FC = () => {
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan={10} className="py-8 px-3 text-center text-gray-400">
-                      No price mismatches against {referenceLabel.toLowerCase()}.
+                      No price mismatches against {referenceInText}.
                     </td>
                   </tr>
                 )}

@@ -129,8 +129,8 @@ describe('generate files (OUT-001)', () => {
     await screen.findByRole('region', { name: 'Choose the file' });
     const radios = choose().getAllByRole('radio', { name: /Talabat|Snoonu|Keeta|Rafeeq/ });
     expect(radios.map(r => r.closest('label')!.textContent)).toEqual([expect.stringContaining('Talabat'), expect.stringContaining('Snoonu')]);
-    expect(screen.getByRole('radio', { name: 'Marketplace price (store default)' })).toHaveProperty('checked', true);
-    expect(screen.getByRole('note').textContent).toBe('Prices in this file use the Marketplace price.');
+    expect(screen.getByRole('radio', { name: 'My pricing (store default)' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('note').textContent).toBe('Prices in this file use My pricing.');
     const newProducts = screen.getByRole('radio', { name: /New products/ });
     expect(newProducts).toHaveProperty('disabled', true);
     expect(newProducts.closest('label')!.textContent).toContain('Not available yet');
@@ -326,7 +326,7 @@ describe('generated files history (OUT-002)', () => {
     expect(row.textContent).toContain('02 Nov 2026, 09:15');
     expect(row.textContent).toContain('Talabat');
     expect(row.textContent).toContain(FILE.fileName);
-    expect(row.textContent).toContain('Stock and price · Only products that need a change · Marketplace price');
+    expect(row.textContent).toContain('Stock and price · Only products that need a change · My pricing');
     expect(row.textContent).toContain('14');
     expect(row.textContent).toContain('Sara Owner');
     expect(row.textContent).toContain('02 Dec 2026, 09:15');

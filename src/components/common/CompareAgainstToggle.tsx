@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { CompareReference } from '../../types';
 
 /**
- * "Compare against: Marketplace price | ERP price" — shared by the price reports and generated files.
+ * "Compare prices with: My pricing | ERP price (advanced)" — shared by the Dashboard and the price reports.
  * Without `onChange` it reads and writes the app-wide (demo) choice; with it, the caller owns the value
  * (the real reconciliation screens, where the store's default comes from the server). `value` may then be
  * undefined while that default is still loading.
@@ -14,14 +14,15 @@ export const CompareAgainstToggle: React.FC<{
   value?: CompareReference;
   onChange?: (ref: CompareReference) => void;
   disabled?: boolean;
-}> = ({ className = '', label = 'Compare against', value, onChange, disabled = false }) => {
+}> = ({ className = '', label = 'Compare prices with', value, onChange, disabled = false }) => {
   const app = useApp();
   const current = onChange ? value : app.compareReference;
   const set = onChange ?? app.setCompareReference;
 
+  // "My pricing" is the expected price from the pricing rules; the ERP price is the raw price from the ERP file.
   const options: { id: CompareReference; label: string }[] = [
-    { id: 'marketplace', label: 'Marketplace price' },
-    { id: 'erp', label: 'ERP price' },
+    { id: 'marketplace', label: 'My pricing' },
+    { id: 'erp', label: 'ERP price (advanced)' },
   ];
 
   return (

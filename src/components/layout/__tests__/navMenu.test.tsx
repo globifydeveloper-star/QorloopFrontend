@@ -171,6 +171,13 @@ describe('the active item', () => {
     expect(adminToggle().getAttribute('data-has-active')).toBeNull();
   });
 
+  it('the Pricing screen is called Pricing in the menu and the breadcrumb, never "Marketplace price"', () => {
+    mount('/pricing');
+    expect(within(screen.getByRole('banner')).getByText('Pricing')).toBeTruthy();
+    expect(within(screen.getByRole('banner')).getByText('Admin')).toBeTruthy();
+    expect(screen.queryByText(/Marketplace price/)).toBeNull();
+  });
+
   it('report tabs keep Reports highlighted', () => {
     mount('/reports/price');
     expect(sidebar().getByRole('button', { name: 'Reports' }).getAttribute('aria-current')).toBe('page');

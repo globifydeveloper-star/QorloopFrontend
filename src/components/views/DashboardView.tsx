@@ -92,7 +92,7 @@ const DemoDashboardView: React.FC = () => {
             </h1>
             <p className="mt-1 text-[13.5px] text-[#A9D9CF]">
               {attention.length} items need attention · last comparison {relative(state.now, state.now)}. Prices are compared
-              against your <span className="font-semibold text-white">Marketplace price</span>.
+              with <span className="font-semibold text-white">My pricing</span>.
             </p>
           </div>
           <div className="flex items-center gap-2.5 shrink-0">
@@ -136,7 +136,7 @@ const DemoDashboardView: React.FC = () => {
           {
             label: 'Price mismatches',
             value: enabledMpIds.reduce((n, id) => n + (summary[id]?.price ?? 0), 0).toString(),
-            sub: 'vs your Marketplace price',
+            sub: 'vs My pricing',
             icon: Tag,
             tone: 'bg-red-50 text-red-600',
           },

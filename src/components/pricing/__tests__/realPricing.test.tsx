@@ -107,7 +107,7 @@ describe('helpers', () => {
   });
 });
 
-describe('Marketplace Price settings (PRC-001)', () => {
+describe('Pricing settings (PRC-001)', () => {
   it('shows a skeleton, then the settings, the parity warning and the category rules', async () => {
     renderAt('/pricing', <MarkupsView />);
     expect(screen.getByRole('status', { name: 'Loading pricing settings…' })).toBeTruthy();
@@ -116,7 +116,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
     expect(mode.value).toBe('percent');
     expect((screen.getByLabelText('Percent (%)') as HTMLInputElement).value).toBe('10');
     expect((screen.getByLabelText('Rounding') as HTMLSelectElement).value).toBe('0.25');
-    expect((screen.getByRole('radio', { name: 'Marketplace price' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: 'My pricing' }) as HTMLInputElement).checked).toBe(true);
     const perMp = within(screen.getByRole('region', { name: 'Different price per marketplace' }));
     expect((perMp.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
     expect(perMp.getByText(/many marketplace contracts require the same price everywhere/)).toBeTruthy();
@@ -156,7 +156,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
 
     fireEvent.change(screen.getByLabelText('Percent (%)'), { target: { value: '15' } });
     fireEvent.click(within(screen.getByRole('region', { name: 'Different price per marketplace' })).getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('radio', { name: 'ERP price' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'ERP price (advanced)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save pricing' }));
     await waitFor(() => expect(calls(is('PUT', '/api/pricing/settings'))).toHaveLength(2));
     expect(bodyOf(calls(is('PUT', '/api/pricing/settings'))[1])).toEqual({
@@ -292,7 +292,7 @@ describe('Marketplace Price settings (PRC-001)', () => {
       getMarketplacePrice: () => ({ price: 0, source: 'default' }),
     });
     renderAt('/pricing', <MarkupsView />);
-    expect(screen.getByRole('heading', { name: 'Marketplace Price' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Pricing' })).toBeTruthy();
     expect(screen.queryByRole('form', { name: 'Pricing settings' })).toBeNull();
     expect(screen.queryByRole('status', { name: 'Loading pricing settings…' })).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -468,7 +468,7 @@ describe('catalogue marketplace price', () => {
     handler = (u, i) => (u.startsWith('/api/products?') ? list([item('1', { marketplacePrice: { price: 13, source: 'offer' } }), item('2', { marketplacePrice: { price: 11, source: 'subcategory' } })]) : backend(u, i));
     renderAt('/catalogue', <CatalogueView />);
     const row = within((await screen.findByText('Product 1')).closest('tr')!);
-    expect(screen.getByRole('columnheader', { name: 'Marketplace price (QAR)' })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Expected price (QAR) The price your pricing rules give this product' })).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'ERP price (QAR)' })).toBeTruthy();
     expect(row.getByTestId('marketplace-price').textContent).toBe('13.00Offer');
     expect(row.getByTestId('price-source').querySelector('svg')).toBeTruthy();
@@ -481,7 +481,7 @@ describe('catalogue marketplace price', () => {
     handler = (u, i) => (u.startsWith('/api/products?') ? list([item('1')]) : backend(u, i));
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    expect(screen.queryByRole('columnheader', { name: 'Marketplace price (QAR)' })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Expected price (QAR) The price your pricing rules give this product' })).toBeNull();
   });
 });
 
@@ -496,8 +496,8 @@ describe('product detail pricing', () => {
   it('shows the marketplace price, its source and the full rule chain', async () => {
     handler = detailHandler();
     renderAt('/catalogue/p1', <ProductDetailView />);
-    const panel = within(await screen.findByRole('region', { name: 'Marketplace price' }));
-    expect(panel.getByRole('heading', { name: 'Marketplace price (QAR)' })).toBeTruthy();
+    const panel = within(await screen.findByRole('region', { name: 'Expected price' }));
+    expect(panel.getByRole('heading', { name: 'Expected price (QAR)' })).toBeTruthy();
     expect(panel.getByTestId('marketplace-price').textContent).toBe('13.00');
     expect(panel.getAllByTestId('price-source')[0].textContent).toBe('Offer');
 
@@ -514,13 +514,13 @@ describe('product detail pricing', () => {
     expect(within(panel.getByRole('form', { name: 'Offer' })).getByTestId('offer-state').textContent).toBe('Running now');
     // The product's own rule is shown by the price editor (and the chain's product step above).
     expect(within(panel.getByRole('form', { name: 'Change the price' })).getByTestId('inline-current').textContent).toContain('Product price rule now: Fixed 12.00 QAR.');
-    expect(screen.queryByRole('region', { name: 'Marketplace price rules' })).toBeNull(); // the old "Not available yet" card
+    expect(screen.queryByRole('region', { name: 'Pricing rules' })).toBeNull(); // the old "Not available yet" card
   });
 
   it('has no separate product rule form any more: the price editor and the offer are the only forms', async () => {
     handler = detailHandler();
     renderAt('/catalogue/p1', <ProductDetailView />);
-    const panel = within(await screen.findByRole('region', { name: 'Marketplace price' }));
+    const panel = within(await screen.findByRole('region', { name: 'Expected price' }));
     expect(panel.getAllByRole('form').map(f => f.getAttribute('aria-label'))).toEqual(['Change the price', 'Offer']);
     expect(screen.queryByRole('form', { name: 'Product price rule' })).toBeNull();
     expect(panel.queryByRole('button', { name: 'Save rule' })).toBeNull();
@@ -571,7 +571,7 @@ describe('product detail pricing', () => {
     perms.delete('pricing.edit');
     handler = detailHandler();
     renderAt('/catalogue/p1', <ProductDetailView />);
-    const panel = within(await screen.findByRole('region', { name: 'Marketplace price' }));
+    const panel = within(await screen.findByRole('region', { name: 'Expected price' }));
     expect(panel.getAllByTestId('chain-step')).toHaveLength(6);
     expect(panel.queryByRole('button', { name: 'Save rule' })).toBeNull();
     expect(panel.queryByRole('button', { name: 'Save offer' })).toBeNull();
@@ -584,8 +584,8 @@ describe('product detail pricing', () => {
     handler = (u, i) => (is('GET', '/api/products/p1')(u, method(i)) ? ok(noPricing) : backend(u, i));
     renderAt('/catalogue/p1', <ProductDetailView />);
     await screen.findByRole('heading', { name: 'Product p1' });
-    expect(screen.queryByRole('region', { name: 'Marketplace price' })).toBeNull();
-    expect(screen.queryByRole('region', { name: 'Marketplace price rules' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Expected price' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Pricing rules' })).toBeNull();
   });
 
   it('shows a load error for the product', async () => {

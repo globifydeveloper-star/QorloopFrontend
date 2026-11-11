@@ -239,7 +239,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOutputFiles((prev) => [...newFiles, ...prev]);
     showToast(
       `Generated ${selectedMarketplaces.length} marketplace output files using ${
-        compareReference === 'marketplace' ? 'Marketplace prices' : 'ERP prices'
+        compareReference === 'marketplace' ? 'My pricing' : 'the ERP price'
       }`
     );
   };

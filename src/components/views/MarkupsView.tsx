@@ -74,7 +74,7 @@ const DemoMarkupsView: React.FC = () => {
 
   const handleSave = () => {
     updatePricingSettings({ defaultRule, rounding, marketplaceRules: markups });
-    showToast('Marketplace price rules updated successfully!');
+    showToast('Pricing rules updated successfully!');
   };
 
   const handleAddCategoryRule = () => {
@@ -102,7 +102,7 @@ const DemoMarkupsView: React.FC = () => {
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-150">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Marketplace Price</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Pricing</h1>
           <p className="text-xs text-gray-500 mt-0.5">
             The price you sell at on marketplaces. Set it once — it applies to Talabat, Snoonu, Rafeeq and
             Keeta. It can be above ERP (markup) or below it (offers).
@@ -371,7 +371,7 @@ const DemoMarkupsView: React.FC = () => {
                     <th className="py-2.5 px-3">Product</th>
                     <th className="py-2.5 px-3 text-right">ERP price (QAR)</th>
                     <th className="py-2.5 px-3">Price rule</th>
-                    <th className="py-2.5 px-3 text-right">Marketplace price (QAR)</th>
+                    <th className="py-2.5 px-3 text-right">Expected price (QAR)</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>

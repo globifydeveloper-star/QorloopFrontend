@@ -30,7 +30,7 @@ export const RealPricingView: React.FC = () => {
     <div className="p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Marketplace Price</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Pricing</h1>
           <p className="text-xs text-gray-500 mt-0.5">
             The price each product should have on the marketplaces. The first rule that applies wins: offer, product rule,
             subcategory rule, category rule, marketplace rule, then the default rule.
@@ -132,14 +132,14 @@ export const PricingSettingsForm: React.FC<{
         </div>
       </section>
 
-      <section aria-label="Compare against" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+      <section aria-label="Compare prices with" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
         <div>
-          <h2 className="text-sm font-bold text-gray-900">Compare against</h2>
+          <h2 className="text-sm font-bold text-gray-900">Compare prices with</h2>
           <p className="text-xs text-gray-500">The price the dashboard and reports compare marketplace prices with, unless someone switches it on the screen.</p>
         </div>
         <fieldset className="flex flex-wrap gap-4 text-sm" disabled={!editable}>
-          <legend className="sr-only">Store default for compare against</legend>
-          {([['marketplace', 'Marketplace price'], ['erp', 'ERP price']] as const).map(([v, label]) => (
+          <legend className="sr-only">Store default for compare prices with</legend>
+          {([['marketplace', 'My pricing'], ['erp', 'ERP price (advanced)']] as const).map(([v, label]) => (
             <label key={v} className="inline-flex items-center gap-2">
               <input type="radio" name="compare-default" value={v} checked={compare === v} onChange={() => setCompare(v)} className="accent-[#027864]" />
               {label}

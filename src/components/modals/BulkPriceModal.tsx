@@ -116,8 +116,8 @@ export const BulkPriceModal: React.FC<BulkPriceModalProps> = ({
     );
     showToast(
       single
-        ? `Marketplace price updated for "${targets[0].nameEn}"`
-        : `Marketplace price updated for ${targets.length} products`
+        ? `Price updated for "${targets[0].nameEn}"`
+        : `Price updated for ${targets.length} products`
     );
     onApplied?.();
     onClose();
@@ -145,7 +145,7 @@ export const BulkPriceModal: React.FC<BulkPriceModalProps> = ({
     if (!parsed || parsed.rows.length === 0) return;
     const { updated, notFound } = importMarketplacePrices(parsed.rows);
     showToast(
-      `Marketplace price updated for ${updated} products${notFound ? ` · ${notFound} barcodes not found` : ''}`
+      `Price updated for ${updated} products${notFound ? ` · ${notFound} barcodes not found` : ''}`
     );
     onApplied?.();
     onClose();

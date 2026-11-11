@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   LayoutDashboard,
   Upload,
@@ -12,80 +12,71 @@ import {
   LogOut,
   Users,
   History,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ViewType } from '../../types';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLE_LABELS } from '../../api/types';
-import { VIEW_PERMISSION } from '../../routes/paths';
-import { realSettingsEnabled } from '../../lib/features';
+import { isEntryActive, readAdminOpen, visibleNav, writeAdminOpen, type NavEntry } from './navMenu';
 import logo from '../../assets/qorloop-logo.png';
 
-type NavItem = { label: string; view: ViewType; icon: React.ElementType; count?: number; countTone?: 'brand' | 'muted' };
+type NavItem = { label: string; view: ViewType; icon: React.ElementType; active: boolean; count?: number; countTone?: 'brand' | 'muted' };
+
+const ICONS: Partial<Record<ViewType, React.ElementType>> = {
+  dashboard: LayoutDashboard,
+  uploads: Upload,
+  'outputs-generate': FileSpreadsheet,
+  'how-it-works': BookOpen,
+  catalogue: Package,
+  markups: Tag,
+  reports: BarChart2,
+  activity: History,
+  templates: FileSpreadsheet,
+  team: Users,
+  settings: Settings,
+  onboarding: HelpCircle,
+};
 
 export const Sidebar: React.FC = () => {
   const { currentView, navigate, logout } = useApp();
   const { me, can } = useAuth();
   const tenantName = me?.tenant.name ?? '';
   const userName = me?.user.name ?? '';
+  const userId = me?.user.id;
   const roleLabel = me ? ROLE_LABELS[me.role] : '';
-  // Navigation follows the permissions the server returned for this session. The server still enforces them.
-  const allowed = (view: ViewType) => {
-    const needed = VIEW_PERMISSION[view];
-    return !needed || can(needed);
-  };
+  // Navigation follows the permissions the server returned for this session (navMenu.ts). The server still enforces them.
+  const groups = visibleNav(can);
 
-  const sections: { title: string; items: NavItem[] }[] = [
-    {
-      title: 'Main',
-      items: [
-        { label: 'Dashboard', view: 'dashboard', icon: LayoutDashboard },
-        { label: 'Uploads', view: 'uploads', icon: Upload },
-        { label: 'Reports', view: 'reports', icon: BarChart2 },
-      ],
-    },
-    {
-      title: 'Catalogue',
-      items: [
-        { label: 'Catalogue', view: 'catalogue', icon: Package },
-        { label: 'Marketplace price', view: 'markups', icon: Tag },
-      ],
-    },
-    {
-      title: 'Outputs',
-      items: [
-        { label: 'Generated files', view: 'outputs-generate', icon: FileSpreadsheet },
-        { label: 'Templates', view: 'templates', icon: FileSpreadsheet },
-      ],
-    },
-  ];
-
-  const isNavActive = (view: ViewType) => {
-    if (currentView === view) return true;
-    if (view === 'reports' && (currentView === 'reports-stock' || currentView === 'reports-price-discrepancies' || currentView === 'reports-price-mismatches')) {
-      return true;
-    }
-    if (view === 'uploads' && (currentView === 'upload-review' || currentView === 'column-mapping')) return true;
-    if (
-      view === 'catalogue' &&
-      (currentView === 'product-detail' ||
-        currentView === 'new-product' ||
-        currentView === 'new-products' ||
-        currentView === 'stock-conflicts' ||
-        currentView === 'categories' ||
-        currentView === 'category-detail')
-    ) {
-      return true;
-    }
-    return false;
+  // Admin starts collapsed and remembers each user's choice. Opening a screen that lives in it opens the group.
+  const [adminOpen, setAdminOpenState] = useState(() => readAdminOpen(userId));
+  useEffect(() => setAdminOpenState(readAdminOpen(userId)), [userId]);
+  const setAdminOpen = (open: boolean) => {
+    setAdminOpenState(open);
+    writeAdminOpen(userId, open);
   };
+  const adminHasActive = groups.some((g) => g.id === 'admin' && g.items.some((i) => isEntryActive(i, currentView)));
+  useEffect(() => {
+    if (!adminHasActive) return;
+    setAdminOpenState(true);
+    writeAdminOpen(userId, true);
+  }, [adminHasActive, currentView, userId]);
+
+  const toItem = (e: NavEntry): NavItem => ({
+    label: e.label,
+    view: e.view,
+    icon: ICONS[e.view] ?? FileSpreadsheet,
+    active: isEntryActive(e, currentView),
+  });
 
   const NavButton: React.FC<{ item: NavItem }> = ({ item }) => {
     const Icon = item.icon;
-    const active = isNavActive(item.view);
+    const active = item.active;
     return (
       <button
         onClick={() => navigate(item.view)}
+        aria-current={active ? 'page' : undefined}
         className={`relative w-full flex items-center gap-3 px-3 py-2 text-[13.5px] rounded-[10px] transition-colors text-left ${
           active
             ? 'bg-gradient-to-r from-[#00D9A9]/20 to-[#00D9A9]/[0.04] text-white font-semibold'
@@ -141,29 +132,43 @@ export const Sidebar: React.FC = () => {
           </div>
         </div>
 
-        {sections.filter((sec) => sec.items.some((i) => allowed(i.view))).map((sec) => (
-          <div key={sec.title}>
-            <div className="px-3 pt-3.5 pb-1.5 text-[10.5px] font-bold uppercase tracking-[1.2px] text-[#5F8F86]">
-              {sec.title}
+        {groups.map((g) => {
+          const collapsible = g.id === 'admin';
+          const open = !collapsible || adminOpen;
+          const listId = `nav-group-${g.id}`;
+          return (
+            <div key={g.id} role="group" aria-label={g.title}>
+              {collapsible ? (
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  aria-controls={listId}
+                  data-has-active={adminHasActive ? 'true' : undefined}
+                  onClick={() => setAdminOpen(!open)}
+                  className={`w-full flex items-center justify-between px-3 pt-3.5 pb-1.5 text-[10.5px] font-bold uppercase tracking-[1.2px] hover:text-white ${
+                    !open && adminHasActive ? 'text-[#00FFD2]' : 'text-[#5F8F86]'
+                  }`}
+                >
+                  <span>{g.title}</span>
+                  {open ? <ChevronDown className="w-3.5 h-3.5" aria-hidden /> : <ChevronRight className="w-3.5 h-3.5" aria-hidden />}
+                </button>
+              ) : (
+                <div className="px-3 pt-3.5 pb-1.5 text-[10.5px] font-bold uppercase tracking-[1.2px] text-[#5F8F86]">{g.title}</div>
+              )}
+              {open && (
+                <nav id={listId} className="space-y-0.5">
+                  {g.items.map((e) => (
+                    <NavButton key={e.view} item={toItem(e)} />
+                  ))}
+                </nav>
+              )}
             </div>
-            <nav className="space-y-0.5">
-              {sec.items.filter((item) => allowed(item.view)).map((item) => (
-                <NavButton key={item.label} item={item} />
-              ))}
-            </nav>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Bottom */}
-      <div className="pt-3 mt-6 border-t border-[#8CFFE7]/10 space-y-0.5">
-        {allowed('team') && <NavButton item={{ label: 'Team', view: 'team', icon: Users }} />}
-        {realSettingsEnabled() && allowed('activity') && <NavButton item={{ label: 'Activity', view: 'activity', icon: History }} />}
-        {allowed('settings') && <NavButton item={{ label: 'Settings', view: 'settings', icon: Settings }} />}
-        {/* Static guide for every signed-in role; Help & onboarding stays for the setup checklist. */}
-        <NavButton item={{ label: 'How it works', view: 'how-it-works', icon: BookOpen }} />
-        <NavButton item={{ label: 'Help & onboarding', view: 'onboarding', icon: HelpCircle }} />
-
+      <div className="pt-3 mt-6 border-t border-[#8CFFE7]/10">
         <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-white/[0.05] px-3 py-2.5">
           <div className="w-8 h-8 rounded-full bg-[#D9D9D9] text-[#06443D] text-xs font-bold flex items-center justify-center shrink-0">
             {initials}

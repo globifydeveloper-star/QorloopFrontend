@@ -47,31 +47,42 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// Every sidebar item and the URL it opens, with all VITE_REAL_* flags off (vitest.setup.ts).
-const NAV: [string, string][] = [
+// Every sidebar item and the URL it opens, for an Owner, with all VITE_REAL_* flags off (vitest.setup.ts: no Activity).
+const DAILY: [string, string][] = [
   ['Dashboard', '/'],
   ['Uploads', '/uploads'],
-  ['Reports', '/reports/stock'],
-  ['Catalogue', '/catalogue'],
-  ['Marketplace price', '/pricing'],
   ['Generated files', '/files'],
+  ['How it works', '/how-it-works'],
+];
+const ADMIN: [string, string][] = [
+  ['Catalogue', '/catalogue'],
+  ['Pricing', '/pricing'],
+  ['Reports', '/reports/stock'],
   ['Templates', '/settings/file-mappings'],
   ['Team', '/settings/team'],
   ['Settings', '/settings'],
-  ['How it works', '/how-it-works'],
   ['Help & onboarding', '/onboarding'],
 ];
+const NAV = [...DAILY, ...ADMIN];
+const openAdmin = () => {
+  const toggle = sidebar().getByRole('button', { name: 'Admin' });
+  if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle);
+};
 
 describe('Category mapping is removed from the navigation', () => {
+  beforeEach(() => window.localStorage.clear());
+
   it('the sidebar has no Category mapping item and keeps every other screen', () => {
     mount('/');
-    expect(navLabels()).toEqual(NAV.map(([label]) => label));
+    openAdmin();
+    expect(navLabels()).toEqual([...DAILY.map(([label]) => label), 'Admin', ...ADMIN.map(([label]) => label)]);
     expect(sidebar().queryByText(/category mapping/i)).toBeNull();
     expect(screen.queryByText(/category mapping/i)).toBeNull();
   });
 
   it.each(NAV)('the %s item still opens %s', async (label, path) => {
     mount(path === '/' ? '/catalogue' : '/');
+    openAdmin();
     fireEvent.click(sidebar().getByRole('button', { name: label }));
     await waitFor(() => expect(where()).toBe(path));
     expect(screen.queryByText('Page not found')).toBeNull();

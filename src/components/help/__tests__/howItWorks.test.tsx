@@ -157,11 +157,19 @@ describe('How it works page', () => {
     expect(screen.queryByText(/do not have access|No access/i)).toBeNull();
   });
 
-  it('keeps the Help & onboarding item next to it', () => {
+  it('sits in Daily work for every role; Help & onboarding sits in Admin for a role that can change settings', () => {
+    window.localStorage.clear();
     mount();
-    const labels = sidebar().getAllByRole('button').map(b => b.textContent?.trim());
-    const i = labels.indexOf('How it works');
-    expect(i).toBeGreaterThan(-1);
-    expect(labels[i + 1]).toBe('Help & onboarding');
+    const daily = within(sidebar().getByRole('group', { name: 'Daily work' }));
+    expect(daily.getByRole('button', { name: 'How it works' })).toBeTruthy();
+    // The analyst only reads: no Help & onboarding item (the page itself still opens by link).
+    expect(sidebar().queryByRole('button', { name: 'Help & onboarding' })).toBeNull();
+    cleanup();
+
+    role = 'owner';
+    perms = new Set(['settings.view', 'settings.edit']);
+    mount();
+    fireEvent.click(sidebar().getByRole('button', { name: 'Admin' }));
+    expect(within(sidebar().getByRole('group', { name: 'Admin' })).getByRole('button', { name: 'Help & onboarding' })).toBeTruthy();
   });
 });

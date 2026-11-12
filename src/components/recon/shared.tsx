@@ -46,13 +46,14 @@ const newer = (a: string | null, than: string | null) => a !== null && (than ===
  * GET /api/recon/summary. Without a reference the backend answers with the store's default and names it in `reference`.
  * While a recompute is pending it polls until computedAt moves past the one seen when it was asked for.
  */
-export function useReconSummary(reference?: ReconReference) {
+export function useReconSummary(reference?: ReconReference, opts: { enabled?: boolean } = {}) {
   const qc = useQueryClient();
   const pending = useRecomputeState();
   const polling = Boolean(pending && !pending.timedOut);
   const q = useQuery({
     queryKey: summaryKey(reference),
     queryFn: ({ signal }) => reconApi.summary(reference, signal),
+    enabled: opts.enabled ?? true,
     retry: false,
     placeholderData: keepPreviousData,
     refetchInterval: polling ? reconTiming.pollMs : false,
@@ -195,7 +196,7 @@ export const Availability: React.FC<{ value: boolean | null }> = ({ value }) =>
 
 // ───────── Marketplace values next to the catalogue's ─────────
 
-/** actualAvailable / actualPrice are null when the product has no listing in the marketplace's file. */
+/** The marketplace's values are null when the product has no listing in the marketplace's file. */
 export const NOT_IN_FILE = 'Not in the file';
 
 /**

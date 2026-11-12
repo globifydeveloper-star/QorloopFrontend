@@ -11,6 +11,7 @@ import { ErrorState, LoadingState } from '../common/States';
 import { SideDrawer } from '../common/SideDrawer';
 import { productKey } from '../catalogue/shared';
 import { ProductStockPanel } from '../stock/ProductStockPanel';
+import { stockFileLink } from './stockFileLink';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { Chain, PriceSourceChip } from '../pricing/shared';
 import { count } from '../pricing/priceChange';
@@ -108,7 +109,7 @@ export const QuickEditDrawer: React.FC<{
       </Link>
       <SavedStatus productId={productId} />
       {list.kind === 'stock'
-        ? <><StockDiffers row={row} list={list} /><StockFix row={row} onDirtyChange={onDirtyChange} /></>
+        ? <><StockDiffers row={row} list={list} /><StockFix row={row} list={list} onDirtyChange={onDirtyChange} /></>
         : <><PriceDiffers row={row} list={list} /><PriceFix row={row} list={list} onDirtyChange={onDirtyChange} /></>}
       {marketplaceExportValue && <div data-slot="marketplace-export-value">{marketplaceExportValue}</div>}
     </SideDrawer>
@@ -217,11 +218,23 @@ const StockDiffers: React.FC<{ row: ReconRow; list: QuickEditList }> = ({ row, l
   );
 };
 
-const StockFix: React.FC<{ row: ReconRow; onDirtyChange: (d: boolean) => void }> = ({ row, onDirtyChange }) => {
+const StockFix: React.FC<{ row: ReconRow; list: QuickEditList; onDirtyChange: (d: boolean) => void }> = ({ row, list, onDirtyChange }) => {
   const { can } = useAuth();
   const product = useProduct(row.productId);
+  const name = marketplaceName(list.summary.marketplaceId);
+  const target = row.stockIssue === 'available_but_out_of_stock' ? 'Unavailable' : 'Available';
   return (
     <Section title="Fix it">
+      {row.stockIssue && can('files.view') && can('files.preview') && can('files.generate') && (
+        <div className="rounded-xl border border-[#027864]/30 bg-[#F2F7F6] px-3 py-3 space-y-1.5">
+          <h4 className="text-xs font-bold text-gray-900">Update {name} to {target}</h4>
+          <p className="text-xs text-gray-700">Qorloop will put {target.toLowerCase()} in a stock file for this mismatch. The file includes all {name} stock corrections, so review the preview before generating it.</p>
+          <Link to={stockFileLink(list.summary.marketplaceId, list.reference)} className="inline-flex items-center gap-1 text-xs font-semibold text-[#027864] hover:underline">
+            Prepare {target} update <ExternalLink className="w-3.5 h-3.5" aria-hidden />
+          </Link>
+        </div>
+      )}
+      <h4 className="text-xs font-bold text-gray-900">Change catalogue stock</h4>
       <p role="note" className="flex items-start gap-1.5 text-xs text-gray-600">
         <Info className="w-3.5 h-3.5 shrink-0 text-gray-400 mt-0.5" aria-hidden />
         <span>The catalogue stock applies to every marketplace. Marketplace files carry available or unavailable, not stock quantities.</span>

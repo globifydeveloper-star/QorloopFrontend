@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileSpreadsheet, Info, Loader2, Lock, XCircle } from 'lucide-react';
 import { ApiError } from '../../api/client';
-import type { ReconMarketplaceId, ReconReference } from '../../api/recon';
+import { RECON_MARKETPLACES, RECON_REFERENCES, type ReconMarketplaceId, type ReconReference } from '../../api/recon';
 import {
   generatedFilesApi,
   type FileKind, type FilePreview, type FileScope, type FileSelection, type GeneratedFile, type GenerationJob,
@@ -39,22 +40,30 @@ async function startDownload(id: string) {
 
 export const RealGenerateFilesView: React.FC = () => {
   const { can } = useAuth();
+  const initial = new URLSearchParams(useLocation().search);
+  const requestedMarketplace = initial.get('marketplace');
+  const requestedKind = initial.get('kind');
+  const requestedScope = initial.get('scope');
+  const requestedReference = initial.get('reference');
+  const fromStockMismatch = initial.get('from') === 'stock-mismatch';
   const qc = useQueryClient();
   const summary = useReconSummary();
   const available = (summary.data?.marketplaces ?? []).filter(m => m.hasData);
 
-  const [marketplaceId, setMarketplaceId] = useState<ReconMarketplaceId | null>(null);
-  const [kind, setKind] = useState<FileKind>('stock_price');
-  const [scope, setScope] = useState<FileScope>('mismatches');
+  const [marketplaceId, setMarketplaceId] = useState<ReconMarketplaceId | null>(
+    requestedMarketplace && RECON_MARKETPLACES.includes(requestedMarketplace as ReconMarketplaceId) ? requestedMarketplace as ReconMarketplaceId : null);
+  const [kind, setKind] = useState<FileKind>(requestedKind === 'stock' || requestedKind === 'price' || requestedKind === 'stock_price' ? requestedKind : 'stock_price');
+  const [scope, setScope] = useState<FileScope>(requestedScope === 'all' ? 'all' : 'mismatches');
   /** null: the store's default from the pricing settings (the summary names it). */
-  const [reference, setReference] = useState<ReconReference | null>(null);
+  const [reference, setReference] = useState<ReconReference | null>(
+    requestedReference && RECON_REFERENCES.includes(requestedReference as ReconReference) ? requestedReference as ReconReference : null);
   const [preview, setPreview] = useState<{ key: string; data: FilePreview } | null>(null);
   /** 409 reasons by choice key, so the reason sits next to the marketplace it is about. */
   const [blocked, setBlocked] = useState<Record<string, string>>({});
   const [job, setJob] = useState<{ jobId: string; key: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const chosen = marketplaceId ?? available[0]?.marketplaceId ?? null;
+  const chosen = available.some(m => m.marketplaceId === marketplaceId) ? marketplaceId : available[0]?.marketplaceId ?? null;
   const ref = reference ?? summary.data?.reference ?? 'marketplace';
   const selection: FileSelection | null = chosen ? { marketplaceId: chosen, kind, scope, reference: ref } : null;
   const key = selection ? keyOf(selection) : '';
@@ -119,6 +128,11 @@ export const RealGenerateFilesView: React.FC = () => {
 
   return (
     <Page>
+      {fromStockMismatch && available.length > 0 && (
+        <div role="note" className="rounded-xl border border-[#027864]/30 bg-[#F2F7F6] px-4 py-3 text-xs text-gray-800">
+          <b>Stock correction for {marketplaceName(chosen!)}.</b> Review the choices below, then preview and generate the file. It may include other stock mismatches; uploading the file to {marketplaceName(chosen!)} is a separate step.
+        </div>
+      )}
       {available.length === 0 ? (
         <section className="bg-white border border-gray-200 rounded-xl">
           <EmptyState title="No marketplace is ready for a file yet" hint="Upload and apply a marketplace file first. Files are built from the latest compared marketplace file." />
@@ -165,18 +179,20 @@ export const RealGenerateFilesView: React.FC = () => {
                 <Radio key={s} name="scope" label={SCOPE_LABELS[s]} checked={scope === s} onChange={() => choose(() => setScope(s))} />
               ))}
             </fieldset>
-            <fieldset>
-              <legend className="text-sm font-bold text-gray-900 mb-2">Compare against</legend>
-              {(Object.keys(REFERENCE_LABELS) as ReconReference[]).map(r => (
-                <Radio key={r} name="reference" checked={ref === r} onChange={() => choose(() => setReference(r))}
-                  label={`${REFERENCE_LABELS[r]}${r === summary.data?.reference ? ' (store default)' : ''}`} />
-              ))}
-            </fieldset>
+            {kind !== 'stock' && (
+              <fieldset>
+                <legend className="text-sm font-bold text-gray-900 mb-2">Compare against</legend>
+                {(Object.keys(REFERENCE_LABELS) as ReconReference[]).map(r => (
+                  <Radio key={r} name="reference" checked={ref === r} onChange={() => choose(() => setReference(r))}
+                    label={`${REFERENCE_LABELS[r]}${r === summary.data?.reference ? ' (store default)' : ''}`} />
+                ))}
+              </fieldset>
+            )}
           </div>
 
           <div role="note" className="flex items-start gap-2 p-3 rounded-lg bg-blue-50/70 text-blue-900 border border-blue-100 text-xs">
             <Info className="w-4 h-4 shrink-0 text-blue-600 mt-px" aria-hidden />
-            <span>Prices in this file use the <b>{REFERENCE_LABELS[seen?.referenceUsed ?? ref]}</b>.</span>
+            <span>{kind === 'stock' ? 'This file updates availability only. Prices stay unchanged.' : <>Prices in this file use the <b>{REFERENCE_LABELS[seen?.referenceUsed ?? ref]}</b>.</>}</span>
           </div>
 
           {seen && seen.warnings.length > 0 && (

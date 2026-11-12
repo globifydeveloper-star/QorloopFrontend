@@ -96,9 +96,9 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
-function renderView() {
+function renderView(path = '/files') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><MemoryRouter><GenerateFilesView /></MemoryRouter></QueryClientProvider>);
+  return render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[path]}><GenerateFilesView /></MemoryRouter></QueryClientProvider>);
 }
 const choose = () => within(screen.getByRole('region', { name: 'Choose the file' }));
 const previewBtn = () => screen.getByRole('button', { name: /Preview/ });
@@ -123,6 +123,20 @@ describe('flag', () => {
 });
 
 describe('generate files (OUT-001)', () => {
+  it('opens from a stock mismatch with the marketplace and stock-only choices selected', async () => {
+    renderView('/files?marketplace=snoonu&kind=stock&scope=mismatches&reference=erp&from=stock-mismatch');
+    await screen.findByRole('region', { name: 'Choose the file' });
+    expect(screen.getByRole('radio', { name: /^Snoonu/ })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: 'Stock' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: 'Only products that need a change' })).toHaveProperty('checked', true);
+    expect(screen.queryByRole('radio', { name: 'ERP price' })).toBeNull();
+    expect(screen.getAllByRole('note').some(note => note.textContent?.includes('This file updates availability only. Prices stay unchanged.'))).toBe(true);
+    expect(screen.getAllByRole('note').some(note => note.textContent?.includes('may include other stock mismatches'))).toBe(true);
+    expect(generateBtn()).toHaveProperty('disabled', true);
+    fireEvent.click(previewBtn());
+    await screen.findByRole('region', { name: 'Preview' });
+    expect(bodyOf(calls(isPreview)[0]![1])).toEqual({ marketplaceId: 'snoonu', kind: 'stock', scope: 'mismatches', reference: 'erp' });
+  });
   it('shows a loading state, then only marketplaces with a recon summary, the store default and the disabled new-products option', async () => {
     renderView();
     expect(screen.getByRole('status').textContent).toContain('Loading marketplaces');

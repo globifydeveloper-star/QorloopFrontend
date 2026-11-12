@@ -126,7 +126,10 @@ const Detail: React.FC<{ upload: UploadDetail }> = ({ upload }) => {
   const openApply = () => { apply.reset(); setConfirmingApply(true); };
 
   useEffect(() => {
-    if (upload.status === 'applied') invalidateOnboarding(qc);
+    if (upload.status === 'applied') {
+      invalidateOnboarding(qc);
+      void qc.invalidateQueries({ queryKey: ['products', 'marketplace-listings'] });
+    }
     if (upload.status !== 'applied' || !appliedHere.current) return;
     appliedHere.current = false;
     showToast(`Changes from ${upload.fileName} were applied to the catalogue.`);

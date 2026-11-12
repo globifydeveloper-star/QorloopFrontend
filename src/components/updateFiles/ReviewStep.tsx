@@ -6,7 +6,7 @@ import { readExportCounts } from '../../api/marketplaceValues';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { count } from '../pricing/priceChange';
-import { REFERENCE_LABELS, fileNote, freshnessText, marketplaceName, qatarDateTime } from '../recon/shared';
+import { REFERENCE_IN_TEXT, fileNote, freshnessText, marketplaceName, qatarDateTime } from '../recon/shared';
 import type { Show, StepProps } from './urlState';
 
 /**
@@ -45,11 +45,11 @@ export const ReviewStep: React.FC<StepProps> = ({ summary: s, reference, state, 
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Prices are compared with</h3>
         <CompareAgainstToggle value={reference} onChange={r => set({ reference: r })} />
         <p data-testid="reference-used" className="text-xs text-gray-700">
-          Using the <b>{REFERENCE_LABELS[reference]}</b>{isDefault ? ' (your store default)' : ''}.
+          Using <b>{REFERENCE_IN_TEXT[reference]}</b>{isDefault ? ' (your store default)' : ''}.
         </p>
         {reference === 'erp' && (
           <p role="alert" data-testid="erp-warning" className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-900">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" aria-hidden /> {HOW_IT_WORKS.compareWarning}
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" aria-hidden /><span>{HOW_IT_WORKS.compareWarning}</span>
           </p>
         )}
       </div>

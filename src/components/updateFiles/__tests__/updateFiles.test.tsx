@@ -216,7 +216,7 @@ describe('Update marketplace files', () => {
       expect((await screen.findByTestId('file-age')).getAttribute('data-stale')).toBe('false');
       expect(screen.getByTestId('file-age').textContent).toContain('Talabat data is 4 hours old');
       expect(['count-stock', 'count-price', 'count-waiting', 'count-pinned', 'count-blocked'].map(id => screen.getByTestId(id).textContent)).toEqual(['2', '1', '2', '1', '1']);
-      expect(screen.getByTestId('reference-used').textContent).toBe('Using the Marketplace price (your store default).');
+      expect(screen.getByTestId('reference-used').textContent).toBe('Using My pricing (your store default).');
       expect(screen.queryByTestId('erp-warning')).toBeNull();
       fireEvent.click(screen.getByRole('button', { name: /Waiting for export: 2/ }));
       await waitFor(() => expect(where().get('show')).toBe('waiting'));
@@ -574,7 +574,7 @@ describe('Update marketplace files', () => {
   describe('Export', () => {
     it('shows each marketplace preview and exports one marketplace: progress, then a download button', async () => {
       renderAt('/update-files?step=export');
-      expect((await screen.findByTestId('export-summary-talabat')).textContent).toBe('3 products will change: 2 availability, 1 price');
+      await waitFor(() => expect(screen.getByTestId('export-summary-talabat').textContent).toBe('3 products will change: 2 availability, 1 price'));
       expect(screen.getByTestId('export-blocked-talabat').textContent).toBe('1');
       expect(screen.getByTestId('next-step').textContent).toBe("Next: Upload each file in the marketplace's portal, then upload the fresh export here to confirm.");
       const preview = bodyOf(calls((u, m) => m === 'POST' && u.endsWith('/generated-files/preview'))[0]);
@@ -605,7 +605,7 @@ describe('Update marketplace files', () => {
         path(String(u)) === '/api/generated-files/preview' && bodyOf([u, i]).marketplaceId === 'snoonu'
           ? fail(409, 'The Snoonu file has rows that cannot be matched') : handle(String(u), i));
       renderAt('/update-files?step=export');
-      expect((await screen.findByTestId('export-summary-snoonu')).textContent).toBe('Cannot export: The Snoonu file has rows that cannot be matched');
+      await waitFor(() => expect(screen.getByTestId('export-summary-snoonu').textContent).toBe('Cannot export: The Snoonu file has rows that cannot be matched'));
       expect((screen.getByTestId('export-snoonu') as HTMLButtonElement).disabled).toBe(true);
     });
 

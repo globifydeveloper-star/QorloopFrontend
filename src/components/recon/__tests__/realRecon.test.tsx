@@ -383,7 +383,7 @@ describe('stock report (RPT-001)', () => {
     // A row click opens the quick edit drawer on the page; the product name still opens the product page.
     fireEvent.click((await screen.findByText('Product 1')).closest('tr')!);
     expect(screen.getByRole('dialog', { name: 'Product 1' })).toBeTruthy();
-    expect(screen.getByTestId('where').textContent).toBe('/reports/stock?status=missing_from_erp');
+    expect(screen.getByTestId('where').textContent).toBe('/reports/stock?status=missing_from_erp&marketplace=snoonu');
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'Product 1' }));

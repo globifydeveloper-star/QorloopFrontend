@@ -1,26 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, RefreshCw } from 'lucide-react';
+import { ArrowRight, ChevronDown, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
-import type { ReconMarketplaceId, ReconRow, ReconRowType } from '../../api/recon';
+import type { ReconMarketplaceId, ReconMarketplaceSummary, ReconRow, ReconRowType } from '../../api/recon';
 import { readMarketplaceSource, type ValueFilter } from '../../api/marketplaceValues';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { count, priceText } from '../pricing/priceChange';
-import { MarketplaceAvailability, NOT_IN_FILE, OwnAvailability, marketplaceName, ownSide, qatarDateTime } from '../recon/shared';
+import { MarketplaceAvailability, NOT_IN_FILE, OwnAvailability, freshnessText, marketplaceName, ownSide, qatarDateTime } from '../recon/shared';
 import { ExportStateBadge, ExportValueEditor, PRICE_INPUT_ATTR } from './ExportValueEditor';
 import { FileAge } from './ReviewStep';
 import { valuesOf } from './logic';
 import { useAdjustRows } from './queries';
-import { EDIT_PERMISSION, SHOWS, SHOW_FILTER, SHOW_LABELS, TYPES, TYPE_LABELS, type Show, type StepProps } from './urlState';
-import { BULK_LABELS, BulkValuesDialog, type BulkKind } from './BulkValuesDialog';
+import { EDIT_PERMISSION, SHOWS, SHOW_LABELS, TYPES, TYPE_LABELS, bulkFilter, type Show, type StepProps } from './urlState';
+import { BULK_LABELS, BulkValuesDialog, COPY_WHATS, COPY_WHAT_LABELS, COPY_WHAT_WORDS, type BulkKind, type CopyWhat, type ToolbarKind } from './BulkValuesDialog';
 
 /**
  * ADJUST: the products that need a change on this marketplace (server pages, urgent first), with the marketplace's
  * values, the catalogue's, and the value to export, editable in place. Rows stay where they are after a save (their state
  * badge changes); "Refresh the list" applies the filter again.
  */
-export const AdjustStep: React.FC<StepProps> = ({ summary: s, reference, state, set }) => {
+export const AdjustStep: React.FC<StepProps> = ({ summary: s, marketplaces, reference, state, set }) => {
   const { can } = useAuth();
   const canEdit = can(EDIT_PERMISSION);
   const name = marketplaceName(s.marketplaceId);
@@ -60,7 +60,8 @@ export const AdjustStep: React.FC<StepProps> = ({ summary: s, reference, state, 
 
       {canEdit && items.length > 0 && (
         <BulkActions ctx={ctx} marketplaceId={s.marketplaceId}
-          filter={{ type: state.type, reference, ...SHOW_FILTER[state.show] }}
+          sources={marketplaces.filter(m => m.marketplaceId !== s.marketplaceId)}
+          filter={bulkFilter(state.show, state.type)}
           filterSummary={`${SHOW_LABELS[state.show]} · ${TYPE_LABELS[state.type]}`}
           onGoToExport={() => set({ step: 'export' })} />
       )}
@@ -129,31 +130,98 @@ export const AdjustStep: React.FC<StepProps> = ({ summary: s, reference, state, 
 /** What the bulk actions need from the list. */
 export interface AdjustContext { rows: ReconRow[]; more: boolean; loadedAll: boolean; ticked: string[]; clearTicked: () => void }
 
+/** "Fill from": the catalogue (the default), or another enabled marketplace with a file. */
+const CATALOGUE = 'catalogue';
+
 /**
- * "Use catalogue values for all N rows" (the usual case, prominent) and the other bulk actions, on the ticked rows or
- * on every product in the list (also the rows not loaded yet). N is shown when the whole list is loaded; the preview
- * always gives the exact number before anything changes.
+ * Fill the values to export, at the top of the list: "Fill from" the catalogue (the default; "Use catalogue values for
+ * all N rows" stays the one-click action) or another marketplace, with "What to copy" (price only by default;
+ * availability, or both, under "More options"). The fill button runs the preview at once; nothing changes before the
+ * confirmation. Below it, the other bulk actions, on the ticked rows or on every product in the list (also the rows not
+ * loaded yet). N is shown when the whole list is loaded; the preview always gives the exact number.
  */
 const BulkActions: React.FC<{
-  ctx: AdjustContext; marketplaceId: ReconMarketplaceId; filter: ValueFilter; filterSummary: string; onGoToExport: () => void;
-}> = ({ ctx, marketplaceId, filter, filterSummary, onGoToExport }) => {
+  ctx: AdjustContext; marketplaceId: ReconMarketplaceId; sources: ReconMarketplaceSummary[]; filter: ValueFilter; filterSummary: string; onGoToExport: () => void;
+}> = ({ ctx, marketplaceId, sources, filter, filterSummary, onGoToExport }) => {
   const [open, setOpen] = useState<{ kind: BulkKind; auto: boolean } | null>(null);
+  const [fillFrom, setFillFrom] = useState<string>(CATALOGUE);
+  const [copyWhat, setCopyWhat] = useState<CopyWhat>('price');
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Another tab: start again from the catalogue.
+  useEffect(() => { setFillFrom(CATALOGUE); setCopyWhat('price'); setMoreOpen(false); }, [marketplaceId]);
+  const source = sources.find(m => m.marketplaceId === fillFrom);
+  const sourceId = source?.marketplaceId;
+  const sourceName = sourceId ? marketplaceName(sourceId) : '';
+  const name = marketplaceName(marketplaceId);
   const n = ctx.ticked.length;
-  const allLabel = ctx.loadedAll ? `Use catalogue values for all ${count(ctx.rows.length)} rows` : 'Use catalogue values for every row in this list';
+  const rowsPart = ctx.loadedAll ? `for all ${count(ctx.rows.length)} rows` : 'for every row in this list';
+  const allLabel = `Use catalogue values ${rowsPart}`;
+  const fillLabel = `Fill ${COPY_WHAT_WORDS[copyWhat]} from ${sourceName} ${rowsPart}`;
+  const age = source ? freshnessText(source) : undefined;
   return (
     <div className="space-y-3">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-[#027864]/30 bg-[#F2F7F6] px-4 py-3">
-        <p className="flex-1 text-xs text-gray-700">
-          The usual case: export what the catalogue says. This removes any adjustment in this list, so each file writes the catalogue&apos;s availability and price.
-        </p>
-        <button type="button" data-testid="use-catalogue-all" onClick={() => setOpen({ kind: 'use_catalogue', auto: true })}
-          className="shrink-0 inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold text-white bg-[#027864] hover:bg-[#02604F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#027864]">
-          {allLabel}
-        </button>
-      </div>
+      <section aria-labelledby="fill-heading" className="rounded-xl border border-[#027864]/30 bg-[#F2F7F6] px-4 py-3 space-y-3">
+        <h3 id="fill-heading" className="sr-only">Fill the values to export</h3>
+        <div className="flex flex-col lg:flex-row lg:items-end gap-3">
+          {sources.length > 0 && (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-[11px] font-semibold text-gray-600">
+                Fill from
+                <select data-testid="fill-from" value={source ? fillFrom : CATALOGUE} onChange={e => setFillFrom(e.target.value)}
+                  className="mt-1 block h-9 px-2 text-xs border border-gray-300 rounded-lg bg-white">
+                  <option value={CATALOGUE}>Catalogue (default)</option>
+                  {sources.map(m => <option key={m.marketplaceId} value={m.marketplaceId}>{marketplaceName(m.marketplaceId)}</option>)}
+                </select>
+              </label>
+              {source && (
+                <div className="text-[11px] text-gray-600">
+                  <span className="font-semibold">What to copy</span>
+                  <div className="mt-1 flex items-center gap-2 h-9">
+                    <span data-testid="copy-what" className="text-xs font-semibold text-gray-900">{COPY_WHAT_LABELS[copyWhat]}</span>
+                    <button type="button" aria-expanded={moreOpen} aria-controls="fill-more" onClick={() => setMoreOpen(o => !o)}
+                      className="inline-flex items-center gap-0.5 text-xs font-semibold text-[#027864] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#027864] rounded">
+                      More options <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <p data-testid="fill-hint" className="flex-1 text-xs text-gray-700">
+            {source
+              ? `Copies the ${COPY_WHAT_WORDS[copyWhat]} from the latest ${sourceName} file into the ${name} file, for the products in this list that are on ${sourceName}. You see a preview first. The catalogue and ${sourceName} do not change.`
+              : "The usual case: export what the catalogue says. This removes any adjustment in this list, so each file writes the catalogue's availability and price."}
+          </p>
+          {source ? (
+            <button type="button" data-testid="fill-all" onClick={() => setOpen({ kind: 'copy', auto: true })}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold text-white bg-[#027864] hover:bg-[#02604F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#027864]">
+              {fillLabel}
+            </button>
+          ) : (
+            <button type="button" data-testid="use-catalogue-all" onClick={() => setOpen({ kind: 'use_catalogue', auto: true })}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-lg text-sm font-semibold text-white bg-[#027864] hover:bg-[#02604F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#027864]">
+              {allLabel}
+            </button>
+          )}
+        </div>
+        {source && moreOpen && (
+          <div id="fill-more" role="radiogroup" aria-label="What to copy" className="flex flex-wrap gap-4">
+            {COPY_WHATS.map(w => (
+              <label key={w} className="flex items-center gap-1.5 text-xs text-gray-800">
+                <input type="radio" name="fill-copy-what" checked={copyWhat === w} onChange={() => setCopyWhat(w)} className="accent-[#027864]" /> {COPY_WHAT_LABELS[w]}
+              </label>
+            ))}
+          </div>
+        )}
+        {source?.stale && (
+          <p role="note" data-testid="fill-source-stale" className="text-[11px] font-semibold text-amber-800">
+            {age ?? `The ${sourceName} file is old`}. Its values may be out of date; upload a fresh {sourceName} file first if you can.
+          </p>
+        )}
+      </section>
       <div role="toolbar" aria-label="Change many products" className="flex flex-wrap items-center gap-2 text-xs">
         <span data-testid="ticked-count" className="font-semibold text-gray-700">{n > 0 ? `${count(n)} ticked:` : 'Change many:'}</span>
-        {(Object.keys(BULK_LABELS) as BulkKind[]).map(k => (
+        {(Object.keys(BULK_LABELS) as ToolbarKind[]).map(k => (
           <button key={k} type="button" onClick={() => setOpen({ kind: k, auto: false })}
             className="h-8 px-3 rounded-lg border border-gray-300 bg-white font-semibold text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#027864]">
             {BULK_LABELS[k]}
@@ -164,6 +232,7 @@ const BulkActions: React.FC<{
       {open && (
         <BulkValuesDialog
           marketplaceId={marketplaceId} initialKind={open.kind} autoPreview={open.auto}
+          copyFrom={sourceId} initialCopyWhat={copyWhat}
           tickedIds={ctx.ticked} filter={filter} filterSummary={filterSummary} rows={ctx.rows}
           onClose={() => setOpen(null)} onApplied={ctx.clearTicked}
           onGoToExport={() => { setOpen(null); onGoToExport(); }}

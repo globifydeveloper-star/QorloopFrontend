@@ -70,6 +70,44 @@ export function differsFromRule(item: MarketplaceValueItem): boolean {
   return item.rulePrice !== undefined && !samePrice(item.overrides.price.value, item.rulePrice);
 }
 
+// ───────── Where the value to export comes from ─────────
+
+export type ValueSource =
+  | { kind: 'catalogue' }
+  | { kind: 'marketplace'; name: string }
+  | { kind: 'adjusted' }
+  /** Availability forced to Unavailable because the product cannot be sold here. */
+  | { kind: 'guard' };
+
+/** The copy proposal's default reason: "Copied from <B label>". */
+const COPIED_FROM = /^Copied from (.+)$/;
+
+export function fieldSource(item: MarketplaceValueItem, field: ValueField, nameOf: (id: string) => string = id => id): ValueSource {
+  const from = field === 'availability' ? item.export.availabilitySource : item.export.priceSource;
+  if (from === 'eligibility_guard') return { kind: 'guard' };
+  if (from === 'catalogue') return { kind: 'catalogue' };
+  const meta = item.overrides[field];
+  if (meta?.sourceMarketplaceId) return { kind: 'marketplace', name: nameOf(meta.sourceMarketplaceId) };
+  const copied = meta?.reason ? COPIED_FROM.exec(meta.reason.trim()) : null;
+  return copied ? { kind: 'marketplace', name: copied[1]! } : { kind: 'adjusted' };
+}
+
+export function sourceWords(s: ValueSource): string {
+  switch (s.kind) {
+    case 'catalogue': return 'from the catalogue';
+    case 'marketplace': return `from ${s.name}`;
+    case 'adjusted': return 'adjusted by hand';
+    case 'guard': return 'unavailable, as it cannot be sold here';
+  }
+}
+
+/** "Availability and price from the catalogue", or "Availability from the catalogue · price from Talabat". */
+export function sourceText(item: MarketplaceValueItem, nameOf?: (id: string) => string): string {
+  const a = sourceWords(fieldSource(item, 'availability', nameOf));
+  const p = sourceWords(fieldSource(item, 'price', nameOf));
+  return a === p ? `Availability and price ${a}` : `Availability ${a} · price ${p}`;
+}
+
 // ───────── Optimistic versions of a save (replaced by the server's answer, or rolled back) ─────────
 
 function settle(item: MarketplaceValueItem): MarketplaceValueItem {

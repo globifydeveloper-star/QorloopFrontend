@@ -71,6 +71,20 @@ const PREVIEW = (marketplaceId: string) => ({
   referenceUsed: 'marketplace', valueBasis: 'marketplace_export', exportToken: `tok-${marketplaceId}`, pendingExportProducts: 1, blockedExportProducts: 1,
 });
 
+/** Copy from Snoonu into Talabat, in the PROPOSED shape (backend feature/copy-from-marketplace, Step 0 report of 12 Nov). */
+const COPY_PREVIEW = {
+  marketplaceId: 'talabat', limit: 5000, previewToken: 'b'.repeat(64),
+  selected: 6, willChange: 2, unchanged: 1, blocked: 1, notOnSource: 1, pinnedKept: 1, fromOlderFile: 1,
+  blockedByReason: [{ reason: 'inactive', label: 'Product is inactive', count: 1 }],
+  notOnSourceByReason: [{ reason: 'not_on_source', label: null, count: 1 }],
+  source: { marketplaceId: 'snoonu', latestFile: { uploadId: 'up-s', fileName: 'snoonu-export.xlsx', uploadedAt: OLD, appliedAt: OLD } },
+  rows: [
+    { productId: '1', nameEn: 'Product 1', barcode: '628101', source: { available: true, price: 4.25, uploadId: 'up-s', fileName: 'snoonu-export.xlsx', isLatestFile: true },
+      changes: [{ field: 'price', op: 'set', before: 4.5, after: 4.25 }] },
+    { productId: '2', nameEn: 'Product 2', barcode: '628102', source: null, changes: [] },
+  ],
+};
+
 function handle(u: string, i: RequestInit): Response {
   const m = method(i);
   const p = path(u);
@@ -91,6 +105,7 @@ function handle(u: string, i: RequestInit): Response {
     return ok({ changed: true, operationId: 'op-1', item: saved });
   }
   if (m === 'POST' && p === '/api/marketplace-values/bulk/preview') {
+    if (bodyOf([u, i]).action.type === 'copy_from_marketplace') return ok(COPY_PREVIEW);
     return ok({ selected: 4, willChange: 3, unchanged: 0, blocked: 1, blockedByReason: { inactive: 1 }, limit: 5000, previewToken: 'a'.repeat(64),
       rows: [{ productId: '1', before: value('1'), after: value('1', 'talabat', { export: { ...value('1').export, available: false } }), blockedReason: null }] });
   }
@@ -411,7 +426,7 @@ describe('Update marketplace files', () => {
       await screen.findByTestId('values-will-change');
       expect(bodyOf(calls((u, m) => m === 'POST' && u.endsWith('/bulk/preview'))[0])).toEqual({
         marketplaceId: 'talabat',
-        selection: { filter: { type: 'all', reference: 'marketplace', status: 'mismatch', exportState: 'catalogue' } },
+        selection: { filter: { exportState: 'to_fix' } },
         action: { type: 'use_catalogue', fields: ['availability', 'price'] },
       });
     });
@@ -422,6 +437,137 @@ describe('Update marketplace files', () => {
       fireEvent.click(d.getByRole('button', { name: 'Preview' }));
       expect(d.getByRole('alert').textContent).toMatch(/at most 100,000/);
       expect(calls((u, m) => m === 'POST' && u.endsWith('/bulk/preview')).length).toBe(0);
+    });
+  });
+
+  describe('Fill from', () => {
+    const openAdjust = async () => { renderAt('/update-files?step=adjust'); await screen.findAllByTestId('adjust-row'); };
+    const fillFrom = () => screen.getByTestId('fill-from') as HTMLSelectElement;
+    const previews = () => calls((u, m) => m === 'POST' && u.endsWith('/bulk/preview'));
+    const applies = () => calls((u, m) => m === 'POST' && u.endsWith('/bulk/apply'));
+    const COPY_RESULT = {
+      operationId: 'op-c', replayed: false, appliedAt: UPLOADED, marketplaceId: 'talabat', sourceMarketplaceId: 'snoonu',
+      selected: 6, willChange: 2, unchanged: 1, blocked: 1, blockedByReason: [{ reason: 'inactive', label: 'Product is inactive', count: 1 }],
+      notOnSource: 1, notOnSourceByReason: [{ reason: 'not_on_source', label: 'Not on Snoonu', count: 1 }], pinnedKept: 1, created: 2, updated: 0, clearedFields: 0,
+    };
+
+    it('offers the catalogue (default) and every other marketplace with a file; the catalogue keeps "Use catalogue values for all"', async () => {
+      await openAdjust();
+      expect([...fillFrom().options].map(o => o.textContent)).toEqual(['Catalogue (default)', 'Snoonu']); // not Talabat itself, not Rafeeq (no file)
+      expect(fillFrom().value).toBe('catalogue');
+      expect(screen.getByTestId('use-catalogue-all').textContent).toBe('Use catalogue values for all 3 rows');
+      expect(screen.queryByTestId('copy-what')).toBeNull();
+      expect(screen.queryByTestId('fill-all')).toBeNull();
+    });
+
+    it('another marketplace copies the price only by default; availability and both are under "More options"', async () => {
+      await openAdjust();
+      fireEvent.change(fillFrom(), { target: { value: 'snoonu' } });
+      expect(screen.getByTestId('copy-what').textContent).toBe('Price only');
+      expect(screen.getByTestId('fill-all').textContent).toBe('Fill price from Snoonu for all 3 rows');
+      expect(screen.queryByTestId('use-catalogue-all')).toBeNull();
+      expect(screen.queryByRole('radiogroup', { name: 'What to copy' })).toBeNull();
+      // Snoonu's file is 5 days old here: say so.
+      expect(screen.getByTestId('fill-source-stale').textContent).toContain('Snoonu data is 5 days old');
+      expect(previews().length).toBe(0); // choosing alone changes nothing
+
+      const more = screen.getByRole('button', { name: /More options/ });
+      fireEvent.click(more);
+      expect(more.getAttribute('aria-expanded')).toBe('true');
+      const group = within(screen.getByRole('radiogroup', { name: 'What to copy' }));
+      fireEvent.click(group.getByRole('radio', { name: 'Price and availability' }));
+      expect(screen.getByTestId('copy-what').textContent).toBe('Price and availability');
+      expect(screen.getByTestId('fill-all').textContent).toBe('Fill price and availability from Snoonu for all 3 rows');
+      fireEvent.click(group.getByRole('radio', { name: 'Availability only' }));
+      expect(screen.getByTestId('fill-all').textContent).toBe('Fill availability from Snoonu for all 3 rows');
+
+      fireEvent.change(fillFrom(), { target: { value: 'catalogue' } });
+      expect(screen.getByTestId('use-catalogue-all')).toBeTruthy();
+    });
+
+    it('previews the copy: counts, not on that marketplace, pinned kept, blocked and the first rows; then applies with the token and one key', async () => {
+      await openAdjust();
+      fireEvent.change(fillFrom(), { target: { value: 'snoonu' } });
+      fireEvent.click(screen.getByTestId('fill-all'));
+      const d = within(await screen.findByRole('dialog', { name: /Change the values to export/ }));
+      expect((await d.findByTestId('values-preview-heading')).textContent).toBe('Fill the price from Snoonu');
+      expect(bodyOf(previews()[0])).toEqual({
+        marketplaceId: 'talabat',
+        selection: { filter: { exportState: 'to_fix' } },
+        action: { type: 'copy_from_marketplace', sourceMarketplaceId: 'snoonu', fields: ['price'] },
+      });
+      expect(['values-selected', 'values-will-change', 'values-unchanged', 'values-not-on-source', 'values-pinned-kept', 'values-blocked'].map(id => d.getByTestId(id).textContent))
+        .toEqual(['6', '2', '1', '1', '1', '1']);
+      expect(d.getByTestId('not-on-source-not_on_source').textContent).toBe('Not on Snoonu1');
+      expect(d.getByTestId('blocked-inactive').textContent).toBe('Product is inactive1');
+      expect(d.getByTestId('values-pinned-note').textContent).toContain('Pinned values are kept');
+      expect(d.getByTestId('values-source-file').textContent).toContain('latest Snoonu file, snoonu-export.xlsx');
+      expect(d.getByTestId('values-older-file').textContent).toBe('For 1 product, the Snoonu value is from an older Snoonu file, because the latest one did not include it.');
+
+      const [first, second] = d.getAllByTestId('values-bulk-row').map(r => within(r));
+      expect(first.getByTestId('copy-price').textContent).toBe('Price: Snoonu: 4.25 QAR → Talabat (now 4.50 QAR)');
+      expect(first.getByTestId('after-price').textContent).toBe('4.25 QAR from Snoonu');
+      expect(second.getByText('Not on Snoonu: left as it is')).toBeTruthy();
+
+      srv.applyAnswers = [() => fail(500, 'boom')];
+      fireEvent.click(d.getByRole('button', { name: /Change 2 products…/ }));
+      const confirm = within(await screen.findByRole('dialog', { name: 'Change the values to export' }));
+      expect(confirm.getByTestId('confirm-text').textContent).toBe('This changes what the Talabat file will write for 2 products: fill the price from Snoonu.');
+      expect(confirm.getByText(/Snoonu do not change/)).toBeTruthy();
+      fireEvent.click(confirm.getByRole('button', { name: 'Change 2 products' }));
+      await waitFor(() => expect(applies().length).toBe(1));
+      srv.applyAnswers = [() => ok(COPY_RESULT)];
+      fireEvent.click(await screen.findByRole('button', { name: 'Try again' }));
+      expect((await screen.findByTestId('values-bulk-done')).textContent).toBe('Changed on 2 products');
+      expect(screen.getByTestId('values-bulk-done-detail').textContent).toBe('1 already had this value, 1 not on Snoonu, 1 pinned, kept as they are, 1 blocked. The files you export next use the new values.');
+      const [a, b] = applies().map(bodyOf);
+      expect(a).toMatchObject({ action: { type: 'copy_from_marketplace', sourceMarketplaceId: 'snoonu', fields: ['price'] }, previewToken: 'b'.repeat(64) });
+      expect(a.idempotencyKey).toMatch(/^[A-Za-z0-9_-]{8,100}$/);
+      expect(b).toEqual(a);
+    });
+
+    it('"Back" from the copy preview keeps the choice, and "What to copy" can be changed there', async () => {
+      await openAdjust();
+      fireEvent.change(fillFrom(), { target: { value: 'snoonu' } });
+      fireEvent.click(screen.getByTestId('fill-all'));
+      const d = within(await screen.findByRole('dialog', { name: /Change the values to export/ }));
+      await d.findByTestId('values-will-change');
+      fireEvent.click(d.getByRole('button', { name: 'Back' }));
+      expect((d.getByRole('radio', { name: 'Fill from Snoonu' }) as HTMLInputElement).checked).toBe(true);
+      fireEvent.click(within(d.getByRole('radiogroup', { name: 'What to copy' })).getByRole('radio', { name: 'Price and availability' }));
+      fireEvent.click(d.getByRole('button', { name: 'Preview' }));
+      await waitFor(() => expect(previews().length).toBe(2));
+      expect(bodyOf(previews()[1]).action).toEqual({ type: 'copy_from_marketplace', sourceMarketplaceId: 'snoonu', fields: ['availability', 'price'] });
+    });
+
+    it('rows say where the value to export comes from: the catalogue, or the marketplace it was copied from', async () => {
+      const copied = value('2', 'talabat', {
+        version: { id: 'v-2', version: 1 }, exportState: 'waiting_for_export',
+        export: { available: true, price: 4.25, availabilitySource: 'catalogue', priceSource: 'override' },
+        overrides: { availability: null, price: { value: 4.25, state: 'pending', persistent: false, fieldState: 'waiting_for_export', setAt: UPLOADED, reason: 'Copied from Snoonu', clearedAt: null } },
+      });
+      srv.rows.talabat = [row('1'), row('2', 'talabat', { marketplaceValues: copied })];
+      await openAdjust();
+      expect(rowOf('1').getByTestId('export-source').textContent).toBe('Availability and price from the catalogue');
+      expect(rowOf('2').getByTestId('export-source').textContent).toBe('Availability from the catalogue · price from Snoonu');
+      // A price typed by hand says so.
+      fireEvent.change(priceInput('1'), { target: { value: '13' } });
+      fireEvent.keyDown(priceInput('1'), { key: 'Enter' });
+      await waitFor(() => expect(rowOf('1').getByTestId('export-source').textContent).toBe('Availability from the catalogue · price adjusted by hand'));
+    });
+
+    it('read-only roles see the source too, and no Fill panel', async () => {
+      perms.clear(); ANALYST.forEach(p => perms.add(p));
+      await openAdjust();
+      expect(screen.queryByTestId('fill-from')).toBeNull();
+      expect(rowOf('1').getByTestId('export-source').textContent).toBe('Availability and price from the catalogue');
+    });
+
+    it('with no other marketplace file there is no "Fill from", only "Use catalogue values for all"', async () => {
+      srv.marketplaces = [mp('talabat'), mp('snoonu', { hasData: false, lastUploadAt: null })];
+      await openAdjust();
+      expect(screen.queryByTestId('fill-from')).toBeNull();
+      expect(screen.getByTestId('use-catalogue-all')).toBeTruthy();
     });
   });
 

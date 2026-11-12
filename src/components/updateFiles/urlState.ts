@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import { RECON_REFERENCES, type ReconMarketplaceSummary, type ReconReference, type ReconRowType, type ReconStatus } from '../../api/recon';
-import type { ExportState } from '../../api/marketplaceValues';
+import type { ExportState, ValueFilter } from '../../api/marketplaceValues';
 import { pathFor } from '../../routes/paths';
 
 /**
@@ -37,6 +37,17 @@ export const SHOW_FILTER: Record<Show, { status?: ReconStatus; exportState?: Exp
 
 export const TYPES: readonly ReconRowType[] = ['all', 'stock', 'price'];
 export const TYPE_LABELS: Record<ReconRowType, string> = { all: 'Stock and price', stock: 'Stock only', price: 'Price only' };
+
+/**
+ * The same list as the backend's bulk selection filter (its Review list, strict keys; always against the catalogue).
+ * "Needs a change" here is the backend's to_fix (not adjusted yet); stock is the availability field.
+ */
+export function bulkFilter(show: Show, type: ReconRowType): ValueFilter {
+  const state: Record<Show, ValueFilter> = {
+    needs: { exportState: 'to_fix' }, waiting: { exportState: 'waiting_for_export' }, pinned: { exportState: 'pinned' }, blocked: { exportState: 'blocked' }, all: { show: 'all' },
+  };
+  return { ...state[show], ...(type === 'stock' ? { field: 'availability' } : type === 'price' ? { field: 'price' } : {}) };
+}
 
 const one = <T extends string>(v: string | null, allowed: readonly T[]): T | undefined => ((allowed as readonly string[]).includes(v ?? '') ? (v as T) : undefined);
 

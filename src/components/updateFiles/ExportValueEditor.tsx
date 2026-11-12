@@ -4,7 +4,7 @@ import type { ReconRow } from '../../api/recon';
 import type { MarketplaceValueItem, SetValues } from '../../api/marketplaceValues';
 import { priceText } from '../pricing/priceChange';
 import { marketplaceName } from '../recon/shared';
-import { differsFromRule, hasAdjustment, isPinned, pending, readExportPrice, resaveWithPersistent, rowState, valueErrors, valuesOf } from './logic';
+import { differsFromRule, hasAdjustment, isPinned, pending, readExportPrice, resaveWithPersistent, rowState, sourceText, valueErrors, valuesOf } from './logic';
 import { useValueChange } from './queries';
 
 /** The attribute on each price input; the Adjust table moves focus between rows with it (Tab / Shift+Tab). */
@@ -23,11 +23,17 @@ export const ExportStateBadge: React.FC<{ row: ReconRow }> = ({ row }) => {
   );
 };
 
-/** Read-only "Value to export": what the file will write. */
+/** "Availability and price from the catalogue", "… price from Talabat": where the value to export comes from. */
+export const ExportSource: React.FC<{ item: MarketplaceValueItem }> = ({ item }) => (
+  <span data-testid="export-source" className="block text-[11px] text-gray-500">{sourceText(item, marketplaceName)}</span>
+);
+
+/** Read-only "Value to export": what the file will write, and where it comes from. */
 export const ExportValueText: React.FC<{ item: MarketplaceValueItem }> = ({ item }) => (
   <span className="inline-flex flex-col gap-0.5 text-xs">
-    <span data-testid="export-available">{item.export.available ? 'Available' : 'Unavailable'}{item.export.availabilitySource === 'override' ? ' (adjusted)' : ''}</span>
-    <span data-testid="export-price" className="font-mono">{priceText(item.export.price)} QAR{item.export.priceSource === 'override' ? ' (adjusted)' : ''}</span>
+    <span data-testid="export-available">{item.export.available ? 'Available' : 'Unavailable'}</span>
+    <span data-testid="export-price" className="font-mono">{priceText(item.export.price)} QAR</span>
+    <ExportSource item={item} />
   </span>
 );
 
@@ -147,6 +153,8 @@ export const ExportValueEditor: React.FC<{
             : dirty ? 'Not saved: press Enter' : saved ? 'Saved' : ''}
         </span>
       </div>
+
+      <ExportSource item={item} />
 
       {differsFromRule(item) && (
         <p data-testid="differs-from-rule" className="flex items-center gap-1 text-[11px] text-amber-800">

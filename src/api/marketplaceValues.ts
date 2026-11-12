@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { ReconMarketplaceId, ReconReference, ReconRowType, ReconStatus } from './recon';
+import type { ReconMarketplaceId } from './recon';
 
 /**
  * Marketplace export values (ADR 018, "Update marketplace files").
@@ -46,6 +46,11 @@ export interface FieldMeta<V> {
   setAt: string;
   reason: string | null;
   clearedAt: string | null;
+  /**
+   * The marketplace this value was copied from ("Fill from"). ASSUMPTION: the copy proposal stores only the reason
+   * "Copied from <B label>"; a sourceMarketplaceId on the field is read when the server sends one.
+   */
+  sourceMarketplaceId?: string;
 }
 
 export interface MarketplaceValueItem {
@@ -103,6 +108,7 @@ function readMeta<V>(v: unknown, value: (x: unknown) => V | null): FieldMeta<V> 
     value: val, state, persistent: v.persistent === true,
     fieldState: oneOf(v.fieldState, ['waiting_for_export', 'pinned', 'blocked'] as const),
     setAt: str(v.setAt) ?? '', reason: str(v.reason), clearedAt: str(v.clearedAt),
+    ...(typeof v.sourceMarketplaceId === 'string' ? { sourceMarketplaceId: v.sourceMarketplaceId } : {}),
   };
 }
 
@@ -172,16 +178,38 @@ function readChange(v: unknown): ValueChange {
 // ───────── Bulk ─────────
 
 /** Recon-row filters the bulk selection and the Adjust list share (9 Nov §5 Selection, addendum §7a). */
+/**
+ * The bulk selection filter, as the backend validates it (strictly: any other key is a 400). It selects rows of the
+ * backend's Review list (GET /api/marketplace-values/review), which always compares with the catalogue.
+ * Qorloop-backend docs/marketplace-values-api.md, "Bulk".
+ */
 export interface ValueFilter {
-  type?: ReconRowType;
-  reference?: ReconReference;
-  status?: ReconStatus;
-  exportState?: ExportState;
-  persistent?: boolean;
+  show?: 'needs_change' | 'all';
+  /** The backend's states: to_fix | waiting_for_export | blocked | pinned | in_sync | not_exportable. */
+  exportState?: 'to_fix' | 'waiting_for_export' | 'blocked' | 'pinned' | 'in_sync' | 'not_exportable';
+  field?: ValueField;
+  q?: string;
+  categoryId?: string;
+  subcategoryId?: string;
 }
 
 export type BulkSelection = { productIds: string[] } | { filter: ValueFilter };
-export type BulkAction = { type: 'set'; values: SetValues } | { type: 'use_catalogue'; fields: ValueField[] };
+
+/**
+ * "Fill from another marketplace": copy B's current values into this marketplace's export values.
+ * Built on Qorloop-backend branch feature/copy-from-marketplace (not on its main yet): docs/marketplace-values-api.md,
+ * "Copy from marketplace". persistent and replacePins are left to the server's defaults (fix once; pins on this
+ * marketplace are kept). The reason defaults to "Copied from <Source>", which the rows show as their source.
+ */
+export interface CopyFromMarketplaceAction {
+  type: 'copy_from_marketplace';
+  sourceMarketplaceId: ReconMarketplaceId;
+  fields: ValueField[];
+  persistent?: boolean;
+  replacePins?: boolean;
+}
+
+export type BulkAction = { type: 'set'; values: SetValues } | { type: 'use_catalogue'; fields: ValueField[] } | CopyFromMarketplaceAction;
 
 export interface BulkRequest {
   marketplaceId: ReconMarketplaceId;
@@ -190,15 +218,46 @@ export interface BulkRequest {
   reason?: string;
 }
 
-export interface BulkPreviewRow { productId: string; before: MarketplaceValueItem | undefined; after: MarketplaceValueItem | undefined; blockedReason: BlockedReason | null }
+/** One field of one preview row (the backend's `changes`): what the file writes before and after. */
+export interface BulkChange { field: ValueField; op: 'set' | 'clear'; before: boolean | number | null; after: boolean | number | null }
 
-export interface BulkCounts { selected: number; willChange: number; unchanged: number; blocked: number; blockedByReason: Record<string, number> }
+/** B's value of a copy preview row and the B file it is from. */
+export interface BulkSourceValue { available: boolean | null; price: number | null; uploadId: string | null; fileName: string; isLatestFile: boolean }
+
+export interface BulkPreviewRow {
+  productId: string;
+  nameEn: string | null;
+  barcode: string | null;
+  /** The proposal's whole items (9 Nov); the backend as built sends `changes` instead. */
+  before: MarketplaceValueItem | undefined;
+  after: MarketplaceValueItem | undefined;
+  blockedReason: BlockedReason | null;
+  /** null when the server sends no `changes`. */
+  changes: BulkChange[] | null;
+  /** Copy only: B's value; null = the product is not on B; undefined = not sent (not a copy). */
+  source?: BulkSourceValue | null;
+}
+
+/** A reason with its count; the server's label wins over ours when it sends one. */
+export interface ReasonCount { reason: string; label: string | null; count: number }
+
+export interface BulkCounts {
+  selected: number; willChange: number; unchanged: number; blocked: number; blockedByReason: ReasonCount[];
+  /** Copy only (0 otherwise): not on B, or B's price cannot be used. Nothing is written for them. */
+  notOnSource: number; notOnSourceByReason: ReasonCount[];
+  /** Copy only (0 otherwise): pinned fields of this marketplace, kept as they are. */
+  pinnedKept: number;
+  /** Copy only (0 otherwise): changed products whose copied value is from an older file of B (partial files). */
+  fromOlderFile: number;
+}
 
 export interface BulkPreview extends BulkCounts {
   limit: number;
   rows: BulkPreviewRow[];
   /** 64 lowercase hex; required by apply. */
   previewToken: string;
+  /** Copy only: B and the latest B file the values come from. */
+  source: { marketplaceId: string; latestFile: { uploadId: string; fileName: string; uploadedAt: string; appliedAt: string | null } | null } | null;
 }
 
 export interface BulkResult extends BulkCounts {
@@ -208,6 +267,7 @@ export interface BulkResult extends BulkCounts {
   created: number;
   updated: number;
   clearedFields: number;
+  sourceMarketplaceId: string | null;
 }
 
 /** At most this many products in one bulk change (selected, not changed); more is rejected, never truncated. */
@@ -216,27 +276,65 @@ export const VALUES_BULK_LIMIT = 5_000;
 export const VALUES_PRODUCT_IDS_MAX = 500;
 export const VALUES_REASON_MAX = 500;
 
+/** `[{ reason, label, count }]` (the backend as built) or `{ reason: count }` (the 9 Nov proposal); zero counts are dropped. */
+export function readReasonCounts(v: unknown): ReasonCount[] {
+  const list = Array.isArray(v)
+    ? v.filter(isObj).map(r => ({ reason: str(r.reason) ?? '', label: str(r.label), count: num(r.count) ?? 0 }))
+    : isObj(v) ? Object.entries(v).map(([reason, n]) => ({ reason, label: null, count: num(n) ?? 0 })) : [];
+  return list.filter(r => r.reason && r.count > 0);
+}
+
 const counts = (o: Obj): BulkCounts => ({
   selected: num(o.selected) ?? 0, willChange: num(o.willChange) ?? 0, unchanged: num(o.unchanged) ?? 0, blocked: num(o.blocked) ?? 0,
-  blockedByReason: isObj(o.blockedByReason) ? Object.fromEntries(Object.entries(o.blockedByReason).filter(([, n]) => typeof n === 'number')) as Record<string, number> : {},
+  blockedByReason: readReasonCounts(o.blockedByReason),
+  notOnSource: num(o.notOnSource) ?? 0, notOnSourceByReason: readReasonCounts(o.notOnSourceByReason), pinnedKept: num(o.pinnedKept) ?? 0,
+  fromOlderFile: num(o.fromOlderFile) ?? 0,
 });
 
-function readPreview(v: unknown): BulkPreview {
+const scalar = (v: unknown): boolean | number | null => bool(v) ?? num(v);
+
+function readChanges(v: unknown): BulkChange[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.filter(isObj).flatMap(c => {
+    const field = oneOf(c.field, VALUE_FIELDS);
+    const op = oneOf(c.op, ['set', 'clear'] as const);
+    return field && op ? [{ field, op, before: scalar(c.before), after: scalar(c.after) }] : [];
+  });
+}
+
+function readSourceValue(v: unknown): BulkSourceValue | null {
+  if (!isObj(v)) return null;
+  return { available: bool(v.available), price: num(v.price), uploadId: str(v.uploadId), fileName: str(v.fileName) ?? '', isLatestFile: v.isLatestFile !== false };
+}
+
+function readPreviewSource(v: unknown): BulkPreview['source'] {
+  if (!isObj(v) || typeof v.marketplaceId !== 'string') return null;
+  const f = isObj(v.latestFile) ? v.latestFile : null;
+  const latestFile = f && typeof f.uploadId === 'string' && typeof f.uploadedAt === 'string'
+    ? { uploadId: f.uploadId, fileName: str(f.fileName) ?? '', uploadedAt: f.uploadedAt, appliedAt: str(f.appliedAt) } : null;
+  return { marketplaceId: v.marketplaceId, latestFile };
+}
+
+export function readPreview(v: unknown): BulkPreview {
   const o = isObj(v) ? v : {};
   return {
-    ...counts(o), limit: num(o.limit) ?? VALUES_BULK_LIMIT, previewToken: str(o.previewToken) ?? '',
+    ...counts(o), limit: num(o.limit) ?? VALUES_BULK_LIMIT, previewToken: str(o.previewToken) ?? '', source: readPreviewSource(o.source),
     rows: Array.isArray(o.rows) ? o.rows.filter(isObj).map(r => ({
-      productId: str(r.productId) ?? '', before: readValueItem(r.before), after: readValueItem(r.after),
+      productId: str(r.productId) ?? '', nameEn: str(r.nameEn), barcode: str(r.barcode),
+      before: readValueItem(r.before), after: readValueItem(r.after),
       blockedReason: oneOf(r.blockedReason, BLOCKED_REASONS),
+      changes: readChanges(r.changes),
+      ...('source' in r ? { source: readSourceValue(r.source) } : {}),
     })) : [],
   };
 }
 
-function readResult(v: unknown): BulkResult {
+export function readResult(v: unknown): BulkResult {
   const o = isObj(v) ? v : {};
   return {
     ...counts(o), operationId: str(o.operationId) ?? '', replayed: o.replayed === true, appliedAt: str(o.appliedAt) ?? '',
     created: num(o.created) ?? 0, updated: num(o.updated) ?? 0, clearedFields: num(o.clearedFields) ?? 0,
+    sourceMarketplaceId: str(o.sourceMarketplaceId),
   };
 }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FolderTree, Search, Sparkles, Upload } from 'lucide-react';
@@ -23,8 +23,6 @@ import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { BulkStockDialog } from '../stock/BulkStockDialog';
-import { RECON_MARKETPLACES } from '../../api/recon';
-import { MarketplaceCatalogue } from './MarketplaceCatalogue';
 import { CatalogueExportButton } from './CatalogueExportButton';
 
 const TAB_LABELS: Record<ProductTab, string> = {
@@ -41,38 +39,9 @@ function describeFilter(q: string, categoryId: string | undefined, subcategoryId
 }
 
 /** CAT-001: the catalogue from GET /api/products, with per-tab counts from the backend. */
+// The marketplace tabs are CatalogueTabs (PR #2) inside this view. MarketplaceCatalogue (a separate list per
+// marketplace under an outer "Catalogue source" tab bar) is not shown: both used ?marketplace=, so one hid the other.
 export const RealCatalogueView: React.FC = () => {
-  const uid = useId();
-  const [params, setParams] = useSearchParams();
-  const tabs = ['master', ...RECON_MARKETPLACES] as const;
-  const requested = params.get('marketplace');
-  const selected = RECON_MARKETPLACES.find(m => m === requested) ?? 'master';
-  const buttons = useRef(new Map<string, HTMLButtonElement>());
-  const choose = (tab: typeof tabs[number]) => {
-    setParams(previous => { const next = new URLSearchParams(previous); if (tab === 'master') next.delete('marketplace'); else next.set('marketplace', tab); return next; });
-  };
-  return <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
-    <div><h1 className="text-2xl font-bold tracking-tight text-gray-900">Catalogue</h1>
-      <p className="mt-0.5 text-xs text-gray-500">Browse your master catalogue and the products listed on each marketplace.</p></div>
-    <div role="tablist" aria-label="Catalogue source" className="flex overflow-x-auto gap-1 border-b border-gray-200">
-      {tabs.map(tab => <button key={tab} type="button" role="tab" id={`${uid}-${tab}`} aria-controls={`${uid}-panel`} aria-selected={selected === tab} tabIndex={selected === tab ? 0 : -1}
-        ref={node => { if (node) buttons.current.set(tab, node); else buttons.current.delete(tab); }}
-        onClick={() => choose(tab)} onKeyDown={e => {
-          const index = tabs.indexOf(tab);
-          const to = e.key === 'ArrowRight' ? (index + 1) % tabs.length : e.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : undefined;
-          if (to !== undefined) { e.preventDefault(); choose(tabs[to]); buttons.current.get(tabs[to])?.focus(); }
-        }}
-        className={`shrink-0 px-4 py-3 text-sm font-semibold border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#027864] ${selected === tab ? 'border-[#027864] text-[#027864]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
-        {tab === 'master' ? 'Master catalogue' : marketplaceName(tab)}
-      </button>)}
-    </div>
-    <div role="tabpanel" id={`${uid}-panel`} aria-labelledby={`${uid}-${selected}`}>
-      {selected === 'master' ? <CatalogueProducts /> : <MarketplaceCatalogue key={selected} marketplaceId={selected} />}
-    </div>
-  </div>;
-};
-
-const CatalogueProducts: React.FC = () => {
   const { openUploadModal } = useApp();
   const { can } = useAuth();
   const [tab, setTab] = useState<ProductTab>('all');
@@ -173,10 +142,10 @@ const CatalogueProducts: React.FC = () => {
   const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0) + (showMarketplace ? 3 : 0);
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold tracking-tight text-gray-900">Master catalogue</h2>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Catalogue</h1>
           <p className="text-xs text-gray-500 mt-0.5">All products in your Qorloop catalogue. Keep Arabic names, categories and status up to date.</p>
         </div>
         <div className="flex flex-wrap items-start gap-3">

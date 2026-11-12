@@ -5,7 +5,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router-dom';
-import { RealCatalogueView } from '../RealCatalogueView';
+import { MarketplaceCatalogue } from '../MarketplaceCatalogue';
+import type { ReconMarketplaceId } from '../../../api/recon';
 import type { MarketplaceListing } from '../../../api/marketplaceListings';
 
 const app = { openUploadModal: vi.fn() };
@@ -29,9 +30,11 @@ let answer: (query: URLSearchParams) => Response;
 let write: (url: URL, init: RequestInit) => Response | Promise<Response>;
 const requests = () => fetchMock.mock.calls.map(([url]) => new URL(String(url), 'http://x')).filter(url => url.pathname.endsWith('/marketplace-listings'));
 const Where = () => { const location = useLocation(); return <output data-testid="where">{location.search}</output>; };
+/** The component on its own: the Catalogue page shows PR #2's marketplace tabs, not an outer "Catalogue source" bar. */
 function open(at = '/catalogue?marketplace=talabat') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[at]}><RealCatalogueView /><Where /></MemoryRouter></QueryClientProvider>);
+  const marketplaceId = (new URLSearchParams(at.split('?')[1]).get('marketplace') ?? 'talabat') as ReconMarketplaceId;
+  render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[at]}><MarketplaceCatalogue marketplaceId={marketplaceId} /><Where /></MemoryRouter></QueryClientProvider>);
 }
 beforeEach(() => {
   canUpload = true;
@@ -222,12 +225,9 @@ describe('marketplace availability switch', () => {
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
-describe('marketplace catalogue tabs', () => {
-  it('opens a bookmarked marketplace and shows actual matched and unmatched listings, prices, availability and source', async () => {
+describe('marketplace listings', () => {
+  it('shows actual matched and unmatched listings, prices, availability and source', async () => {
     open();
-    const tabs = within(screen.getByRole('tablist', { name: 'Catalogue source' }));
-    expect(tabs.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['Master catalogue', 'Talabat', 'Snoonu', 'Rafeeq', 'Keeta']);
-    expect(tabs.getByRole('tab', { name: 'Talabat' }).getAttribute('aria-selected')).toBe('true');
     const table = within(await screen.findByRole('table', { name: 'Talabat product listings' }));
     expect(table.getByText('Marketplace product 1')).toBeTruthy();
     expect(table.getByText('Marketplace product 2')).toBeTruthy();
@@ -241,26 +241,11 @@ describe('marketplace catalogue tabs', () => {
     expect(fetchMock.mock.calls.some(([u]) => String(u).startsWith('/api/products?'))).toBe(false);
   });
 
-  it('supports arrow, Home and End keys, updates the URL, and never shows another marketplace’s cached rows', async () => {
+  it('asks for its own marketplace only', async () => {
     answer = q => ok(page([listing(q.get('marketplaceId')!)]));
-    open('/catalogue?marketplace=talabat&other=keep');
-    await screen.findByText('Marketplace product talabat');
-    const talabat = screen.getByRole('tab', { name: 'Talabat' });
-    talabat.focus();
-    fireEvent.keyDown(talabat, { key: 'ArrowRight' });
-    const snoonu = screen.getByRole('tab', { name: 'Snoonu' });
-    expect(document.activeElement).toBe(snoonu);
-    expect(screen.queryByText('Marketplace product talabat')).toBeNull();
+    open('/catalogue?marketplace=snoonu');
     await screen.findByText('Marketplace product snoonu');
-    expect(screen.getByTestId('where').textContent).toContain('marketplace=snoonu');
-    expect(screen.getByTestId('where').textContent).toContain('other=keep');
-    fireEvent.keyDown(snoonu, { key: 'End' });
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Keeta' }));
-    await screen.findByText('Marketplace product keeta');
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Keeta' }), { key: 'Home' });
-    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Master catalogue' }));
-    await screen.findByText('No products yet');
-    expect(screen.getByTestId('where').textContent).not.toContain('marketplace=');
+    expect(requests().every(u => u.searchParams.get('marketplaceId') === 'snoonu')).toBe(true);
   });
 
   it('pages on the server and resets paging when search, availability or match changes', async () => {

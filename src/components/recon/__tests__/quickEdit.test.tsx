@@ -181,9 +181,12 @@ describe('quick edit drawer', () => {
   });
 
   it('opens from a Dashboard "Needs attention" row with the stock sections; Esc closes and focus returns to the row', async () => {
+    ['files.view', 'files.preview', 'files.generate'].forEach(p => perms.add(p));
     renderAt('/', <DashboardView />);
     const card = within(await screen.findByRole('region', { name: 'Needs attention on Talabat' }));
     const edit = await card.findByRole('button', { name: 'Edit Product 1' });
+    expect(card.getAllByRole('link', { name: 'Prepare Unavailable update' })[0].getAttribute('href'))
+      .toBe('/files?marketplace=talabat&kind=stock&scope=mismatches&reference=marketplace&from=stock-mismatch');
     // A click on the row itself opens it too; the product link inside the row does not.
     fireEvent.click(card.getAllByTestId('attention-row')[1]);
     expect(await screen.findByRole('dialog', { name: 'Product 2' })).toBeTruthy();
@@ -209,6 +212,10 @@ describe('quick edit drawer', () => {
     expect(await differs().findByTestId('stock-threshold')).toBeTruthy();
     expect(differs().getByTestId('stock-threshold').textContent).toBe('3');
     expect(fixIt().getByText(/applies to every marketplace\. Marketplace files carry available or unavailable, not stock quantities/)).toBeTruthy();
+    expect(fixIt().getByText('Update Talabat to Unavailable')).toBeTruthy();
+    expect(fixIt().getByText(/file includes all Talabat stock corrections/)).toBeTruthy();
+    expect(fixIt().getByRole('link', { name: 'Prepare Unavailable update' }).getAttribute('href'))
+      .toBe('/files?marketplace=talabat&kind=stock&scope=mismatches&reference=marketplace&from=stock-mismatch');
     expect(await stockForm()).toBeTruthy();
     expect(fixIt().getByTestId('stock-availability')).toBeTruthy();
 

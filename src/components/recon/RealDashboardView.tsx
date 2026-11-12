@@ -8,9 +8,11 @@ import { pathFor } from '../../routes/paths';
 import { realCatalogueEnabled } from '../../lib/features';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
+import { ActiveOffersDashboard } from '../pricing/ActiveOffersDashboard';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
+import { stockFileLink } from './stockFileLink';
 import {
   NoReconAccess, RecomputeBanner, REFERENCE_IN_TEXT, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
@@ -97,6 +99,8 @@ const Dashboard: React.FC = () => {
       <RecomputeBanner state={recomputeState} />
 
       {data && <StockConflictsBadge count={data.stockConflicts ?? 0} />}
+
+      {can('pricing.view') && <ActiveOffersDashboard />}
 
       {summary.isPending ? (
         <LoadingState label="Loading the comparison…" rows={4} />
@@ -273,7 +277,14 @@ const NeedsAttention: React.FC<{ summary: ReconMarketplaceSummary; reference: Re
                   </div>
                   <RowValues row={r} kind="stock" reference={reference} />
                 </div>
-                {editable && <span className="self-start"><QuickEditButton row={r} onOpen={setEditing} /></span>}
+                <span className="self-start flex flex-wrap items-center gap-2">
+                  {can('files.view') && can('files.preview') && can('files.generate') && r.stockIssue && (
+                    <Link to={stockFileLink(s.marketplaceId, reference)} className="text-[11px] font-semibold text-[#027864] hover:underline">
+                      Prepare {r.stockIssue === 'available_but_out_of_stock' ? 'Unavailable' : 'Available'} update
+                    </Link>
+                  )}
+                  {editable && <QuickEditButton row={r} onOpen={setEditing} />}
+                </span>
               </li>
             );
           })}

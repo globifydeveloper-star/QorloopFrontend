@@ -63,6 +63,7 @@ const params = (u: string) => Object.fromEntries(new URL(u, 'http://x').searchPa
 const isSummary = (u: string, m: string) => m === 'GET' && u.startsWith('/api/recon/summary');
 const isRows = (u: string, m: string) => m === 'GET' && u.startsWith('/api/recon/rows');
 const isRecompute = (u: string, m: string) => m === 'POST' && u === '/api/recon/recompute';
+const isActiveOffers = (u: string, m: string) => m === 'GET' && u.startsWith('/api/pricing/active-offers');
 
 const Where = () => { const l = useLocation(); return <output data-testid="where">{l.pathname + l.search}</output>; };
 function renderAt(path: string, ui: React.ReactElement) {
@@ -78,6 +79,7 @@ function renderAt(path: string, ui: React.ReactElement) {
 
 /** Default backend: the summary (store default = marketplace) and Talabat's stock rows. */
 const backend: Handler = (u, i) => {
+  if (isActiveOffers(u, method(i))) return ok({ asOf: NOW.toISOString(), total: 0, page: 1, limit: 20, items: [] });
   if (isSummary(u, method(i))) return ok(summary({ reference: (params(u).reference as ReconSummary['reference']) ?? 'marketplace' }));
   if (isRows(u, method(i))) return ok({ reference: params(u).reference ?? 'marketplace', items: [URGENT, LOST], nextCursor: null });
   return undefined;
@@ -88,7 +90,7 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   vi.stubEnv('VITE_REAL_RECON', 'true');
   perms.clear();
-  ['recon.view', 'reports.view', 'products.view', 'uploads.upload', 'pricing.edit'].forEach(p => perms.add(p));
+  ['recon.view', 'reports.view', 'products.view', 'uploads.upload', 'pricing.view', 'pricing.edit'].forEach(p => perms.add(p));
   app.showToast.mockClear();
   app.openUploadModal.mockClear();
   demoUsed = false;
@@ -127,6 +129,7 @@ describe('dashboard (DASH-001)', () => {
     release();
 
     const talabat = await screen.findByRole('region', { name: 'Talabat' });
+    expect(await within(screen.getByRole('region', { name: 'Offers running now' })).findByText('No offers are running now.')).toBeTruthy();
     expect(screen.getAllByRole('region').filter(r => ['Talabat', 'Snoonu', 'Rafeeq', 'Keeta'].includes(r.getAttribute('aria-label')!)).map(r => r.getAttribute('aria-label')))
       .toEqual(['Talabat', 'Snoonu', 'Keeta']);
     expect(params(calls(isSummary)[0][0] as string)).toEqual({ reference: 'marketplace' }); // My pricing: Advanced is closed

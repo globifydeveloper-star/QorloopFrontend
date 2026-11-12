@@ -117,7 +117,7 @@ describe('catalogue (CAT-001)', () => {
     expect(row2.getByText('No Arabic name')).toBeTruthy();
     expect(r.getByRole('link', { name: 'Product 1' }).getAttribute('href')).toBe('/catalogue/1');
 
-    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(
+    expect(within(screen.getByRole('tablist', { name: 'Product status' })).getAllByRole('tab').map(t => t.textContent)).toEqual(
       ['All (3)', 'Active (2)', 'Inactive (0)', 'New (1)', 'Missing from ERP (0)']);
   });
 

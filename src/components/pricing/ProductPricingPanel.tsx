@@ -26,6 +26,7 @@ export const ProductPricingPanel: React.FC<{ product: Priced; onReload: () => Pr
     void qc.invalidateQueries({ queryKey: ['products', 'list'] });
     void qc.invalidateQueries({ queryKey: ['recon', 'summary'] });
     void qc.invalidateQueries({ queryKey: ['recon', 'rows'] });
+    void qc.invalidateQueries({ queryKey: ['pricing', 'active-offers'] });
   };
 
   return (

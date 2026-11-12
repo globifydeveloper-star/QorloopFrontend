@@ -3,7 +3,7 @@ import { CheckCircle2, FileX, HelpCircle, XCircle } from 'lucide-react';
 import type { MarketplaceComparison, MarketplacePriceIssue, ProductItem, ProductMarketplaceValues } from '../../api/products';
 import type { ReconMarketplaceId } from '../../api/recon';
 import { money2, qatarDateTime } from '../../lib/format';
-import { MarketplaceAvailability, NOT_IN_FILE, REFERENCE_LABELS, STOCK_ISSUE_META, fileNote } from '../recon/shared';
+import { MarketplaceAvailability, NOT_IN_FILE, REFERENCE_IN_TEXT, STOCK_ISSUE_META, fileNote } from '../recon/shared';
 
 /**
  * The catalogue's marketplace columns (GET /api/products?marketplaceId=, backend docs/products-api.md). Read-only.
@@ -22,7 +22,7 @@ const COMPARED_META: Record<MarketplaceComparison, { label: string; tone: string
 };
 
 const priceIssueText = (issue: MarketplacePriceIssue, reference: ProductMarketplaceValues['reference']) =>
-  `Price ${issue === 'marketplace_price_higher' ? 'higher' : 'lower'} than the ${REFERENCE_LABELS[reference]}`;
+  `Price ${issue === 'marketplace_price_higher' ? 'higher' : 'lower'} than ${REFERENCE_IN_TEXT[reference]}`;
 
 /** "Available" / "Unavailable" from the marketplace file, or "Not in the file". Nothing without values. */
 export const MarketplaceAvailabilityCell: React.FC<{ m: ProductMarketplaceValues | undefined }> = ({ m }) =>

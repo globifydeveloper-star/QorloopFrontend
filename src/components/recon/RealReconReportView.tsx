@@ -10,10 +10,11 @@ import {
 } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import {
-  MarketplaceAvailability, NOT_IN_FILE, NoReconAccess, OwnAvailability, PRICE_SOURCE_LABELS, RECON_STATUS_META, REFERENCE_LABELS,
+  MarketplaceAvailability, NOT_IN_FILE, NoReconAccess, OwnAvailability, PRICE_SOURCE_LABELS, RECON_STATUS_META,
   RecomputeBanner, ReconStatusPill, StockIssuePill, fileNote, freshnessText, marketplaceName, money2, ownSide, priceDifference,
   qatarDateTime, useRecomputeState, useReconRows, useReconSummary,
 } from './shared';
@@ -51,7 +52,9 @@ const Report: React.FC<{ kind: ReportKind }> = ({ kind }) => {
   const [params, setParams] = useSearchParams();
   const refParam = params.get('reference');
   const statusParam = params.get('status');
-  const requested = isReference(refParam) ? refParam : undefined;
+  // Without Advanced (?advanced=1, or a link naming reference=erp) the report compares with My pricing.
+  const [advanced] = useAdvanced();
+  const requested: ReconReference | undefined = !advanced ? 'marketplace' : isReference(refParam) ? refParam : undefined;
   const status = isStatus(statusParam) ? statusParam : undefined;
 
   const summary = useReconSummary(requested);
@@ -75,7 +78,9 @@ const Report: React.FC<{ kind: ReportKind }> = ({ kind }) => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{copy.title}</h1>
           <p className="text-xs text-gray-500 mt-0.5">{copy.intro} Times are Qatar time.</p>
         </div>
-        <CompareAgainstToggle value={reference} onChange={r => set('reference', r)} disabled={!reference} />
+        <AdvancedDisclosure id="report-advanced">
+          <CompareAgainstToggle value={reference} onChange={r => setParams(p => { const q = new URLSearchParams(p); q.set('reference', r); q.set('advanced', '1'); return q; }, { replace: true })} disabled={!reference} />
+        </AdvancedDisclosure>
       </div>
 
       <RecomputeBanner state={recomputeState} />
@@ -190,8 +195,8 @@ const ReportBody: React.FC<{
                 <tr>
                   <th className="px-4 py-3">Product</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{REFERENCE_LABELS[reference]}</span></th>
-                  <th className="px-4 py-3 text-right">Marketplace price (QAR) <span className="block font-normal normal-case tracking-normal">On {name}</span></th>
+                  <th className="px-4 py-3 text-right">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{reference === 'erp' ? 'from the ERP price' : 'from your pricing'}</span></th>
+                  <th className="px-4 py-3 text-right">Price on {name} (QAR)</th>
                   <th className="px-4 py-3 text-right">Difference (QAR)</th>
                   <th className="px-4 py-3">Price rule</th>
                   <th className="px-4 py-3">Last updated</th>

@@ -48,6 +48,14 @@ export interface FilePreview {
    */
   warnings: string[];
   referenceUsed: ReconReference;
+  /**
+   * PROPOSED (ADR 018, 9 Nov report §5; absent on today's backend): the file writes the export values, the token that
+   * ties a generate to this preview, and the products with a pending or blocked export value.
+   */
+  valueBasis?: 'marketplace_export';
+  exportToken?: string;
+  pendingExportProducts?: number;
+  blockedExportProducts?: number;
 }
 
 export type GenerationState = 'queued' | 'running' | 'done' | 'failed';
@@ -82,7 +90,8 @@ export const generatedFilesApi = {
   /** files.preview. Writes nothing; 409 with the reason when the selection is blocked. */
   preview: (s: FileSelection) => api<FilePreview>('/api/generated-files/preview', { method: 'POST', body: body(s) }),
   /** files.generate. 202 with the job; the same selection within a minute shares one job. */
-  generate: (s: FileSelection) => api<{ jobId: string }>('/api/generated-files', { method: 'POST', body: body(s) }),
+  generate: (s: FileSelection, exportToken?: string) =>
+    api<{ jobId: string }>('/api/generated-files', { method: 'POST', body: { ...body(s), ...(exportToken ? { exportToken } : {}) } }),
   /** files.view. 404 for an unknown job. */
   job: (jobId: string, signal?: AbortSignal) => api<GenerationJob>(`/api/generated-files/jobs/${encodeURIComponent(jobId)}`, { signal }),
   /** files.view. The last 30 days, newest first; expired files are not listed. */

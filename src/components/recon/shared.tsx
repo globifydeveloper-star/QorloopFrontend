@@ -15,7 +15,9 @@ import {
 export const MARKETPLACE_LABELS: Record<ReconMarketplaceId, string> = { talabat: 'Talabat', snoonu: 'Snoonu', rafeeq: 'Rafeeq', keeta: 'Keeta' };
 export const marketplaceName = (id: string) => MARKETPLACE_LABELS[id as ReconMarketplaceId] ?? id;
 
-export const REFERENCE_LABELS: Record<ReconReference, string> = { marketplace: 'Marketplace price', erp: 'ERP price' };
+export const REFERENCE_LABELS: Record<ReconReference, string> = { marketplace: 'My pricing', erp: 'ERP price' };
+/** The reference inside a sentence: "compared with My pricing", "compared with the ERP price". */
+export const REFERENCE_IN_TEXT: Record<ReconReference, string> = { marketplace: 'My pricing', erp: 'the ERP price' };
 
 // ───────── Queries ─────────
 
@@ -241,14 +243,15 @@ const Labelled: React.FC<{ label: string; testId: string; children: React.ReactN
 
 /**
  * The two values of a row side by side (stacked on a phone): "Catalogue: Available (stock N)" and "Marketplace:
- * Available", or for a price row "Expected price" and "Marketplace price". The problem label stays where it was.
+ * Available", or for a price row "Expected price" and "Price on <marketplace>" (the value in the marketplace file).
+ * The problem label stays where it was.
  */
-export const RowValues: React.FC<{ row: ReconRow; kind: 'stock' | 'price'; reference: ReconReference }> = ({ row, kind, reference }) => {
+export const RowValues: React.FC<{ row: ReconRow; kind: 'stock' | 'price'; reference: ReconReference; marketplaceId?: string }> = ({ row, kind, reference, marketplaceId }) => {
   if (kind === 'price') {
     return (
       <div className="flex flex-col sm:flex-row sm:gap-4 gap-0.5 text-[11px] text-gray-800">
         <Labelled label="Expected price" testId="value-expected">{row.expectedPrice === null ? '—' : `${money2(row.expectedPrice)} QAR`}</Labelled>
-        <Labelled label="Marketplace price" testId="value-marketplace">
+        <Labelled label={marketplaceId ? `Price on ${marketplaceName(marketplaceId)}` : 'Price on the marketplace'} testId="value-marketplace">
           {row.actualPrice === null ? <span className="text-gray-500">{NOT_IN_FILE}</span> : `${money2(row.actualPrice)} QAR`}
         </Labelled>
       </div>

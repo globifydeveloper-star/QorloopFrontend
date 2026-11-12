@@ -7,7 +7,7 @@ import { pricingApi, type MarketplacePrice, type ProductPricing, type ProductPri
 import { fromQatarInput, money2, qatarDateTime, toQatarInput } from '../../lib/format';
 import { marketplaceName } from '../recon/shared';
 import { productKey } from '../catalogue/shared';
-import { Chain, FieldError, OFFER_STATE_META, PriceSourceChip, fieldErrors, inputCls, pricingErrorText } from './shared';
+import { Chain, EXPECTED_PRICE_HINT, FieldError, OFFER_STATE_META, PriceSourceChip, fieldErrors, inputCls, pricingErrorText } from './shared';
 import { InlinePriceEditor } from './InlinePriceEditor';
 
 type Priced = ProductDetail & { marketplacePrice: MarketplacePrice; pricing: ProductPricing };
@@ -26,13 +26,15 @@ export const ProductPricingPanel: React.FC<{ product: Priced; onReload: () => Pr
     void qc.invalidateQueries({ queryKey: ['products', 'list'] });
     void qc.invalidateQueries({ queryKey: ['recon', 'summary'] });
     void qc.invalidateQueries({ queryKey: ['recon', 'rows'] });
+    void qc.invalidateQueries({ queryKey: ['pricing', 'active-offers'] });
   };
 
   return (
-    <section aria-label="Marketplace price" className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <section aria-label="Expected price" className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
       <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-sm font-bold text-gray-900">Marketplace price (QAR)</h2>
+          <h2 className="text-sm font-bold text-gray-900">Expected price (QAR)</h2>
+          <p className="text-xs text-gray-500">{EXPECTED_PRICE_HINT}</p>
           <div className="mt-1 flex items-center gap-2">
             <span data-testid="marketplace-price" className="text-2xl font-bold font-mono text-gray-900">{money2(p.marketplacePrice.price)}</span>
             <PriceSourceChip source={p.marketplacePrice.source} />

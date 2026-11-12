@@ -253,7 +253,7 @@ const DemoCatalogueView: React.FC = () => {
                   <th className="py-2.5 px-3 font-semibold">Category</th>
                   <th className="py-2.5 px-3 font-semibold">Brand</th>
                   <th className="py-2.5 px-3 font-semibold text-right">ERP price (QAR)</th>
-                  <th className="py-2.5 px-3 font-semibold text-right">Marketplace price (QAR)</th>
+                  <th className="py-2.5 px-3 font-semibold text-right">Expected price (QAR)</th>
                   <th className="py-2.5 px-3 font-semibold text-center">Status</th>
                   <th className="py-2.5 px-3 font-semibold">Updated</th>
                   <th className="py-2.5 px-3 w-8"></th>

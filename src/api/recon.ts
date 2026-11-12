@@ -86,6 +86,14 @@ export interface ReconRow {
   erpAvailable: boolean | null;
   actualAvailable: boolean | null;
   lastUpdated: string;
+  /**
+   * PROPOSED (ADR 018, not in the backend yet; read with readValueItem / readMarketplaceSource from ./marketplaceValues):
+   * the value the generated file writes, the last marketplace file with this listing, and what each field was compared with.
+   */
+  marketplaceValues?: unknown;
+  marketplaceSource?: unknown;
+  stockComparedWith?: 'catalogue' | 'erp' | 'pinned';
+  priceComparedWith?: 'catalogue' | 'erp' | 'pinned';
 }
 
 export interface ReconRowsPage {
@@ -102,6 +110,9 @@ export interface ReconRowsQuery {
   cursor?: string;
   /** The backend accepts 1..200 (default 50). */
   limit?: number;
+  /** PROPOSED (ADR 018): only rows in this export state; persistent narrows to pinned (true) or fix-once (false) values. */
+  exportState?: string;
+  persistent?: boolean;
 }
 
 export const RECON_PAGE_SIZE = 50;
@@ -114,7 +125,8 @@ export const reconApi = {
   rows: (q: ReconRowsQuery, signal?: AbortSignal) =>
     api<ReconRowsPage>('/api/recon/rows', {
       signal,
-      query: { marketplaceId: q.marketplaceId, type: q.type, status: q.status, reference: q.reference, cursor: q.cursor, limit: q.limit },
+      query: { marketplaceId: q.marketplaceId, type: q.type, status: q.status, reference: q.reference, cursor: q.cursor, limit: q.limit,
+        exportState: q.exportState, persistent: q.persistent === undefined ? undefined : String(q.persistent) },
     }),
   /** Needs pricing.edit. Queues one coalesced recompute of the store's rows and summaries. */
   recompute: () => api<{ queued: boolean }>('/api/recon/recompute', { method: 'POST' }),

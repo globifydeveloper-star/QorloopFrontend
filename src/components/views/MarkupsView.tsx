@@ -16,6 +16,7 @@ import {
 import { MarketplaceId, PriceMode, PriceRounding, PriceRule } from '../../types';
 import { realPricingEnabled } from '../../lib/features';
 import { RealPricingView } from '../pricing/RealPricingView';
+import { DEFAULT_RULE_ANCHOR, PriceSourceGuide } from '../pricing/PriceSourceGuide';
 
 const MODE_OPTIONS: { id: PriceMode; label: string }[] = [
   { id: 'percent', label: 'Markup % on ERP' },
@@ -74,7 +75,7 @@ const DemoMarkupsView: React.FC = () => {
 
   const handleSave = () => {
     updatePricingSettings({ defaultRule, rounding, marketplaceRules: markups });
-    showToast('Marketplace price rules updated successfully!');
+    showToast('Pricing rules updated successfully!');
   };
 
   const handleAddCategoryRule = () => {
@@ -102,7 +103,7 @@ const DemoMarkupsView: React.FC = () => {
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-150">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Marketplace Price</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Pricing</h1>
           <p className="text-xs text-gray-500 mt-0.5">
             The price you sell at on marketplaces. Set it once — it applies to Talabat, Snoonu, Rafeeq and
             Keeta. It can be above ERP (markup) or below it (offers).
@@ -127,10 +128,13 @@ const DemoMarkupsView: React.FC = () => {
         </div>
       </div>
 
+      {/* The demo has no adopt flow: only the markup choice has a button here. */}
+      <PriceSourceGuide />
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         <div className="lg:col-span-2 space-y-6">
           {/* Default rule */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4">
+          <div id={DEFAULT_RULE_ANCHOR} className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-bold text-gray-900">Default marketplace price</h2>
@@ -371,7 +375,7 @@ const DemoMarkupsView: React.FC = () => {
                     <th className="py-2.5 px-3">Product</th>
                     <th className="py-2.5 px-3 text-right">ERP price (QAR)</th>
                     <th className="py-2.5 px-3">Price rule</th>
-                    <th className="py-2.5 px-3 text-right">Marketplace price (QAR)</th>
+                    <th className="py-2.5 px-3 text-right">Expected price (QAR)</th>
                     <th className="py-2.5 px-3 text-right">Actions</th>
                   </tr>
                 </thead>

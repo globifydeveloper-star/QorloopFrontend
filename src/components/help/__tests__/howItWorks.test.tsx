@@ -82,6 +82,9 @@ describe('How it works page', () => {
     for (const t of C.sources) expect(region('sources').getByText(t.meaning)).toBeTruthy();
     for (const t of [...C.words, ...C.compare]) expect(region('words').getByText(t.term)).toBeTruthy();
     expect(region('words').getByText(C.compareWarning)).toBeTruthy();
+    // Renamed labels: My pricing and Pricing, never the old "Marketplace price" or "Compare against".
+    expect(region('words').getByText('The “Compare prices with” switch (under Advanced)')).toBeTruthy();
+    expect(main().queryByText(/Marketplace price|Compare against/)).toBeNull();
     expect(within(region('words').getByText('Available but out of stock').closest('dt') as HTMLElement).getByText('Urgent')).toBeTruthy();
     for (const t of [...C.can, ...C.cannot]) expect(region('limits').getByText(t)).toBeTruthy();
     for (const t of C.tips) expect(region('tips').getByText(t)).toBeTruthy();
@@ -157,11 +160,19 @@ describe('How it works page', () => {
     expect(screen.queryByText(/do not have access|No access/i)).toBeNull();
   });
 
-  it('keeps the Help & onboarding item next to it', () => {
+  it('sits in Daily work for every role; Help & onboarding sits in Admin for a role that can change settings', () => {
+    window.localStorage.clear();
     mount();
-    const labels = sidebar().getAllByRole('button').map(b => b.textContent?.trim());
-    const i = labels.indexOf('How it works');
-    expect(i).toBeGreaterThan(-1);
-    expect(labels[i + 1]).toBe('Help & onboarding');
+    const daily = within(sidebar().getByRole('group', { name: 'Daily work' }));
+    expect(daily.getByRole('button', { name: 'How it works' })).toBeTruthy();
+    // The analyst only reads: no Help & onboarding item (the page itself still opens by link).
+    expect(sidebar().queryByRole('button', { name: 'Help & onboarding' })).toBeNull();
+    cleanup();
+
+    role = 'owner';
+    perms = new Set(['settings.view', 'settings.edit']);
+    mount();
+    fireEvent.click(sidebar().getByRole('button', { name: 'Admin' }));
+    expect(within(sidebar().getByRole('group', { name: 'Admin' })).getByRole('button', { name: 'Help & onboarding' })).toBeTruthy();
   });
 });

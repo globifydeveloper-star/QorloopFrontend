@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, FolderTree, Search, Sparkles, Upload } from 'lucide-react';
@@ -15,13 +15,17 @@ import {
 } from './MarketplaceColumns';
 import { CATALOGUE_PANEL_ID, CatalogueTabs, catalogueTabId } from './CatalogueTabs';
 import { marketplaceName, useReconSummary } from '../recon/shared';
-import { realPricingEnabled, realReconEnabled, realSettingsEnabled } from '../../lib/features';
+import { realMarketplaceValuesEnabled, realPricingEnabled, realReconEnabled, realSettingsEnabled } from '../../lib/features';
+import { updateFilesLink } from '../updateFiles/urlState';
 import { money2 } from '../../lib/format';
-import { PriceSourceChip } from '../pricing/shared';
+import { EXPECTED_PRICE_HINT, PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { BulkStockDialog } from '../stock/BulkStockDialog';
+import { RECON_MARKETPLACES } from '../../api/recon';
+import { MarketplaceCatalogue } from './MarketplaceCatalogue';
+import { CatalogueExportButton } from './CatalogueExportButton';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
@@ -38,6 +42,37 @@ function describeFilter(q: string, categoryId: string | undefined, subcategoryId
 
 /** CAT-001: the catalogue from GET /api/products, with per-tab counts from the backend. */
 export const RealCatalogueView: React.FC = () => {
+  const uid = useId();
+  const [params, setParams] = useSearchParams();
+  const tabs = ['master', ...RECON_MARKETPLACES] as const;
+  const requested = params.get('marketplace');
+  const selected = RECON_MARKETPLACES.find(m => m === requested) ?? 'master';
+  const buttons = useRef(new Map<string, HTMLButtonElement>());
+  const choose = (tab: typeof tabs[number]) => {
+    setParams(previous => { const next = new URLSearchParams(previous); if (tab === 'master') next.delete('marketplace'); else next.set('marketplace', tab); return next; });
+  };
+  return <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+    <div><h1 className="text-2xl font-bold tracking-tight text-gray-900">Catalogue</h1>
+      <p className="mt-0.5 text-xs text-gray-500">Browse your master catalogue and the products listed on each marketplace.</p></div>
+    <div role="tablist" aria-label="Catalogue source" className="flex overflow-x-auto gap-1 border-b border-gray-200">
+      {tabs.map(tab => <button key={tab} type="button" role="tab" id={`${uid}-${tab}`} aria-controls={`${uid}-panel`} aria-selected={selected === tab} tabIndex={selected === tab ? 0 : -1}
+        ref={node => { if (node) buttons.current.set(tab, node); else buttons.current.delete(tab); }}
+        onClick={() => choose(tab)} onKeyDown={e => {
+          const index = tabs.indexOf(tab);
+          const to = e.key === 'ArrowRight' ? (index + 1) % tabs.length : e.key === 'ArrowLeft' ? (index + tabs.length - 1) % tabs.length : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : undefined;
+          if (to !== undefined) { e.preventDefault(); choose(tabs[to]); buttons.current.get(tabs[to])?.focus(); }
+        }}
+        className={`shrink-0 px-4 py-3 text-sm font-semibold border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#027864] ${selected === tab ? 'border-[#027864] text-[#027864]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}>
+        {tab === 'master' ? 'Master catalogue' : marketplaceName(tab)}
+      </button>)}
+    </div>
+    <div role="tabpanel" id={`${uid}-panel`} aria-labelledby={`${uid}-${selected}`}>
+      {selected === 'master' ? <CatalogueProducts /> : <MarketplaceCatalogue key={selected} marketplaceId={selected} />}
+    </div>
+  </div>;
+};
+
+const CatalogueProducts: React.FC = () => {
   const { openUploadModal } = useApp();
   const { can } = useAuth();
   const [tab, setTab] = useState<ProductTab>('all');
@@ -138,13 +173,14 @@ export const RealCatalogueView: React.FC = () => {
   const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0) + (showMarketplace ? 3 : 0);
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Catalogue</h1>
+          <h2 className="text-lg font-bold tracking-tight text-gray-900">Master catalogue</h2>
           <p className="text-xs text-gray-500 mt-0.5">All products in your Qorloop catalogue. Keep Arabic names, categories and status up to date.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-start gap-3">
+          {can('reports.export') && <CatalogueExportButton filter={filter} categories={names} disabled={list.isPending || list.isPlaceholderData} />}
           <Link to={pathFor('categories')} className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
             <FolderTree className="w-3.5 h-3.5 text-gray-500" /> Categories
           </Link>
@@ -257,6 +293,9 @@ export const RealCatalogueView: React.FC = () => {
         {showMarketplace && (
           <p data-testid="marketplace-note" className="px-4 py-2.5 border-b border-gray-100 text-[11px] text-gray-500">
             {marketplaceNote(marketplaceId, latestUpload, computedAt)}
+            {realMarketplaceValuesEnabled() && can('recon.view') && (
+              <> <Link to={updateFilesLink(marketplaceId, 'adjust')} data-testid="catalogue-update-files" className="font-semibold text-[#027864] hover:underline">{`Update the ${mpName} file`}</Link></>
+            )}
           </p>
         )}
 
@@ -284,7 +323,7 @@ export const RealCatalogueView: React.FC = () => {
                   <th className="px-4 py-3">Barcode</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3 text-right">{showPrice ? 'ERP price (QAR)' : 'ERP price'}</th>
-                  {showPrice && <th className="px-4 py-3">Marketplace price (QAR)</th>}
+                  {showPrice && <th className="px-4 py-3">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{EXPECTED_PRICE_HINT}</span></th>}
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3 text-right">Catalogue stock</th>
                   {showMarketplace && <th className="hidden md:table-cell px-4 py-3">{`Availability on ${mpName}`}</th>}

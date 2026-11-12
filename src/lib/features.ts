@@ -26,3 +26,9 @@ export const realSettingsEnabled = (): boolean => import.meta.env.VITE_REAL_SETT
 
 /** Derived Owner/Admin get-started checklist from /api/onboarding. Default off. */
 export const realOnboardingEnabled = (): boolean => import.meta.env.VITE_REAL_ONBOARDING === 'true';
+
+/**
+ * "Update marketplace files" (/update-files) and the "Value to export" editor use the PROPOSED /api/marketplace-values
+ * endpoints (ADR 018; not in the backend yet) next to /api/recon and /api/generated-files. Default off.
+ */
+export const realMarketplaceValuesEnabled = (): boolean => import.meta.env.VITE_REAL_MARKETPLACE_VALUES === 'true';

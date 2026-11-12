@@ -38,7 +38,8 @@ import { UploadsHistoryView } from './components/views/UploadsHistoryView';
 import { CategoriesView } from './components/views/CategoriesView';
 import { CategoryDetailView } from './components/views/CategoryDetailView';
 import { StockConflictsView } from './components/stock/StockConflictsView';
-import { realCatalogueEnabled, realOnboardingEnabled } from './lib/features';
+import { UpdateFilesView } from './components/updateFiles/UpdateFilesView';
+import { realCatalogueEnabled, realMarketplaceValuesEnabled, realOnboardingEnabled } from './lib/features';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 /** The signed-in application. Sample-data screens stay available but are labelled until their endpoints exist. */
@@ -113,6 +114,9 @@ const MainContent: React.FC = () => {
         return <TeamView />;
       case 'how-it-works':
         return <HowItWorksView />;
+      // Real backend only (the proposed ADR 018 endpoints): there is no demo version of this screen.
+      case 'update-files':
+        return realMarketplaceValuesEnabled() ? <UpdateFilesView /> : <DashboardView />;
       default:
         return <DashboardView />;
     }

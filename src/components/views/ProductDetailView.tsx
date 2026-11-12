@@ -174,7 +174,7 @@ const DemoProductDetailView: React.FC = () => {
                 </div>
 
                 <div>
-                  <div className="text-gray-400">Marketplace price (QAR)</div>
+                  <div className="text-gray-400">Expected price (QAR)</div>
                   <button
                     onClick={() => setPriceModalOpen(true)}
                     className="flex items-center gap-1.5 hover:underline"
@@ -247,7 +247,7 @@ const DemoProductDetailView: React.FC = () => {
                   : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Marketplace price
+              Expected price
             </button>
             <button
               onClick={() => setActiveTab('history')}
@@ -268,7 +268,7 @@ const DemoProductDetailView: React.FC = () => {
                 <tr>
                   <th className="py-2.5 px-3">Marketplace</th>
                   <th className="py-2.5 px-3">Listing status</th>
-                  <th className="py-2.5 px-3">Marketplace price (QAR)</th>
+                  <th className="py-2.5 px-3">Price on the marketplace (QAR)</th>
                   <th className="py-2.5 px-3">Stock quantity</th>
                   <th className="py-2.5 px-3">Last updated</th>
                   <th className="py-2.5 px-3">Notes</th>
@@ -488,7 +488,7 @@ const DemoProductDetailView: React.FC = () => {
                     <td className="py-2.5 px-3 text-gray-600">05 Oct 2026 18:40</td>
                     <td className="py-2.5 px-3 font-medium text-gray-900">Talabat file</td>
                     <td className="py-2.5 px-3 text-blue-600 font-medium">Price change</td>
-                    <td className="py-2.5 px-3 text-gray-600">Marketplace price</td>
+                    <td className="py-2.5 px-3 text-gray-600">Price on Talabat</td>
                     <td className="py-2.5 px-3 text-gray-500">2.50</td>
                     <td className="py-2.5 px-3 font-semibold text-gray-900">2.75</td>
                     <td className="py-2.5 px-3 text-gray-600">Omar Haddad</td>
@@ -496,7 +496,7 @@ const DemoProductDetailView: React.FC = () => {
                   <tr className="hover:bg-gray-50">
                     <td className="py-2.5 px-3 text-gray-600">02 Oct 2026 11:20</td>
                     <td className="py-2.5 px-3 font-medium text-gray-900">Manual</td>
-                    <td className="py-2.5 px-3 text-emerald-600 font-medium">Marketplace price change</td>
+                    <td className="py-2.5 px-3 text-emerald-600 font-medium">Expected price change</td>
                     <td className="py-2.5 px-3 text-gray-600">Default rule</td>
                     <td className="py-2.5 px-3 text-gray-500">+15% on ERP</td>
                     <td className="py-2.5 px-3 font-semibold text-gray-900">+10% on ERP</td>

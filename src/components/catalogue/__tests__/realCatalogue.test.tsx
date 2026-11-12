@@ -117,7 +117,7 @@ describe('catalogue (CAT-001)', () => {
     expect(row2.getByText('No Arabic name')).toBeTruthy();
     expect(r.getByRole('link', { name: 'Product 1' }).getAttribute('href')).toBe('/catalogue/1');
 
-    expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(
+    expect(within(screen.getByRole('tablist', { name: 'Product status' })).getAllByRole('tab').map(t => t.textContent)).toEqual(
       ['All (3)', 'Active (2)', 'Inactive (0)', 'New (1)', 'Missing from ERP (0)']);
   });
 
@@ -289,7 +289,7 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     expect(r1.getByTestId('mp-price-cell').textContent).toBe('QAR 4.00');
     expect(within(r1.getByTestId('mp-compared-cell')).getByTestId('mp-compared').textContent).toBe('Mismatch');
     expect(within(r1.getByTestId('mp-compared-cell')).getByTestId('mp-stock-issue').textContent).toBe('Available but out of stock');
-    expect(within(r1.getByTestId('mp-compared-cell')).getByTestId('mp-price-issue').textContent).toBe('Price lower than the Marketplace price');
+    expect(within(r1.getByTestId('mp-compared-cell')).getByTestId('mp-price-issue').textContent).toBe('Price lower than My pricing');
 
     const r2 = within(screen.getByText('Product 2').closest('tr')!);
     expect(r2.getByTestId('mp-availability-cell').textContent).toBe('Not in the file');
@@ -497,7 +497,7 @@ describe('product detail (CAT-002)', () => {
     expect(listings.getByText('Unavailable')).toBeTruthy();
     const erp = within(screen.getByRole('region', { name: 'From the ERP' }));
     expect(erp.getByText('QAR 9.00')).toBeTruthy();
-    for (const t of ['Marketplace price rules', 'Price discrepancies', 'Change history']) {
+    for (const t of ['Pricing rules', 'Price discrepancies', 'Change history']) {
       expect(within(screen.getByRole('region', { name: t })).getByText('Not available yet')).toBeTruthy();
     }
   });

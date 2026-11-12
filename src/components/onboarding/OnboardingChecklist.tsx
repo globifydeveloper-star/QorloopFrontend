@@ -10,6 +10,7 @@ import { marketplaceName } from '../recon/shared';
 import { ONBOARDING_TARGETS } from './targets';
 import { pathFor } from '../../routes/paths';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
+import { PRICE_SOURCE_ANCHOR, PRICE_SOURCE_COPY } from '../pricing/PriceSourceGuide';
 
 export const onboardingTiming = { pollMs: 15_000 };
 
@@ -30,13 +31,14 @@ export const OnboardingChecklist: React.FC<{ placement?: 'dashboard' | 'page' }>
 };
 
 const Checklist: React.FC<{ placement: 'dashboard' | 'page' }> = ({ placement }) => {
+  const { can } = useAuth();
   const q = useOnboardingProgress();
   if (q.data?.steps.length === 0 && !q.isError) return null;
   if (q.data?.complete && !q.isError) return placement === 'dashboard' ? null : <EmptyState title="You're all set" hint="All required get-started steps are complete." />;
   const required = q.data?.steps.filter(step => step.required) ?? [];
   const optional = q.data?.steps.filter(step => !step.required) ?? [];
   return <section aria-label="Get started" className={`${placement === 'dashboard' ? 'm-8 mb-0 max-w-7xl' : ''} bg-white border border-gray-200 rounded-2xl p-5 space-y-5`}>
-    <div><h2 className="text-lg font-bold text-gray-900">Get started</h2><p className="text-xs text-gray-500">Complete these four required steps to get your store ready. Progress updates from your store's records.</p><Link to={pathFor('how-it-works')} className="mt-1 inline-block text-xs font-semibold text-[#027864] hover:underline">{HOW_IT_WORKS.onboardingLink}</Link></div>
+    <div><h2 className="text-lg font-bold text-gray-900">Get started</h2><p className="text-xs text-gray-500">Complete these four required steps to get your store ready. Progress updates from your store's records.</p><div className="mt-1 flex flex-wrap gap-x-4 gap-y-1"><Link to={pathFor('how-it-works')} className="inline-block text-xs font-semibold text-[#027864] hover:underline">{HOW_IT_WORKS.onboardingLink}</Link>{can('pricing.view') && <Link to={`${pathFor('markups')}#${PRICE_SOURCE_ANCHOR}`} className="inline-block text-xs font-semibold text-[#027864] hover:underline">{PRICE_SOURCE_COPY.onboardingLink}</Link>}</div></div>
     {q.isPending ? <LoadingState label="Loading get-started checklist…" rows={4} /> : q.isError ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : <>
       <div>
         <p className="text-sm font-semibold mb-2">{q.data.percent}% complete</p>

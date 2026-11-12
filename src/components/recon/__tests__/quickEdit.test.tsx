@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -432,7 +433,7 @@ describe('quick edit drawer', () => {
     await openFromStockReport();
     expect(screen.getByRole('dialog').className).toContain('q-drawer');
     expect(screen.getByRole('dialog').className).toContain('sm:w-[480px]');
-    const css = readFileSync(new URL('../../../index.css', import.meta.url), 'utf8');
+    const css = readFileSync(join(process.cwd(), 'src', 'index.css'), 'utf8');
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.q-drawer, \.q-drawer-backdrop \{ animation: none; \}/);
     expect(document.querySelector('[data-slot="marketplace-export-value"]')).toBeNull();
   });

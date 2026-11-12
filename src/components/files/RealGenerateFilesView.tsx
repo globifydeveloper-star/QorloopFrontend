@@ -10,7 +10,9 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { invalidateOnboarding } from '../onboarding/shared';
-import { REFERENCE_LABELS, marketplaceName, money2, qatarDateTime, reconErrorText, useReconSummary } from '../recon/shared';
+import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
+import { ErpPriceFileWarning } from '../common/ErpPriceFileWarning';
+import { REFERENCE_IN_TEXT, REFERENCE_LABELS, marketplaceName, money2, qatarDateTime, reconErrorText, useReconSummary } from '../recon/shared';
 
 export const KIND_LABELS: Record<FileKind, string> = { stock: 'Stock', price: 'Price', stock_price: 'Stock and price' };
 export const SCOPE_LABELS: Record<FileScope, string> = { mismatches: 'Only products that need a change', all: 'All listed products' };
@@ -54,11 +56,17 @@ export const RealGenerateFilesView: React.FC = () => {
   const [job, setJob] = useState<{ jobId: string; key: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // The price reference is an Advanced choice (?advanced=1). Without it every file uses My pricing.
+  const [advanced] = useAdvanced();
   const chosen = marketplaceId ?? available[0]?.marketplaceId ?? null;
-  const ref = reference ?? summary.data?.reference ?? 'marketplace';
+  const ref: ReconReference = advanced ? reference ?? summary.data?.reference ?? 'marketplace' : 'marketplace';
   const selection: FileSelection | null = chosen ? { marketplaceId: chosen, kind, scope, reference: ref } : null;
   const key = selection ? keyOf(selection) : '';
   const seen = preview && preview.key === key ? preview.data : null;
+  /** A file with prices made against the ERP price needs "I understand" before Generate. Cleared on every change. */
+  const needsErpConsent = ref === 'erp' && kind !== 'stock';
+  const [understood, setUnderstood] = useState(false);
+  useEffect(() => setUnderstood(false), [key]);
 
   /** Every change of choice clears the preview: Generate needs a preview of the current choices. */
   const choose = (apply: () => void) => { apply(); setPreview(null); setActionError(null); };
@@ -165,19 +173,25 @@ export const RealGenerateFilesView: React.FC = () => {
                 <Radio key={s} name="scope" label={SCOPE_LABELS[s]} checked={scope === s} onChange={() => choose(() => setScope(s))} />
               ))}
             </fieldset>
-            <fieldset>
-              <legend className="text-sm font-bold text-gray-900 mb-2">Compare against</legend>
-              {(Object.keys(REFERENCE_LABELS) as ReconReference[]).map(r => (
-                <Radio key={r} name="reference" checked={ref === r} onChange={() => choose(() => setReference(r))}
-                  label={`${REFERENCE_LABELS[r]}${r === summary.data?.reference ? ' (store default)' : ''}`} />
-              ))}
-            </fieldset>
+            <div className="self-start">
+              <AdvancedDisclosure id="files-advanced">
+                <fieldset>
+                  <legend className="text-sm font-bold text-gray-900 mb-2">Compare prices with</legend>
+                  {(Object.keys(REFERENCE_LABELS) as ReconReference[]).map(r => (
+                    <Radio key={r} name="reference" checked={ref === r} onChange={() => choose(() => setReference(r))}
+                      label={`${REFERENCE_LABELS[r]}${r === summary.data?.reference ? ' (store default)' : ''}`} />
+                  ))}
+                </fieldset>
+              </AdvancedDisclosure>
+            </div>
           </div>
 
           <div role="note" className="flex items-start gap-2 p-3 rounded-lg bg-blue-50/70 text-blue-900 border border-blue-100 text-xs">
             <Info className="w-4 h-4 shrink-0 text-blue-600 mt-px" aria-hidden />
-            <span>Prices in this file use the <b>{REFERENCE_LABELS[seen?.referenceUsed ?? ref]}</b>.</span>
+            <span>Prices in this file use <b>{REFERENCE_IN_TEXT[seen?.referenceUsed ?? ref]}</b>.</span>
           </div>
+
+          {needsErpConsent && <ErpPriceFileWarning understood={understood} onChange={setUnderstood} />}
 
           {seen && seen.warnings.length > 0 && (
             <ul aria-label="Warnings" data-testid="preview-warnings" className="space-y-2">
@@ -200,7 +214,7 @@ export const RealGenerateFilesView: React.FC = () => {
             )}
             {canGenerate && (
               <button type="button" onClick={() => { if (selection) { setActionError(null); generateM.mutate(selection); } }}
-                disabled={!seen || Boolean(blockedHere) || working}
+                disabled={!seen || Boolean(blockedHere) || working || (needsErpConsent && !understood)}
                 className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-xs font-semibold text-white bg-[#027864] hover:bg-[#02634f] disabled:opacity-50">
                 <FileSpreadsheet className="w-3.5 h-3.5" aria-hidden /> Generate file
               </button>

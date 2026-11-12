@@ -17,7 +17,7 @@ import { CATALOGUE_PANEL_ID, CatalogueTabs, catalogueTabId } from './CatalogueTa
 import { marketplaceName, useReconSummary } from '../recon/shared';
 import { realPricingEnabled, realReconEnabled, realSettingsEnabled } from '../../lib/features';
 import { money2 } from '../../lib/format';
-import { PriceSourceChip } from '../pricing/shared';
+import { EXPECTED_PRICE_HINT, PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 import { CatalogueStockCell } from '../stock/StockCell';
@@ -284,7 +284,7 @@ export const RealCatalogueView: React.FC = () => {
                   <th className="px-4 py-3">Barcode</th>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3 text-right">{showPrice ? 'ERP price (QAR)' : 'ERP price'}</th>
-                  {showPrice && <th className="px-4 py-3">Marketplace price (QAR)</th>}
+                  {showPrice && <th className="px-4 py-3">Expected price (QAR) <span className="block font-normal normal-case tracking-normal">{EXPECTED_PRICE_HINT}</span></th>}
                   <th className="px-4 py-3 text-right">ERP stock</th>
                   <th className="px-4 py-3 text-right">Catalogue stock</th>
                   {showMarketplace && <th className="hidden md:table-cell px-4 py-3">{`Availability on ${mpName}`}</th>}

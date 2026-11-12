@@ -58,7 +58,7 @@ export const AdoptPricesWizard: React.FC<{ onClose: () => void }> = ({ onClose }
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-base font-bold text-gray-900">Adopt current marketplace prices</h2>
-            <p className="text-xs text-gray-500">Create product price rules so your Marketplace price matches what a marketplace shows today.</p>
+            <p className="text-xs text-gray-500">Create product price rules so the price your pricing rules give each product matches what a marketplace shows today.</p>
           </div>
           <button onClick={close} disabled={apply.isPending} aria-label="Close" className="text-gray-400 hover:text-gray-600 disabled:opacity-40"><X className="w-4 h-4" /></button>
         </div>

@@ -14,6 +14,7 @@ import { useCategoryTree } from '../catalogue/shared';
 import { ConfirmDialog } from '../uploads/shared';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { AdoptPricesWizard } from './AdoptPricesWizard';
+import { DEFAULT_RULE_ANCHOR, PriceSourceGuide } from './PriceSourceGuide';
 import {
   CATEGORY_RULES_KEY, FieldError, PRICING_SETTINGS_KEY, ROUNDING_LABELS, RuleFields, draftOf, fieldErrors, inputCls,
   invalidatePriced, pricingErrorText, ruleFromDraft, ruleText, type RuleDraft,
@@ -30,7 +31,7 @@ export const RealPricingView: React.FC = () => {
     <div className="p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Marketplace Price</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Pricing</h1>
           <p className="text-xs text-gray-500 mt-0.5">
             The price each product should have on the marketplaces. The first rule that applies wins: offer, product rule,
             subcategory rule, category rule, marketplace rule, then the default rule.
@@ -42,6 +43,8 @@ export const RealPricingView: React.FC = () => {
           </button>
         )}
       </div>
+
+      <PriceSourceGuide onAdopt={() => setAdopting(true)} />
 
       {!editable && (
         <p role="note" className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-xs text-gray-600">You can view the pricing but not change it.</p>
@@ -114,7 +117,7 @@ export const PricingSettingsForm: React.FC<{
     <form aria-label="Pricing settings" onSubmit={submit} className="space-y-6">
       {screenError ? <ErrorState error={save.error} onRetry={() => save.reset()} /> : errors.general && !Object.keys(other.fields).length && <p role="alert" className="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">{errors.general}</p>}
 
-      <section aria-label="Default marketplace price" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
+      <section id={DEFAULT_RULE_ANCHOR} aria-label="Default marketplace price" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Default marketplace price</h2>
           <p className="text-xs text-gray-500">Used for every product that no offer, product, subcategory, category or marketplace rule covers.</p>
@@ -132,14 +135,14 @@ export const PricingSettingsForm: React.FC<{
         </div>
       </section>
 
-      <section aria-label="Compare against" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+      <section aria-label="Compare prices with" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
         <div>
-          <h2 className="text-sm font-bold text-gray-900">Compare against</h2>
-          <p className="text-xs text-gray-500">The price the dashboard and reports compare marketplace prices with, unless someone switches it on the screen.</p>
+          <h2 className="text-sm font-bold text-gray-900">Compare prices with</h2>
+          <p className="text-xs text-gray-500">The dashboard, reports and generated files always use My pricing. This default only applies when someone opens Advanced on those screens.</p>
         </div>
         <fieldset className="flex flex-wrap gap-4 text-sm" disabled={!editable}>
-          <legend className="sr-only">Store default for compare against</legend>
-          {([['marketplace', 'Marketplace price'], ['erp', 'ERP price']] as const).map(([v, label]) => (
+          <legend className="sr-only">Store default for compare prices with</legend>
+          {([['marketplace', 'My pricing'], ['erp', 'ERP price (advanced)']] as const).map(([v, label]) => (
             <label key={v} className="inline-flex items-center gap-2">
               <input type="radio" name="compare-default" value={v} checked={compare === v} onChange={() => setCompare(v)} className="accent-[#027864]" />
               {label}

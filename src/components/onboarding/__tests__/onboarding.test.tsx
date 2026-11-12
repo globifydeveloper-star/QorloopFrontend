@@ -62,6 +62,19 @@ describe('get-started checklist', () => {
     }
   });
 
+  it('links to the price-source card on the Pricing screen for a role that can see pricing', async () => {
+    const { unmount } = mount();
+    await screen.findByRole('progressbar');
+    expect(screen.queryByRole('link', { name: 'Set how your prices are decided' })).toBeNull();
+    unmount();
+    perms.add('pricing.view');
+    mount();
+    await screen.findByRole('progressbar');
+    const link = within(screen.getByRole('region', { name: 'Get started' })).getByRole('link', { name: 'Set how your prices are decided' });
+    expect(link.getAttribute('href')).toBe('/pricing#price-source');
+    expect(matchView('/pricing')).toEqual({ view: 'markups' });
+  });
+
   it('shows loading, then four required steps with step one next and separate optional work for a new tenant', async () => {
     mount(); expect(screen.getByRole('status', { name: 'Loading get-started checklist…' })).toBeTruthy();
     expect((await screen.findByRole('progressbar')).getAttribute('aria-valuenow')).toBe('0');

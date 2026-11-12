@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { matchView, pathFor } from '../routes/paths';
+import { advancedOpen } from '../lib/advanced';
 import {
   INITIAL_CATEGORIES,
   INITIAL_OUTPUT_FILES,
@@ -127,7 +128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [categoryPriceRules, setCategoryPriceRules] = useState<CategoryPriceRule[]>(
     INITIAL_CATEGORY_PRICE_RULES
   );
-  const [compareReference, setCompareReference] = useState<CompareReference>('marketplace');
+  const [chosenCompareReference, setCompareReference] = useState<CompareReference>('marketplace');
+  // The ERP price is an Advanced choice (?advanced=1, see AdvancedDisclosure): without Advanced, screens use My pricing.
+  const compareReference: CompareReference = advancedOpen(location.search) ? chosenCompareReference : 'marketplace';
   const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceId | null>(null);
   const logout = () => {
     void auth.logout().then(() => router('/login', { replace: true }));
@@ -239,7 +242,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOutputFiles((prev) => [...newFiles, ...prev]);
     showToast(
       `Generated ${selectedMarketplaces.length} marketplace output files using ${
-        compareReference === 'marketplace' ? 'Marketplace prices' : 'ERP prices'
+        compareReference === 'marketplace' ? 'My pricing' : 'the ERP price'
       }`
     );
   };

@@ -7,7 +7,7 @@ import {
 } from '../../api/pricing';
 import { reconApi, type ReconReference } from '../../api/recon';
 import { ConfirmDialog } from '../uploads/shared';
-import { REFERENCE_LABELS, expectRecompute, marketplaceName } from '../recon/shared';
+import { REFERENCE_IN_TEXT, expectRecompute, marketplaceName } from '../recon/shared';
 import { FieldError, PriceSourceChip, inputCls, invalidatePriced, ruleText } from './shared';
 import { changeErrors, count, priceText, signedPrice } from './priceChange';
 import {
@@ -63,7 +63,7 @@ export const BulkPriceChangeDialog: React.FC<{
   const liveSelectionProblem = scope === 'filter' && filterCountPending ? undefined : selectionProblem(scope === 'filter' ? filterSelection : { scope, tickedIds });
   const kind = bulkValueKind(action);
   const mpName = marketplaceId ? marketplaceName(marketplaceId) : 'the marketplace';
-  const compared = mismatchCount.data ? `the ${REFERENCE_LABELS[mismatchCount.data.reference]}` : 'the price you compare against';
+  const compared = mismatchCount.data ? REFERENCE_IN_TEXT[mismatchCount.data.reference] : 'the price you compare against';
   const filterCountLabel = filterCount ? selectionCountText(filterCount) : !filterCountPending && onlyMismatches && mismatchCount.isError ? 'not counted' : 'Counting...';
   const applying = state.phase === 'applying';
   const close = () => { if (!applying) onClose(); };
@@ -345,7 +345,7 @@ const PreviewResult: React.FC<{ preview: BulkPreview; faded?: boolean }> = ({ pr
         </p>
         {'filter' in p.selection && p.selection.filter.reconStatus === 'price_mismatch' && (
           <p data-testid="preview-mismatch-only" className="text-xs text-gray-600">
-            Only products listed on {name} with a price mismatch against the {REFERENCE_LABELS[p.reference ?? 'marketplace']}, as of the last comparison.
+            Only products listed on {name} with a price mismatch against {REFERENCE_IN_TEXT[p.reference ?? 'marketplace']}, as of the last comparison.
           </p>
         )}
       </div>

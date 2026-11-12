@@ -7,18 +7,28 @@ import type { ReconMarketplaceSummary, ReconReference } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
 import { realCatalogueEnabled } from '../../lib/features';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
 import {
-  NoReconAccess, RecomputeBanner, REFERENCE_LABELS, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
+  NoReconAccess, RecomputeBanner, REFERENCE_IN_TEXT, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
 } from './shared';
 
 /** Rows shown under "Needs attention" on each card; the full list is the stock report. */
 export const ATTENTION_ROWS = 5;
 
-/** A report link that keeps the marketplace and the compare-against choice. */
+/** The one number each marketplace card leads with: stock problems plus price problems. */
+export const thingsToFix = (n: number) => (n === 0 ? 'Nothing to fix' : `${n.toLocaleString('en-US')} ${n === 1 ? 'thing' : 'things'} to fix`);
+
+/**
+ * Review slot on each marketplace card, next to "N things to fix". It becomes a "Review" button linking to
+ * /review/:marketplaceId once that route exists in the app; until then it stays empty (no route is invented).
+ */
+const REVIEW_CARD_SLOT: React.ReactNode = null;
+
+/** A report link that keeps the marketplace and the compare choice (reference=erp opens Advanced on the report). */
 export const reportLink = (kind: 'stock' | 'price', marketplaceId: string, reference: ReconReference) =>
   `${pathFor(kind === 'stock' ? 'reports-stock' : 'reports-price-discrepancies')}?${new URLSearchParams({ marketplace: marketplaceId, reference })}`;
 
@@ -31,8 +41,11 @@ export const RealDashboardView: React.FC = () => {
 const Dashboard: React.FC = () => {
   const { openUploadModal, showToast } = useApp();
   const { can } = useAuth();
-  // undefined: the store's default (pricing settings); the server names it in the reply.
-  const [requested, setRequested] = useState<ReconReference | undefined>(undefined);
+  // Without Advanced the Dashboard compares with My pricing. Inside it, undefined is the store's default (pricing
+  // settings); the server names it in the reply.
+  const [advanced] = useAdvanced();
+  const [chosen, setRequested] = useState<ReconReference | undefined>(undefined);
+  const requested: ReconReference | undefined = advanced ? chosen : 'marketplace';
   const summary = useReconSummary(requested);
   const recomputeState = useRecomputeState();
   const recompute = useRecompute(summary.data);
@@ -56,12 +69,14 @@ const Dashboard: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            {data ? <>Last compared {data.computedAt ? qatarDateTime(data.computedAt) : 'never'} (Qatar time). Prices are compared against your {REFERENCE_LABELS[data.reference]}.</>
+            {data ? <>Last compared {data.computedAt ? qatarDateTime(data.computedAt) : 'never'} (Qatar time). Prices are compared with {REFERENCE_IN_TEXT[data.reference]}.</>
               : 'Your ERP compared with each marketplace.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <CompareAgainstToggle value={reference} onChange={setRequested} disabled={!reference} />
+          <AdvancedDisclosure id="dashboard-advanced">
+            <CompareAgainstToggle value={reference} onChange={setRequested} disabled={!reference} />
+          </AdvancedDisclosure>
           {can('pricing.edit') && (
             <button
               onClick={runRecompute}
@@ -141,6 +156,7 @@ const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: R
   const { can } = useAuth();
   const name = marketplaceName(s.marketplaceId);
   const fresh = freshnessText(s);
+  const toFix = s.stock + s.price;
 
   return (
     <section aria-label={name} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col gap-4">
@@ -174,16 +190,25 @@ const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: R
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            <Tile label="Total mismatches" value={s.total} testId="tile-total" />
-            <Tile label="Stock" value={s.stock} testId="tile-stock" to={reportLink('stock', s.marketplaceId, reference)} />
-            <Tile label="Price" value={s.price} testId="tile-price" to={reportLink('price', s.marketplaceId, reference)} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p data-testid="things-to-fix" className={`text-2xl font-bold ${toFix > 0 ? 'text-gray-900' : 'text-[#027864]'}`}>{thingsToFix(toFix)}</p>
+            {REVIEW_CARD_SLOT}
           </div>
-          <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-gray-500">
-            {([['Listed', s.listed], ['Not listed', s.notListed], ['Missing from ERP', s.missingFromErp], ['New', s.newCount]] as const).map(([k, v]) => (
-              <div key={k} className="flex gap-1"><dt>{k}</dt><dd className="font-semibold text-gray-800">{v}</dd></div>
-            ))}
-          </dl>
+          <details className="group">
+            <summary className="cursor-pointer select-none text-xs font-semibold text-gray-600 hover:text-gray-900">Details</summary>
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <Tile label="Total mismatches" value={s.total} testId="tile-total" />
+                <Tile label="Stock" value={s.stock} testId="tile-stock" to={reportLink('stock', s.marketplaceId, reference)} />
+                <Tile label="Price" value={s.price} testId="tile-price" to={reportLink('price', s.marketplaceId, reference)} />
+              </div>
+              <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-gray-500">
+                {([['Listed', s.listed], ['Not listed', s.notListed], ['Missing from ERP', s.missingFromErp], ['New', s.newCount]] as const).map(([k, v]) => (
+                  <div key={k} className="flex gap-1"><dt>{k}</dt><dd className="font-semibold text-gray-800">{v}</dd></div>
+                ))}
+              </dl>
+            </div>
+          </details>
           <NeedsAttention summary={s} reference={reference} />
         </>
       )}

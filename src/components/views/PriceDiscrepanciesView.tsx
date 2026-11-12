@@ -15,11 +15,12 @@ import {
 import { useApp } from '../../context/AppContext';
 import { ProductImage } from '../common/ProductImage';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
+import { AdvancedDisclosure } from '../common/AdvancedDisclosure';
 import {
   MARKETPLACE_IDS,
   MARKETPLACE_NAMES,
   PriceCheck,
-  REFERENCE_LABELS,
+  REFERENCE_IN_TEXT,
   checkProductPrices,
   formatDiff,
   formatQar,
@@ -89,7 +90,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
     });
   });
 
-  const referenceLabel = REFERENCE_LABELS[compareReference];
+  const referenceInText = REFERENCE_IN_TEXT[compareReference];
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in duration-150">
@@ -112,7 +113,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
               Price discrepancies
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Expected price = {compareReference === 'marketplace' ? 'your Marketplace price (same on all marketplaces)' : 'ERP price'}. Tolerance 0.00 QAR.
+              Expected price = {compareReference === 'marketplace' ? 'My pricing (same on all marketplaces)' : 'ERP price'}. Tolerance 0.00 QAR.
             </p>
           </div>
 
@@ -183,7 +184,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
 
       {/* Filter / Search Bar */}
       <div className="bg-white border border-gray-200 rounded-xl p-3.5 shadow-xs flex flex-wrap items-center gap-3 text-xs">
-        <CompareAgainstToggle />
+        <AdvancedDisclosure id="price-report-advanced"><CompareAgainstToggle /></AdvancedDisclosure>
 
         <div className="relative flex-1 min-w-[240px]">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-gray-400" />
@@ -253,7 +254,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
                 <th className="py-2.5 px-3" rowSpan={2}>Barcode / SKU</th>
                 <th className="py-2.5 px-3" rowSpan={2}>Product</th>
                 <th className="py-2.5 px-3 text-right" rowSpan={2}>ERP price (QAR)</th>
-                <th className="py-2.5 px-3 text-right" rowSpan={2}>Marketplace price (QAR)</th>
+                <th className="py-2.5 px-3 text-right" rowSpan={2}>Expected price (QAR)</th>
 
                 {/* Marketplace Group Headers */}
                 {MARKETPLACE_IDS.map((mp) => (
@@ -370,7 +371,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={16} className="py-8 px-3 text-center text-gray-400">
-                    No price discrepancies against {referenceLabel.toLowerCase()}.
+                    No price discrepancies against {referenceInText}.
                   </td>
                 </tr>
               )}
@@ -381,7 +382,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
         {/* Pagination */}
         <div className="p-3 border-t border-gray-200 flex items-center justify-between text-xs text-gray-500">
           <span>
-            Showing {filtered.length === 0 ? 0 : 1} to {filtered.length} of {discrepancies.length} products · compared against {referenceLabel.toLowerCase()}
+            Showing {filtered.length === 0 ? 0 : 1} to {filtered.length} of {discrepancies.length} products · compared against {referenceInText}
           </span>
           <div className="flex items-center gap-1">
             <button className="p-1 rounded hover:bg-gray-100 disabled:opacity-40">

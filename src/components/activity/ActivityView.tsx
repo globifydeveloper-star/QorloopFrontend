@@ -16,7 +16,7 @@ const FIELDS: Record<string, string> = {
   erpStock: 'ERP stock', erpActive: 'ERP active', inLatestErpFile: 'In latest ERP file', rule: 'Price rule', price: 'Price',
   'profile.name': 'Store name', priceTolerance: 'Price tolerance', stockThreshold: 'Stock threshold', staleHours: 'Out of date after (hours)',
   mfaRequiredForAll: 'Require two-step verification', analystCanExport: 'Analysts can export', defaultRule: 'Default price rule',
-  rounding: 'Rounding', perMarketplaceEnabled: 'Different price per marketplace', compareReferenceDefault: 'Compare against', offerPrice: 'Offer price', role: 'Role',
+  rounding: 'Rounding', perMarketplaceEnabled: 'Different price per marketplace', compareReferenceDefault: 'Compare prices with', offerPrice: 'Offer price', role: 'Role',
 };
 const valueText = (v: SafeValue): string => {
   if (v === null || v === undefined) return 'Not recorded';

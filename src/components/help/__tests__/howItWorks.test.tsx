@@ -82,6 +82,9 @@ describe('How it works page', () => {
     for (const t of C.sources) expect(region('sources').getByText(t.meaning)).toBeTruthy();
     for (const t of [...C.words, ...C.compare]) expect(region('words').getByText(t.term)).toBeTruthy();
     expect(region('words').getByText(C.compareWarning)).toBeTruthy();
+    // Renamed labels: My pricing and Pricing, never the old "Marketplace price" or "Compare against".
+    expect(region('words').getByText('The “Compare prices with” switch (under Advanced)')).toBeTruthy();
+    expect(main().queryByText(/Marketplace price|Compare against/)).toBeNull();
     expect(within(region('words').getByText('Available but out of stock').closest('dt') as HTMLElement).getByText('Urgent')).toBeTruthy();
     for (const t of [...C.can, ...C.cannot]) expect(region('limits').getByText(t)).toBeTruthy();
     for (const t of C.tips) expect(region('tips').getByText(t)).toBeTruthy();

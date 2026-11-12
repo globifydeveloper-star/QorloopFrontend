@@ -132,10 +132,10 @@ export const HOW_IT_WORKS = {
     { term: 'N stock conflicts', meaning: 'An ERP file changed a stock that someone had edited by hand. The edited value stays until you choose.' },
   ] satisfies Term[],
 
-  compareTitle: 'The “Compare against” switch',
+  compareTitle: 'The “Compare prices with” switch (under Advanced)',
   compare: [
-    { term: 'Marketplace price', meaning: 'The price you expect on the marketplace.' },
-    { term: 'ERP price', meaning: 'The raw price from your ERP file.' },
+    { term: 'My pricing', meaning: 'The price your pricing rules give each product. The Dashboard, reports and generated files use it unless you open Advanced.' },
+    { term: 'ERP price (advanced)', meaning: 'The raw price from your ERP file, without your markup. Only under Advanced.' },
   ] satisfies Term[],
   compareWarning: 'Never upload a file made against the ERP price to a real marketplace.',
 
@@ -155,7 +155,7 @@ export const HOW_IT_WORKS = {
       steps: [
         'Open the price report from the Dashboard.',
         'Check the expected price. It comes from your pricing rules.',
-        'Change the product’s price, or change the rule in Marketplace price.',
+        'Change the product’s price, or change the rule in Pricing (in the Admin menu).',
         'Generate the corrected file and upload it in the marketplace portal.',
       ],
     },

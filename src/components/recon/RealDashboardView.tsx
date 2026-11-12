@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ChevronRight, Clock, RotateCw, Slash, Upload } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Clock, FilePen, RotateCw, Slash, Upload } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import type { ReconMarketplaceSummary, ReconReference } from '../../api/recon';
 import { pathFor } from '../../routes/paths';
-import { realCatalogueEnabled } from '../../lib/features';
+import { realCatalogueEnabled, realMarketplaceValuesEnabled } from '../../lib/features';
+import { updateFilesLink } from '../updateFiles/urlState';
 import { CompareAgainstToggle } from '../common/CompareAgainstToggle';
 import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
 import { ActiveOffersDashboard } from '../pricing/ActiveOffersDashboard';
@@ -214,6 +215,16 @@ const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: R
             </div>
           </details>
           <NeedsAttention summary={s} reference={reference} />
+          {realMarketplaceValuesEnabled() && (
+            <Link
+              to={updateFilesLink(s.marketplaceId)}
+              data-testid="update-file-link"
+              aria-label={`Update the ${name} file`}
+              className="self-start inline-flex items-center gap-1.5 h-9 px-3.5 text-xs font-semibold text-white bg-[#027864] hover:bg-[#02604F] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#027864]"
+            >
+              <FilePen className="w-3.5 h-3.5" aria-hidden /> Update marketplace file
+            </Link>
+          )}
         </>
       )}
     </section>

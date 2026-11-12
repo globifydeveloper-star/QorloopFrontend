@@ -1,6 +1,6 @@
 import type { ViewType } from '../../types';
 import { VIEW_PERMISSION } from '../../routes/paths';
-import { realSettingsEnabled } from '../../lib/features';
+import { realMarketplaceValuesEnabled, realSettingsEnabled } from '../../lib/features';
 
 /**
  * The sidebar menu, in two groups. Which items a user sees is decided by permissions, never by role names.
@@ -44,6 +44,8 @@ export const NAV_GROUPS: NavGroup[] = [
     title: 'Daily work',
     items: [
       { label: 'Dashboard', view: 'dashboard' },
+      // The main screen: update the marketplace values and export the files (real backend only).
+      { label: 'Update files', view: 'update-files', enabled: realMarketplaceValuesEnabled },
       { label: 'Uploads', view: 'uploads', menuPermission: 'uploads.upload', alsoActiveFor: ['upload-review', 'column-mapping'] },
       ...(REVIEW_NAV_SLOT ? [REVIEW_NAV_SLOT] : []),
       { label: 'Generated files', view: 'outputs-generate', menuPermission: 'files.generate' },

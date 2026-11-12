@@ -14,6 +14,7 @@ import {
   History,
   ChevronDown,
   ChevronRight,
+  FilePen,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ViewType } from '../../types';
@@ -26,6 +27,7 @@ type NavItem = { label: string; view: ViewType; icon: React.ElementType; active:
 
 const ICONS: Partial<Record<ViewType, React.ElementType>> = {
   dashboard: LayoutDashboard,
+  'update-files': FilePen,
   uploads: Upload,
   'outputs-generate': FileSpreadsheet,
   'how-it-works': BookOpen,

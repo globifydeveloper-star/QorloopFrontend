@@ -32,23 +32,19 @@ export interface NavGroup {
   items: NavEntry[];
 }
 
-/**
- * Review slot: the Daily work group gets a "Review" item (between Uploads and Generated files) once the app has a
- * /review/:marketplaceId route. The route does not exist yet, so the slot stays empty; add the entry here then.
- */
-export const REVIEW_NAV_SLOT: NavEntry | null = null;
-
 export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'daily',
     title: 'Daily work',
+    // In the order of the day: see what is wrong, upload today's files, fix and export, the files made so far.
+    // Reviewing a marketplace is the Review step of Update files (it replaced the planned /review/:marketplaceId item).
     items: [
       { label: 'Dashboard', view: 'dashboard' },
-      // The main screen: update the marketplace values and export the files (real backend only).
-      { label: 'Update files', view: 'update-files', enabled: realMarketplaceValuesEnabled },
       { label: 'Uploads', view: 'uploads', menuPermission: 'uploads.upload', alsoActiveFor: ['upload-review', 'column-mapping'] },
-      ...(REVIEW_NAV_SLOT ? [REVIEW_NAV_SLOT] : []),
+      // The main screen: review, adjust the marketplace values and export the files (real backend only).
+      { label: 'Update files', view: 'update-files', enabled: realMarketplaceValuesEnabled },
       { label: 'Generated files', view: 'outputs-generate', menuPermission: 'files.generate' },
+      // Help, last: not a step of the day.
       { label: 'How it works', view: 'how-it-works' },
     ],
   },

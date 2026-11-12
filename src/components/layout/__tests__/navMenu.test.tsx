@@ -95,6 +95,13 @@ describe('menu groups follow permissions', () => {
     });
   });
 
+  it('with Update files on, Daily work follows the day: Dashboard, Uploads, Update files, Generated files, then How it works', () => {
+    vi.stubEnv('VITE_REAL_MARKETPLACE_VALUES', 'true');
+    expect(menu('catalogue_manager')['Daily work']).toEqual(['Dashboard', 'Uploads', 'Update files', 'Generated files', 'How it works']);
+    // A role that only reads still gets Update files (recon.view) to see the values.
+    expect(menu('analyst')['Daily work']).toEqual(['Dashboard', 'Update files', 'How it works']);
+  });
+
   it('a group with nothing to show is left out', () => {
     expect(visibleNav(() => false).map(g => g.title)).toEqual(['Daily work']);
   });

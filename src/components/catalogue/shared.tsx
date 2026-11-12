@@ -2,7 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleSlash, Sparkles } from 'lucide-react';
 import { ApiError } from '../../api/client';
-import { PRODUCTS_PAGE_SIZE, productsApi, type ProductDetail, type ProductItem, type ProductPage, type ProductStatus, type ProductTab } from '../../api/products';
+import {
+  PRODUCTS_PAGE_SIZE, productsApi, type MarketplaceStatusFilter, type ProductDetail, type ProductItem, type ProductPage, type ProductStatus,
+  type ProductTab,
+} from '../../api/products';
 import { categoriesApi, type CategoryNode } from '../../api/categories';
 import { formatQar } from '../../lib/pricing';
 
@@ -16,14 +19,57 @@ export interface ProductFilter {
   tab: ProductTab;
   categoryId?: string;
   subcategoryId?: string;
+  /** Asks for each product's values on this marketplace (GET /api/products?marketplaceId=). */
+  marketplaceId?: string;
+  marketplaceStatus?: MarketplaceStatusFilter;
 }
 const productListKey = (f: ProductFilter) => ['products', 'list', f] as const;
+
+/** A list page, plus why the marketplace values could not be shown when the backend refused them. */
+export type CataloguePage = ProductPage & { marketplaceProblem?: string };
+
+/**
+ * A 400 about the marketplace parameters: the marketplace is not enabled for the store, or the backend predates the
+ * marketplace columns (its strict query rejects the unknown keys).
+ */
+function marketplaceRefusal(e: unknown): string | undefined {
+  if (!(e instanceof ApiError) || e.status !== 400) return undefined;
+  const d = e.details.find(x => /marketplace/i.test(x.path ?? '') || /marketplace/i.test(x.message));
+  if (d) return d.path === 'marketplaceId' || d.path === 'marketplaceStatus' ? d.message : 'This server does not offer marketplace values in the catalogue yet.';
+  return /marketplace/i.test(e.message) ? 'This server does not offer marketplace values in the catalogue yet.' : undefined;
+}
+
+async function listPage(filter: ProductFilter, cursor: string | undefined, signal: AbortSignal): Promise<CataloguePage> {
+  try {
+    return await productsApi.list({ ...filter, cursor, limit: PRODUCTS_PAGE_SIZE }, signal);
+  } catch (e) {
+    const problem = filter.marketplaceId ? marketplaceRefusal(e) : undefined;
+    if (!problem) throw e;
+    // Show the catalogue without marketplace values rather than an error page; the view says why.
+    const { marketplaceId: _m, marketplaceStatus: _s, ...plain } = filter;
+    const page = await productsApi.list({ ...plain, cursor, limit: PRODUCTS_PAGE_SIZE }, signal);
+    return { ...page, marketplaceProblem: problem };
+  }
+}
+
+/**
+ * The tab counts for a search and category alone. With a marketplace status filter the list's own counts are narrowed
+ * by it, but the bulk changes take no marketplace status, so their counts come from here.
+ */
+export function useProductCounts(filter: Omit<ProductFilter, 'marketplaceId' | 'marketplaceStatus'>, enabled: boolean) {
+  return useQuery({
+    queryKey: ['products', 'counts', filter] as const,
+    queryFn: ({ signal }) => productsApi.list({ ...filter, limit: 1 }, signal).then(p => p.counts),
+    enabled,
+    retry: false,
+  });
+}
 
 /** GET /api/products, one page per 'Load more' (keyset cursor). Keeps the previous result on screen while a filter changes. */
 export function useProductList(filter: ProductFilter) {
   return useInfiniteQuery({
     queryKey: productListKey(filter),
-    queryFn: ({ pageParam, signal }) => productsApi.list({ ...filter, cursor: pageParam, limit: PRODUCTS_PAGE_SIZE }, signal),
+    queryFn: ({ pageParam, signal }) => listPage(filter, pageParam, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: last => last.nextCursor ?? undefined,
     placeholderData: keepPreviousData,

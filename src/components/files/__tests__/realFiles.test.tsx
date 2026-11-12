@@ -163,13 +163,16 @@ describe('generate files (OUT-001)', () => {
 
   it.each([
     ['marketplace', 'Snoonu'], ['kind', 'Price'], ['scope', 'All listed products'], ['reference', 'ERP price'],
-  ])('changing the %s clears the preview and disables Generate again', async (_what, label) => {
+  ])('changing the %s clears the preview and disables Generate again', async (what, label) => {
     await previewed();
+    // The ERP price is only offered under Advanced, and a price file against it needs "I understand" before Generate.
+    if (what === 'reference') openAdvanced();
     fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${label}`) }));
     expect(screen.queryByRole('region', { name: 'Preview' })).toBeNull();
     expect(generateBtn()).toHaveProperty('disabled', true);
     fireEvent.click(previewBtn());
     await screen.findByRole('region', { name: 'Preview' });
+    if (what === 'reference') fireEvent.click(screen.getByRole('checkbox', { name: 'I understand' }));
     expect(generateBtn()).toHaveProperty('disabled', false);
   });
 

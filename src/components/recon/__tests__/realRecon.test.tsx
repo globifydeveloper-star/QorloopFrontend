@@ -132,6 +132,17 @@ describe('dashboard (DASH-001)', () => {
     expect(params(calls(isSummary)[0][0] as string)).toEqual({ reference: 'marketplace' }); // My pricing: Advanced is closed
 
     const t = within(talabat);
+    // The card leads with one plain number (stock 3 + price 2); the existing numbers sit under Details.
+    expect(t.getByTestId('things-to-fix').textContent).toBe('5 things to fix');
+    expect(within(screen.getByRole('region', { name: 'Snoonu' })).getByTestId('things-to-fix').textContent).toBe('1 thing to fix');
+    const details = t.getByText('Details').closest('details')!;
+    expect(details.open).toBe(false);
+    expect(details.contains(t.getByTestId('tile-total'))).toBe(true);
+    expect(details.textContent).toContain('Missing from ERP');
+    expect(t.getByTestId('things-to-fix').compareDocumentPosition(details) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // No Review route exists yet, so the card has no Review button.
+    expect(t.queryByRole('button', { name: /Review/ })).toBeNull();
+    expect(t.queryByRole('link', { name: /^Review/ })).toBeNull();
     expect(t.getByTestId('tile-total').textContent).toBe('9');
     expect(t.getByTestId('tile-stock').textContent).toBe('3');
     expect(t.getByTestId('tile-price').textContent).toBe('2');

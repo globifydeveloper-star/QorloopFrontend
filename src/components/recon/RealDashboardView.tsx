@@ -19,6 +19,15 @@ import {
 /** Rows shown under "Needs attention" on each card; the full list is the stock report. */
 export const ATTENTION_ROWS = 5;
 
+/** The one number each marketplace card leads with: stock problems plus price problems. */
+export const thingsToFix = (n: number) => (n === 0 ? 'Nothing to fix' : `${n.toLocaleString('en-US')} ${n === 1 ? 'thing' : 'things'} to fix`);
+
+/**
+ * Review slot on each marketplace card, next to "N things to fix". It becomes a "Review" button linking to
+ * /review/:marketplaceId once that route exists in the app; until then it stays empty (no route is invented).
+ */
+const REVIEW_CARD_SLOT: React.ReactNode = null;
+
 /** A report link that keeps the marketplace and the compare choice (reference=erp opens Advanced on the report). */
 export const reportLink = (kind: 'stock' | 'price', marketplaceId: string, reference: ReconReference) =>
   `${pathFor(kind === 'stock' ? 'reports-stock' : 'reports-price-discrepancies')}?${new URLSearchParams({ marketplace: marketplaceId, reference })}`;
@@ -147,6 +156,7 @@ const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: R
   const { can } = useAuth();
   const name = marketplaceName(s.marketplaceId);
   const fresh = freshnessText(s);
+  const toFix = s.stock + s.price;
 
   return (
     <section aria-label={name} className="bg-white border border-gray-200 rounded-2xl shadow-sm p-5 flex flex-col gap-4">
@@ -180,16 +190,25 @@ const MarketplaceCard: React.FC<{ summary: ReconMarketplaceSummary; reference: R
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            <Tile label="Total mismatches" value={s.total} testId="tile-total" />
-            <Tile label="Stock" value={s.stock} testId="tile-stock" to={reportLink('stock', s.marketplaceId, reference)} />
-            <Tile label="Price" value={s.price} testId="tile-price" to={reportLink('price', s.marketplaceId, reference)} />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p data-testid="things-to-fix" className={`text-2xl font-bold ${toFix > 0 ? 'text-gray-900' : 'text-[#027864]'}`}>{thingsToFix(toFix)}</p>
+            {REVIEW_CARD_SLOT}
           </div>
-          <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-gray-500">
-            {([['Listed', s.listed], ['Not listed', s.notListed], ['Missing from ERP', s.missingFromErp], ['New', s.newCount]] as const).map(([k, v]) => (
-              <div key={k} className="flex gap-1"><dt>{k}</dt><dd className="font-semibold text-gray-800">{v}</dd></div>
-            ))}
-          </dl>
+          <details className="group">
+            <summary className="cursor-pointer select-none text-xs font-semibold text-gray-600 hover:text-gray-900">Details</summary>
+            <div className="mt-3 space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <Tile label="Total mismatches" value={s.total} testId="tile-total" />
+                <Tile label="Stock" value={s.stock} testId="tile-stock" to={reportLink('stock', s.marketplaceId, reference)} />
+                <Tile label="Price" value={s.price} testId="tile-price" to={reportLink('price', s.marketplaceId, reference)} />
+              </div>
+              <dl className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-gray-500">
+                {([['Listed', s.listed], ['Not listed', s.notListed], ['Missing from ERP', s.missingFromErp], ['New', s.newCount]] as const).map(([k, v]) => (
+                  <div key={k} className="flex gap-1"><dt>{k}</dt><dd className="font-semibold text-gray-800">{v}</dd></div>
+                ))}
+              </dl>
+            </div>
+          </details>
           <NeedsAttention summary={s} reference={reference} />
         </>
       )}

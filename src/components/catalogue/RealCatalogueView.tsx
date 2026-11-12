@@ -24,7 +24,6 @@ import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { BulkStockDialog } from '../stock/BulkStockDialog';
 import { RECON_MARKETPLACES } from '../../api/recon';
-import { marketplaceName } from '../recon/shared';
 import { MarketplaceCatalogue } from './MarketplaceCatalogue';
 import { CatalogueExportButton } from './CatalogueExportButton';
 

@@ -49,7 +49,13 @@ export interface ProductItem {
    * (docs/products-api.md). Absent means "not available": show nothing extra.
    */
   marketplace?: ProductMarketplaceValues;
+  /** Only with compareMarketplaceId: the same values on the second marketplace ("Compare with Talabat and Snoonu"). */
+  compareMarketplace?: ProductMarketplaceValues;
 }
+
+/** "Only where they differ": compared with each other, not with the catalogue (backend docs/products-api.md). */
+export type MarketplacesDiffer = 'any' | 'price' | 'availability';
+export const MARKETPLACES_DIFFER: readonly MarketplacesDiffer[] = ['any', 'price', 'availability'];
 
 export type MarketplaceComparison = 'in_sync' | 'mismatch' | 'not_in_file' | 'not_applicable';
 /** The list filter: every comparison except not_applicable. */
@@ -130,6 +136,10 @@ export interface ProductListQuery {
   marketplaceId?: string;
   /** Only with marketplaceId; narrows the items and the tab counts. */
   marketplaceStatus?: MarketplaceStatusFilter;
+  /** Only with marketplaceId, and another marketplace: adds compareMarketplace to each product. */
+  compareMarketplaceId?: string;
+  /** Only with compareMarketplaceId: products where the two marketplaces differ, or that are on only one. */
+  marketplacesDiffer?: MarketplacesDiffer;
 }
 
 export interface CategoryName {
@@ -188,22 +198,25 @@ export interface ActivateResult {
 export const productsApi = {
   list: async (query: ProductListQuery = {}, signal?: AbortSignal): Promise<ProductPage> => {
     const marketplaceId = query.marketplaceId || undefined;
+    const compareId = marketplaceId && query.compareMarketplaceId && query.compareMarketplaceId !== marketplaceId ? query.compareMarketplaceId : undefined;
     const page = await api<ProductPage>('/api/products', {
       signal,
       query: {
         q: query.q?.trim() || undefined, tab: query.tab, categoryId: query.categoryId, subcategoryId: query.subcategoryId,
         cursor: query.cursor, limit: query.limit,
         marketplaceId, marketplaceStatus: marketplaceId ? query.marketplaceStatus : undefined,
+        compareMarketplaceId: compareId, marketplacesDiffer: compareId ? query.marketplacesDiffer : undefined,
       },
     });
     if (!marketplaceId) return page;
+    // Values for another marketplace than the one asked for are not this column's.
+    const forId = (v: unknown, id: string | undefined) => { const m = id ? readMarketplaceValues(v) : undefined; return m && m.marketplaceId === id ? m : undefined; };
     return {
       ...page,
-      items: page.items.map(i => {
-        const m = readMarketplaceValues(i.marketplace);
-        // Values for another marketplace than the one asked for are not this column's.
-        return { ...i, marketplace: m && m.marketplaceId === marketplaceId ? m : undefined };
-      }),
+      items: page.items.map(i => ({
+        ...i, marketplace: forId(i.marketplace, marketplaceId),
+        ...(compareId ? { compareMarketplace: forId(i.compareMarketplace, compareId) } : {}),
+      })),
     };
   },
   get: (id: string, signal?: AbortSignal) => api<ProductDetail>(`/api/products/${enc(id)}`, { signal }),

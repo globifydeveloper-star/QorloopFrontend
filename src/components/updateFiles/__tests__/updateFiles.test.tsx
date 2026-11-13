@@ -247,7 +247,7 @@ describe('Update marketplace files', () => {
     it('lists the mismatches not adjusted yet by default, with the marketplace, catalogue and export values', async () => {
       await openAdjust();
       const q = params(String(calls((u, m) => m === 'GET' && u.includes('/api/recon/rows')).at(-1)![0]));
-      expect(q).toMatchObject({ marketplaceId: 'talabat', type: 'all', status: 'mismatch', exportState: 'catalogue', reference: 'marketplace' });
+      expect(q).toMatchObject({ marketplaceId: 'talabat', type: 'all', status: 'mismatch', exportState: 'to_fix', reference: 'marketplace' });
       expect(rowOf('1').getByTestId('mp-now-price').textContent).toBe('13.75 QAR');
       expect(rowOf('1').getByTestId('mp-now-available').textContent).toBe('Unavailable');
       expect(rowOf('1').getByTestId('catalogue-price').textContent).toBe('12.50 QAR');

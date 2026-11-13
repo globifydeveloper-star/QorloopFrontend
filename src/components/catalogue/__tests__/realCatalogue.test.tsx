@@ -412,12 +412,12 @@ describe('catalogue: "Compare with" one or two marketplaces (GET /api/products?m
     expect(headers()).toEqual(['Barcode', 'Name', 'ERP price', 'ERP stock', 'Catalogue stock', 'Talabat', 'Snoonu', 'Talabat vs Snoonu', 'Status', 'Category']);
 
     const row = (id: string) => within(screen.getByText(`Product ${id}`).closest('tr')!);
-    expect(row('1').getByTestId('mp-difference').textContent).toBe('Price differs');
+    expect(within(row('1').getByTestId('mp-difference-cell')).getByTestId('mp-difference').textContent).toBe('Price differs');
     expect(row('1').getByTestId('mp-b-cell').textContent).toContain('QAR 3.75');
-    expect(row('2').getByTestId('mp-difference').textContent).toBe('Only on Talabat');
+    expect(within(row('2').getByTestId('mp-difference-cell')).getByTestId('mp-difference').textContent).toBe('Only on Talabat');
     expect(row('2').getByTestId('mp-b-cell').textContent).toContain('Not in the file');
     // 4.000 and 4 are the same price.
-    expect(row('3').getByTestId('mp-difference').textContent).toBe('Same on both');
+    expect(within(row('3').getByTestId('mp-difference-cell')).getByTestId('mp-difference').textContent).toBe('Same on both');
     for (const cell of screen.getAllByTestId(/^mp-(a|b|difference)-cell$/)) {
       expect(cell.querySelectorAll('button, input, select, textarea, a')).toHaveLength(0);
     }

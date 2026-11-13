@@ -322,6 +322,26 @@ describe('dashboard (DASH-001)', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('compares the two marketplaces with a file with each other, with the real catalogue and products.view only', async () => {
+    vi.stubEnv('VITE_REAL_CATALOGUE', 'true');
+    handler = (u, i) => (method(i) === 'GET' && u.startsWith('/api/products?')
+      ? ok({ items: [], nextCursor: null, counts: { all: params(u).marketplacesDiffer === 'price' ? 2 : 3, active: 0, inactive: 0, new: 0, missing: 0 } })
+      : backend(u, i));
+    renderAt('/', <DashboardView />);
+    // Keeta has no file, so the card compares Talabat and Snoonu.
+    const c = within(await screen.findByRole('region', { name: 'Talabat vs Snoonu' }));
+    await waitFor(() => expect(c.getByTestId('compare-price').textContent).toBe('2'));
+    expect(c.getByTestId('compare-any').textContent).toBe('3');
+    cleanup();
+
+    perms.delete('products.view');
+    fetchMock.mockClear();
+    renderAt('/', <DashboardView />);
+    await screen.findByRole('region', { name: 'Talabat' });
+    expect(screen.queryByRole('region', { name: 'Talabat vs Snoonu' })).toBeNull();
+    expect(calls(u => u.startsWith('/api/products?'))).toHaveLength(0);
+  });
+
   it('keeps the demo dashboard when the flag is off', async () => {
     vi.stubEnv('VITE_REAL_RECON', '');
     renderAt('/', <DemoProvider><DashboardView /></DemoProvider>);

@@ -14,6 +14,7 @@ import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { QuickEditButton, QuickEditDrawer, rowClickOpens } from './QuickEditDrawer';
 import { stockFileLink } from './stockFileLink';
+import { MarketplaceComparisonCard } from './MarketplaceComparisonCard';
 import {
   NoReconAccess, RecomputeBanner, REFERENCE_IN_TEXT, RowValues, STOCK_ISSUE_META, fileNote, freshnessText, marketplaceName, qatarDateTime,
   reconErrorText, useRecompute, useRecomputeState, useReconRows, useReconSummary,
@@ -127,6 +128,9 @@ const Dashboard: React.FC = () => {
           {data.marketplaces.map(m => <MarketplaceCard key={m.marketplaceId} summary={m} reference={data.reference} />)}
         </div>
       )}
+
+      {/* Two marketplaces compared with each other (needs the real catalogue: GET /api/products). */}
+      {data && realCatalogueEnabled() && can('products.view') && <MarketplaceComparisonCard marketplaces={data.marketplaces} />}
     </div>
   );
 };

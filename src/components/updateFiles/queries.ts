@@ -1,8 +1,8 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
-import { RECON_PAGE_SIZE, reconApi, type ReconMarketplaceId, type ReconReference, type ReconRow, type ReconRowType, type ReconRowsPage } from '../../api/recon';
+import { RECON_PAGE_SIZE, type ReconMarketplaceId, type ReconReference, type ReconRow, type ReconRowType, type ReconRowsPage } from '../../api/recon';
 import { marketplaceValuesApi, type MarketplaceValueItem, type SetValues, type ValueField, type ValueVersion } from '../../api/marketplaceValues';
 import { applySet, applyUseCatalogue, valueErrors, valuesOf } from './logic';
-import { SHOW_FILTER, type Show } from './urlState';
+import { bulkFilter, type Show } from './urlState';
 
 /** Under ['recon', 'rows'], so every recon refresh (a recompute landing, an upload) refreshes this list too. */
 export const ADJUST_KEY = ['recon', 'rows', 'update-files'] as const;
@@ -11,13 +11,15 @@ export const EXPORT_PREVIEW_KEY = ['update-files', 'preview'] as const;
 
 export interface AdjustFilter { marketplaceId: ReconMarketplaceId; reference: ReconReference; show: Show; type: ReconRowType }
 
-/** GET /api/recon/rows with the proposed exportState filter: one server page per "Load more", urgent rows first. */
+/**
+ * The backend's Review list (GET /api/marketplace-values/review) with the same filter bulk selection uses: one server page
+ * per "Load more", most urgent first. /api/recon/rows has no export-state filter (its query is strict: a 400).
+ */
 export function useAdjustRows(f: AdjustFilter) {
-  const { status, exportState } = SHOW_FILTER[f.show];
   return useInfiniteQuery({
     queryKey: [...ADJUST_KEY, f.marketplaceId, f.reference, f.show, f.type],
-    queryFn: ({ pageParam, signal }) => reconApi.rows({
-      marketplaceId: f.marketplaceId, type: f.type, reference: f.reference, status, exportState, cursor: pageParam, limit: RECON_PAGE_SIZE,
+    queryFn: ({ pageParam, signal }) => marketplaceValuesApi.review({
+      marketplaceId: f.marketplaceId, ...bulkFilter(f.show, f.type), cursor: pageParam, limit: RECON_PAGE_SIZE,
     }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: last => last.nextCursor ?? undefined,

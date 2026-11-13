@@ -27,6 +27,16 @@ describe('export value logic', () => {
     expect(readValueItem({ ...item(), exportState: 'blocked', blockedReason: 'erp_inactive' })?.blockedReasonLabel).toBe('Inactive in the ERP');
   });
 
+  it("reads the backend's Review item: no marketplaceId, values instead of overrides, its own state words", () => {
+    const pin = { value: 9.5, state: 'pending', persistent: true, fieldState: 'pinned', setAt: '2026-11-10T05:00:00.000Z', reason: null, clearedAt: null };
+    const { marketplaceId: _mp, overrides: _ov, ...backend } = item();
+    expect(readValueItem({ ...backend, exportState: 'to_fix', values: { availability: null, price: pin } })).toBeUndefined();
+    const read = readValueItem({ ...backend, exportState: 'to_fix', values: { availability: null, price: pin } }, 'talabat');
+    expect(read).toMatchObject({ marketplaceId: 'talabat', exportState: 'catalogue', overrides: { availability: null, price: { value: 9.5, persistent: true } } });
+    expect(readValueItem({ ...backend, exportState: 'in_sync' }, 'talabat')?.exportState).toBe('catalogue');
+    expect(readValueItem({ ...backend, exportState: 'not_exportable' }, 'talabat')?.exportState).toBe('blocked');
+  });
+
   it('reads the waiting, pinned and blocked counts, and leaves them out when not sent', () => {
     expect(readExportCounts({ waitingForExport: 3, pinned: 1, blockedExportProducts: 2 })).toEqual({ waitingForExport: 3, pinned: 1, blocked: 2 });
     expect(readExportCounts({})).toEqual({ waitingForExport: undefined, pinned: undefined, blocked: undefined });

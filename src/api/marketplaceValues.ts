@@ -1,5 +1,5 @@
 import { api } from './client';
-import type { ReconMarketplaceId } from './recon';
+import { RECON_STATUSES, type ReconMarketplaceId, type ReconRow, type ReconRowsPage } from './recon';
 
 /**
  * Marketplace export values (ADR 018, "Update marketplace files").
@@ -112,10 +112,22 @@ function readMeta<V>(v: unknown, value: (x: unknown) => V | null): FieldMeta<V> 
   };
 }
 
-export function readValueItem(v: unknown): MarketplaceValueItem | undefined {
-  if (!isObj(v) || typeof v.productId !== 'string' || typeof v.marketplaceId !== 'string') return undefined;
+/**
+ * The backend's row states (Qorloop-backend packages/core marketplace-values EXPORT_STATES) in this client's words:
+ * to_fix and in_sync write the catalogue value (the badge tells them apart by the recon status); not_exportable cannot be written.
+ */
+const BACKEND_STATES: Record<string, ExportState> = { to_fix: 'catalogue', in_sync: 'catalogue', not_exportable: 'blocked' };
+
+/**
+ * One product's export value. The backend's item (Review list, single changes) has no marketplaceId (pass the one asked
+ * for) and carries the export values under `values`; `overrides` is read too.
+ */
+export function readValueItem(v: unknown, marketplaceId?: string): MarketplaceValueItem | undefined {
+  if (!isObj(v) || typeof v.productId !== 'string') return undefined;
+  const mpId = str(v.marketplaceId) ?? marketplaceId;
+  if (!mpId) return undefined;
   const version = readVersion(v.version);
-  const exportState = oneOf(v.exportState, EXPORT_STATES);
+  const exportState = oneOf(v.exportState, EXPORT_STATES) ?? (typeof v.exportState === 'string' ? BACKEND_STATES[v.exportState] ?? null : null);
   const cat = isObj(v.catalogue) ? v.catalogue : null;
   const exp = isObj(v.export) ? v.export : null;
   if (version === undefined || !exportState || !cat || !exp) return undefined;
@@ -123,12 +135,12 @@ export function readValueItem(v: unknown): MarketplaceValueItem | undefined {
   const expAvailable = bool(exp.available); const expPrice = num(exp.price);
   if (catAvailable === null || catPrice === null || expAvailable === null || expPrice === null) return undefined;
   const cur = isObj(v.marketplaceCurrent) ? v.marketplaceCurrent : {};
-  const ov = isObj(v.overrides) ? v.overrides : {};
+  const ov = isObj(v.overrides) ? v.overrides : isObj(v.values) ? v.values : {};
   const blockedReason = oneOf(v.blockedReason, BLOCKED_REASONS);
   const rulePrice = num(v.rulePrice) ?? num(exp.rulePrice);
   const differs = bool(v.differsFromRulePrice) ?? bool(exp.differsFromRulePrice);
   return {
-    productId: v.productId, marketplaceId: v.marketplaceId, version,
+    productId: v.productId, marketplaceId: mpId, version,
     catalogue: { available: catAvailable, price: catPrice },
     marketplaceCurrent: { available: bool(cur.available), price: num(cur.price) },
     export: {
@@ -167,9 +179,9 @@ export interface SetValues { availability?: SetFieldValue<boolean>; price?: SetF
 
 export interface ValueChange { changed: boolean; operationId: string | null; item: MarketplaceValueItem }
 
-function readChange(v: unknown): ValueChange {
+function readChange(v: unknown, marketplaceId: string): ValueChange {
   const o = isObj(v) ? v : {};
-  const item = readValueItem(o.item);
+  const item = readValueItem(o.item, marketplaceId);
   // A success the client cannot read is treated as "reload": the caller refetches the list.
   if (!item) throw new Error('UNREADABLE_VALUE_CHANGE');
   return { changed: o.changed === true, operationId: str(o.operationId), item };
@@ -321,7 +333,7 @@ export function readPreview(v: unknown): BulkPreview {
     ...counts(o), limit: num(o.limit) ?? VALUES_BULK_LIMIT, previewToken: str(o.previewToken) ?? '', source: readPreviewSource(o.source),
     rows: Array.isArray(o.rows) ? o.rows.filter(isObj).map(r => ({
       productId: str(r.productId) ?? '', nameEn: str(r.nameEn), barcode: str(r.barcode),
-      before: readValueItem(r.before), after: readValueItem(r.after),
+      before: readValueItem(r.before, str(o.marketplaceId) ?? undefined), after: readValueItem(r.after, str(o.marketplaceId) ?? undefined),
       blockedReason: oneOf(r.blockedReason, BLOCKED_REASONS),
       changes: readChanges(r.changes),
       ...('source' in r ? { source: readSourceValue(r.source) } : {}),
@@ -340,16 +352,54 @@ export function readResult(v: unknown): BulkResult {
 
 const deleteQuery = (fields: ValueField[] | 'all', expected: ValueVersion) => ({
   fields: fields === 'all' || fields.length === 2 ? 'all' : fields[0],
-  ...(expected ? { expectedId: expected.id, expectedVersion: expected.version } : { expectedAbsent: 'true' }),
+  // No version: the product has no export value yet; the backend's query is strict, so nothing else is sent.
+  ...(expected ? { expectedId: expected.id, expectedVersion: expected.version } : {}),
 });
 
+/** The Adjust list's query: the Review list filter (the same one bulk selection uses). */
+export interface ReviewListQuery extends ValueFilter { marketplaceId: ReconMarketplaceId; cursor?: string; limit?: number }
+
+/** One Review item as the row the Adjust table shows (the export value under marketplaceValues, as valuesOf reads it). */
+function reviewRowOf(v: unknown, marketplaceId: string): ReconRow | null {
+  if (!isObj(v) || typeof v.productId !== 'string') return null;
+  const cur = isObj(v.marketplaceCurrent) ? v.marketplaceCurrent : {};
+  const cat = isObj(v.catalogue) ? v.catalogue : {};
+  const reconStatus = oneOf(v.reconStatus, RECON_STATUSES);
+  return {
+    productId: v.productId, barcode: str(v.barcode) ?? '', sku: str(v.sku), nameEn: str(v.nameEn) ?? '', nameAr: str(v.nameAr),
+    productStatus: str(v.productStatus) ?? '', erpStock: num(cat.stock) ?? 0, catalogueStock: num(cat.stock) ?? undefined,
+    catalogueStockSource: oneOf(cat.stockSource, ['erp', 'owner'] as const) ?? undefined, stockConflict: cat.stockConflict === true,
+    catalogueAvailable: bool(cat.available),
+    // to_fix means the marketplace differs from the catalogue, whatever the stored recon status says.
+    status: v.exportState === 'to_fix' ? 'mismatch' : reconStatus ?? 'no_data',
+    stockIssue: null, priceMismatch: false, priceMismatchVsErp: false, priceMismatchVsMarketplace: false,
+    expectedPrice: num(cat.price), erpPrice: null, marketplacePrice: num(cat.price), marketplacePriceSource: null,
+    actualPrice: num(cur.price), erpAvailable: null, actualAvailable: bool(cur.available),
+    lastUpdated: str(v.lastUpdated) ?? '',
+    marketplaceValues: { ...v, marketplaceId }, marketplaceSource: v.marketplaceSource ?? null,
+  };
+}
+
+export function readReviewPage(v: unknown, marketplaceId: string): ReconRowsPage {
+  const o = isObj(v) ? v : {};
+  const items = Array.isArray(o.items) ? o.items.map(i => reviewRowOf(i, marketplaceId)).filter((r): r is ReconRow => r !== null) : [];
+  return { reference: 'marketplace', items, nextCursor: str(o.nextCursor) };
+}
+
 export const marketplaceValuesApi = {
+  /** recon.view. The Review list of one marketplace (always against the catalogue), most urgent first, by keyset cursor. */
+  review: async (q: ReviewListQuery, signal?: AbortSignal) =>
+    readReviewPage(await api<unknown>('/api/marketplace-values/review', {
+      signal,
+      query: { marketplaceId: q.marketplaceId, show: q.show, exportState: q.exportState, field: q.field, q: q.q,
+        categoryId: q.categoryId, subcategoryId: q.subcategoryId, cursor: q.cursor, limit: q.limit },
+    }), q.marketplaceId),
   /** marketplace.values_edit. Partial field update; `expected` is the version last seen (409 when it moved). */
   set: async (marketplaceId: string, productId: string, body: { values: SetValues; reason?: string; expected: ValueVersion }) =>
-    readChange(await api<unknown>(`/api/marketplace-values/${enc(marketplaceId)}/products/${enc(productId)}`, { method: 'PUT', body })),
+    readChange(await api<unknown>(`/api/marketplace-values/${enc(marketplaceId)}/products/${enc(productId)}`, { method: 'PUT', body }), marketplaceId),
   /** marketplace.values_edit. "Use catalogue value" for one or both fields; never deletes the product. */
   useCatalogue: async (marketplaceId: string, productId: string, fields: ValueField[] | 'all', expected: ValueVersion) =>
-    readChange(await api<unknown>(`/api/marketplace-values/${enc(marketplaceId)}/products/${enc(productId)}`, { method: 'DELETE', query: deleteQuery(fields, expected) })),
+    readChange(await api<unknown>(`/api/marketplace-values/${enc(marketplaceId)}/products/${enc(productId)}`, { method: 'DELETE', query: deleteQuery(fields, expected) }), marketplaceId),
   /** marketplace.values_edit. Read-only; the first 10 rows and a token that apply needs. */
   bulkPreview: async (body: BulkRequest) => readPreview(await api<unknown>('/api/marketplace-values/bulk/preview', { method: 'POST', body })),
   /** marketplace.values_edit. One idempotency key per confirmation, sent again on every retry of it. */

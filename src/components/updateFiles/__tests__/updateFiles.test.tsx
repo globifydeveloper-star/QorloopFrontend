@@ -93,6 +93,19 @@ function handle(u: string, i: RequestInit): Response {
     const q = params(u);
     return ok({ reference: q.reference ?? 'marketplace', items: srv.rows[q.marketplaceId] ?? [], nextCursor: null });
   }
+  if (m === 'GET' && p === '/api/marketplace-values/review') {
+    // The backend's Review item: no marketplaceId, the export values under `values`, the recon status as reconStatus.
+    const q = params(u);
+    const items = (srv.rows[q.marketplaceId] ?? []).map(r => {
+      const { marketplaceId: _mp, overrides, ...v } = (r.marketplaceValues ?? {}) as Partial<MarketplaceValueItem>;
+      return {
+        ...v, productId: r.productId, barcode: r.barcode, sku: r.sku, nameEn: r.nameEn, nameAr: r.nameAr, productStatus: r.productStatus,
+        reconStatus: r.status, marketplaceCurrent: { available: r.actualAvailable, price: r.actualPrice }, values: overrides ?? null,
+        marketplaceSource: r.marketplaceSource ?? null, lastUpdated: r.lastUpdated,
+      };
+    });
+    return ok({ marketplaceId: q.marketplaceId, marketplaceEnabled: true, counts: {}, latestFile: null, items, nextCursor: null });
+  }
   let hit = /^\/api\/marketplace-values\/([^/]+)\/products\/([^/]+)$/.exec(p);
   if (hit) {
     if (srv.writeAnswer) { const r = srv.writeAnswer(); srv.writeAnswer = undefined; return r; }
@@ -189,10 +202,10 @@ describe('Update marketplace files', () => {
       renderAt('/update-files?marketplace=snoonu&step=adjust&show=all&type=price');
       expect(await screen.findByRole('heading', { name: 'Adjust the values to export to Snoonu' })).toBeTruthy();
       expect(screen.getByTestId('step-adjust').getAttribute('aria-current')).toBe('step');
-      await waitFor(() => expect(calls((u, m) => m === 'GET' && u.includes('/api/recon/rows')).length).toBeGreaterThan(0));
-      const q = params(String(calls((u, m) => m === 'GET' && u.includes('/api/recon/rows')).at(-1)![0]));
-      expect(q).toMatchObject({ marketplaceId: 'snoonu', type: 'price' });
-      expect(q.status).toBeUndefined();
+      await waitFor(() => expect(calls((u, m) => m === 'GET' && u.includes('/api/marketplace-values/review')).length).toBeGreaterThan(0));
+      const q = params(String(calls((u, m) => m === 'GET' && u.includes('/api/marketplace-values/review')).at(-1)![0]));
+      expect(q).toMatchObject({ marketplaceId: 'snoonu', show: 'all', field: 'price' });
+      expect(q.type).toBeUndefined();
       expect(q.exportState).toBeUndefined();
 
       fireEvent.click(screen.getByTestId('step-export'));
@@ -246,8 +259,8 @@ describe('Update marketplace files', () => {
 
     it('lists the mismatches not adjusted yet by default, with the marketplace, catalogue and export values', async () => {
       await openAdjust();
-      const q = params(String(calls((u, m) => m === 'GET' && u.includes('/api/recon/rows')).at(-1)![0]));
-      expect(q).toMatchObject({ marketplaceId: 'talabat', type: 'all', status: 'mismatch', exportState: 'to_fix', reference: 'marketplace' });
+      const q = params(String(calls((u, m) => m === 'GET' && u.includes('/api/marketplace-values/review')).at(-1)![0]));
+      expect(q).toEqual({ marketplaceId: 'talabat', exportState: 'to_fix', limit: '50' });
       expect(rowOf('1').getByTestId('mp-now-price').textContent).toBe('13.75 QAR');
       expect(rowOf('1').getByTestId('mp-now-available').textContent).toBe('Unavailable');
       expect(rowOf('1').getByTestId('catalogue-price').textContent).toBe('12.50 QAR');
@@ -304,12 +317,12 @@ describe('Update marketplace files', () => {
 
     it('409: the change is rolled back, the list reloads and says someone else changed it', async () => {
       await openAdjust();
-      const before = calls((u, m) => m === 'GET' && u.includes('/api/recon/rows')).length;
+      const before = calls((u, m) => m === 'GET' && u.includes('/api/marketplace-values/review')).length;
       srv.writeAnswer = () => fail(409, 'Conflict');
       fireEvent.click(rowOf('1').getByRole('button', { name: /Unavailable/ }));
       expect(await rowOf('1').findByText(STALE_VALUE)).toBeTruthy();
       expect(rowOf('1').getByTestId('export-state').getAttribute('data-state')).toBe('needs_fix');
-      await waitFor(() => expect(calls((u, m) => m === 'GET' && u.includes('/api/recon/rows')).length).toBeGreaterThan(before));
+      await waitFor(() => expect(calls((u, m) => m === 'GET' && u.includes('/api/marketplace-values/review')).length).toBeGreaterThan(before));
     });
 
     it('400 shows the field message and 403 the permission, both rolled back', async () => {

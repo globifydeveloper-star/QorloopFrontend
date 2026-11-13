@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { RECON_REFERENCES, type ReconMarketplaceSummary, type ReconReference, type ReconRowType, type ReconStatus } from '../../api/recon';
+import { RECON_REFERENCES, type ReconMarketplaceSummary, type ReconReference, type ReconRowType } from '../../api/recon';
 import type { ValueFilter } from '../../api/marketplaceValues';
 import { pathFor } from '../../routes/paths';
 
@@ -21,18 +21,6 @@ export const SHOW_LABELS: Record<Show, string> = {
   pinned: 'Pinned',
   blocked: 'Blocked',
   all: 'All products',
-};
-
-/**
- * The recon-row filter for each choice. "Needs a change" = mismatches with no adjustment of yours (ASSUMPTION: the
- * backend's exportState filter takes one value, to_fix = not adjusted yet; rows whose adjustment was cleared are listed under "All products").
- */
-export const SHOW_FILTER: Record<Show, { status?: ReconStatus; exportState?: ValueFilter['exportState'] }> = {
-  needs: { status: 'mismatch', exportState: 'to_fix' },
-  waiting: { exportState: 'waiting_for_export' },
-  pinned: { exportState: 'pinned' },
-  blocked: { exportState: 'blocked' },
-  all: {},
 };
 
 export const TYPES: readonly ReconRowType[] = ['all', 'stock', 'price'];

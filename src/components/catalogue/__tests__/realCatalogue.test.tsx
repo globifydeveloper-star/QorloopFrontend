@@ -187,7 +187,7 @@ describe('catalogue (CAT-001)', () => {
   });
 });
 
-describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () => {
+describe('catalogue: "Compare with" one or two marketplaces (GET /api/products?marketplaceId=&compareMarketplaceId=)', () => {
   const FILE = '2026-11-08T10:00:00.000Z';
   const OLDER = '2026-11-01T10:00:00.000Z';
   const COMPUTED = '2026-11-08T10:05:00.000Z';
@@ -196,7 +196,7 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     stockIssue: null, priceIssue: null, sourceUploadedAt: FILE, ...over,
   });
   const notInFile = (id = 'talabat') => mp({ marketplaceId: id, inFile: false, available: null, price: null, comparison: 'not_in_file', sourceUploadedAt: null });
-  const withMp = (id: string, m: unknown) => prod(id, { marketplace: m } as Partial<ProductItem>);
+  const withMp = (id: string, m: unknown, c?: unknown) => prod(id, { marketplace: m, ...(c ? { compareMarketplace: c } : {}) } as Partial<ProductItem>);
   const enabledList = (over: { marketplaceId: string; hasData: boolean; lastUploadAt?: string | null }[]) =>
     ok({ items: over.map(m => ({ enabled: true, ageHours: 1, lastUploadAt: m.hasData ? FILE : null, ...m })) });
   const SETTINGS = [
@@ -204,11 +204,12 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
   ];
   const BASE_HEADERS = ['Barcode', 'Name', 'ERP price', 'ERP stock', 'Catalogue stock', 'Status', 'Category'];
   const lastList = () => params(calls(isList).at(-1)![0] as string);
-  const viewTabs = () => screen.queryByRole('tablist', { name: 'Catalogue or marketplace' });
-  const viewTab = (name: string) => within(viewTabs()!).getByRole('tab', { name }) as HTMLButtonElement;
-  const tabNames = () => within(viewTabs()!).getAllByRole('tab').map(t => t.textContent);
-  const selectedTab = () => within(viewTabs()!).getAllByRole('tab').find(t => t.getAttribute('aria-selected') === 'true')?.textContent;
+  const compareGroup = () => screen.queryByRole('group', { name: 'Compare with' });
+  const toggleOf = (name: string) => within(compareGroup()!).getByRole('button', { name }) as HTMLButtonElement;
+  const toggleNames = () => within(compareGroup()!).getAllByRole('button').map(t => t.textContent);
+  const pressed = () => within(compareGroup()!).getAllByRole('button').filter(t => t.getAttribute('aria-pressed') === 'true').map(t => t.textContent);
   const mismatches = () => screen.getByRole('checkbox', { name: 'Only mismatches' }) as HTMLInputElement;
+  const differBox = () => screen.getByRole('checkbox', { name: 'Only where Talabat and Snoonu differ' }) as HTMLInputElement;
   const headers = () => screen.getAllByRole('columnheader').map(h => h.textContent);
   const search = () => screen.getByTestId('search').textContent;
 
@@ -229,12 +230,23 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     ]
     : p.marketplaceId ? [withMp('1', mp({ marketplaceId: p.marketplaceId }))] : [prod('1'), prod('2'), prod('3')],
   nextCursor: null, counts: counts() });
+  /** Talabat and Snoonu side by side: 1 price differs, 2 is only on Talabat, 3 is the same on both. */
+  const twoMarketplaces = (p: Record<string, string>) => ok({
+    items: !p.marketplaceId ? [prod('1'), prod('2'), prod('3')]
+      : !p.compareMarketplaceId ? [withMp('1', mp()), withMp('2', mp()), withMp('3', mp())]
+        : [
+          withMp('1', mp(), mp({ marketplaceId: 'snoonu', price: '3.750' })),
+          withMp('2', mp(), notInFile('snoonu')),
+          withMp('3', mp({ available: false }), mp({ marketplaceId: 'snoonu', available: false, price: '4' })),
+        ].filter(i => !p.marketplacesDiffer || i.id !== '3'),
+    nextCursor: null, counts: counts(),
+  });
 
-  it('default unchanged: with every real flag off there are no tabs and the list is asked and drawn as before', async () => {
+  it('default unchanged: with every real flag off there is no "Compare with" and the list is asked and drawn as before', async () => {
     handler = (u, i) => (isList(u, i.method ?? 'GET') ? ok({ items: [prod('1')], nextCursor: null, counts: counts() }) : undefined);
     renderAt('/catalogue?marketplace=talabat', <CatalogueView />);
     await screen.findByText('Product 1');
-    expect(viewTabs()).toBeNull();
+    expect(compareGroup()).toBeNull();
     expect(screen.queryByRole('tabpanel')).toBeNull();
     expect(calls(isList).every(([u]) => params(String(u)).marketplaceId === undefined)).toBe(true);
     expect(headers()).toEqual(BASE_HEADERS);
@@ -242,24 +254,22 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     expect(calls(u => u.startsWith('/api/settings') || u.startsWith('/api/recon'))).toHaveLength(0);
   });
 
-  it('shows no tabs when no enabled marketplace has a file', async () => {
+  it('shows no "Compare with" when no enabled marketplace has a file', async () => {
     serve(() => ok({ items: [prod('1')], nextCursor: null, counts: counts() }), [{ marketplaceId: 'keeta', hasData: false }]);
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
     await waitFor(() => expect(calls(u => u === '/api/settings/marketplaces')).toHaveLength(1));
-    expect(viewTabs()).toBeNull();
+    expect(compareGroup()).toBeNull();
   });
 
-  it('shows "Catalogue" first, then one tab per enabled marketplace with a file; the Catalogue tab is the default and unchanged', async () => {
+  it('offers one toggle per enabled marketplace with a file; none is pressed and the catalogue is unchanged', async () => {
     serve(threeProducts);
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs()).not.toBeNull());
-    expect(tabNames()).toEqual(['Catalogue', 'Talabat', 'Snoonu']);
-    expect(selectedTab()).toBe('Catalogue');
-    expect(viewTab('Catalogue').tabIndex).toBe(0);
-    expect(viewTab('Talabat').tabIndex).toBe(-1);
-    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(viewTab('Catalogue').id);
+    await waitFor(() => expect(compareGroup()).not.toBeNull());
+    expect(toggleNames()).toEqual(['Talabat', 'Snoonu']);
+    expect(pressed()).toEqual([]);
+    expect(screen.getByTestId('compare-hint').textContent).toBe('Choose a marketplace to see its values next to your catalogue.');
     expect(headers()).toEqual(BASE_HEADERS);
     expect(calls(isList).every(([u]) => params(String(u)).marketplaceId === undefined)).toBe(true);
     expect(screen.queryByRole('checkbox', { name: 'Only mismatches' })).toBeNull();
@@ -268,18 +278,20 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     expect(screen.getByRole('tab', { name: 'All (3)' })).toBeTruthy();
   });
 
-  it('a marketplace tab adds its availability, price and Compared badges next to the catalogue values, read-only', async () => {
+  it('one marketplace adds its availability, price and Compared badges next to the catalogue values, read-only', async () => {
     serve(threeProducts);
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs()).not.toBeNull());
-    fireEvent.click(viewTab('Talabat'));
+    await waitFor(() => expect(compareGroup()).not.toBeNull());
+    fireEvent.click(toggleOf('Talabat'));
     await screen.findByRole('columnheader', { name: 'Availability on Talabat' });
-    expect(selectedTab()).toBe('Talabat');
-    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(viewTab('Talabat').id);
+    expect(pressed()).toEqual(['Talabat']);
+    expect(toggleOf('Talabat').getAttribute('aria-pressed')).toBe('true');
     expect(lastList()).toMatchObject({ marketplaceId: 'talabat' });
     expect(lastList().marketplaceStatus).toBeUndefined();
+    expect(lastList().compareMarketplaceId).toBeUndefined();
     expect(search()).toBe('?marketplace=talabat');
+    expect(screen.getByTestId('compare-hint').textContent).toBe('Read-only. Choose a second marketplace to see both side by side.');
     // The existing columns stay, with their names; the status tab counts too.
     expect(headers()).toEqual(['Barcode', 'Name', 'ERP price', 'ERP stock', 'Catalogue stock', 'Availability on Talabat', 'Price on Talabat', 'Compared', 'Status', 'Category']);
     expect(screen.getByRole('tab', { name: 'All (3)' })).toBeTruthy();
@@ -313,8 +325,8 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     expect(screen.getByTestId('marketplace-note').textContent).toBe(
       `Marketplace values are from the latest Talabat file, uploaded ${qatarDateTime(FILE)} (Qatar time). The comparison is from the last run; right after an upload it can be one run behind.`);
 
-    // Back to the Catalogue tab: the plain list again.
-    fireEvent.click(viewTab('Catalogue'));
+    // Pressing it again: the plain catalogue.
+    fireEvent.click(toggleOf('Talabat'));
     await waitFor(() => expect(lastList().marketplaceId).toBeUndefined());
     expect(search()).toBe('');
     await waitFor(() => expect(headers()).toEqual(BASE_HEADERS));
@@ -329,12 +341,12 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     expect(screen.queryByTestId('mp-stock-issue')).toBeNull();
   });
 
-  it('"Only mismatches" sends marketplaceStatus=mismatch and is kept in the URL; another tab starts without it', async () => {
+  it('"Only mismatches" sends marketplaceStatus=mismatch and is kept in the URL; another choice starts without it', async () => {
     serve(p => ok({ items: [withMp('1', mp({ marketplaceId: p.marketplaceId ?? 'talabat', comparison: p.marketplaceStatus ? 'mismatch' : 'in_sync' }))], nextCursor: null, counts: counts() }));
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs()).not.toBeNull());
-    fireEvent.click(viewTab('Snoonu'));
+    await waitFor(() => expect(compareGroup()).not.toBeNull());
+    fireEvent.click(toggleOf('Snoonu'));
     fireEvent.click(mismatches());
     await waitFor(() => expect(lastList()).toMatchObject({ marketplaceId: 'snoonu', marketplaceStatus: 'mismatch' }));
     expect(mismatches().checked).toBe(true);
@@ -346,14 +358,16 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
 
     fireEvent.click(mismatches());
     await waitFor(() => expect(search()).toBe('?marketplace=snoonu&mismatches=1'));
-    fireEvent.click(viewTab('Talabat'));
+    // Unpress Snoonu, press Talabat: a new choice, without the filter.
+    fireEvent.click(toggleOf('Snoonu'));
+    fireEvent.click(toggleOf('Talabat'));
     await waitFor(() => expect(lastList()).toMatchObject({ marketplaceId: 'talabat' }));
     expect(lastList().marketplaceStatus).toBeUndefined();
     expect(search()).toBe('?marketplace=talabat');
     expect(mismatches().checked).toBe(false);
 
     fireEvent.click(mismatches());
-    fireEvent.click(viewTab('Catalogue'));
+    fireEvent.click(toggleOf('Talabat'));
     await waitFor(() => expect(lastList().marketplaceId).toBeUndefined());
     expect(lastList().marketplaceStatus).toBeUndefined();
     expect(search()).toBe('');
@@ -366,46 +380,96 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     await screen.findByText('No mismatches on Talabat');
   });
 
-  it('restores the tab from the URL, and opens the Catalogue tab for a marketplace that is not offered', async () => {
+  it('restores the choice from the URL, and leaves out a marketplace that is not offered', async () => {
     serve(p => ok({ items: [p.marketplaceId ? withMp('1', mp({ marketplaceId: p.marketplaceId, comparison: 'mismatch' })) : prod('1')], nextCursor: null, counts: counts() }));
     renderAt('/catalogue?marketplace=snoonu&mismatches=1', <CatalogueView />);
     await screen.findByRole('columnheader', { name: 'Availability on Snoonu' });
-    expect(selectedTab()).toBe('Snoonu');
+    expect(pressed()).toEqual(['Snoonu']);
     expect(mismatches().checked).toBe(true);
     expect(lastList()).toMatchObject({ marketplaceId: 'snoonu', marketplaceStatus: 'mismatch' });
     cleanup();
 
     fetchMock.mockClear();
-    // keeta is enabled but has no file.
-    renderAt('/catalogue?marketplace=keeta', <CatalogueView />);
+    // keeta is enabled but has no file; compare=keeta is not offered either.
+    renderAt('/catalogue?marketplace=keeta&compare=keeta', <CatalogueView />);
     await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs()).not.toBeNull());
-    expect(selectedTab()).toBe('Catalogue');
-    expect(calls(isList).every(([u]) => params(String(u)).marketplaceId === undefined)).toBe(true);
+    await waitFor(() => expect(compareGroup()).not.toBeNull());
+    expect(pressed()).toEqual([]);
+    expect(calls(isList).every(([u]) => params(String(u)).marketplaceId === undefined && params(String(u)).compareMarketplaceId === undefined)).toBe(true);
   });
 
-  it('is keyboard operable: arrow keys, Home and End move between the tabs and open them', async () => {
-    serve(threeProducts);
-    renderAt('/catalogue', <CatalogueView />);
-    await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs()).not.toBeNull());
-    viewTab('Catalogue').focus();
-    fireEvent.keyDown(viewTab('Catalogue'), { key: 'ArrowRight' });
-    await waitFor(() => expect(selectedTab()).toBe('Talabat'));
-    expect(document.activeElement).toBe(viewTab('Talabat'));
+  it('two marketplaces side by side: one column each and what differs between them', async () => {
+    serve(twoMarketplaces);
+    renderAt('/catalogue?marketplace=talabat', <CatalogueView />);
+    await screen.findByRole('columnheader', { name: 'Availability on Talabat' });
+    fireEvent.click(toggleOf('Snoonu'));
+    await screen.findByRole('columnheader', { name: 'Talabat vs Snoonu' });
+    expect(pressed()).toEqual(['Talabat', 'Snoonu']);
+    expect(search()).toBe('?marketplace=talabat&compare=snoonu');
+    expect(lastList()).toMatchObject({ marketplaceId: 'talabat', compareMarketplaceId: 'snoonu' });
+    expect(lastList().marketplacesDiffer).toBeUndefined();
+    expect(screen.getByTestId('compare-hint').textContent).toBe('Read-only. Your catalogue does not change.');
+    expect(headers()).toEqual(['Barcode', 'Name', 'ERP price', 'ERP stock', 'Catalogue stock', 'Talabat', 'Snoonu', 'Talabat vs Snoonu', 'Status', 'Category']);
+
+    const row = (id: string) => within(screen.getByText(`Product ${id}`).closest('tr')!);
+    expect(row('1').getByTestId('mp-difference').textContent).toBe('Price differs');
+    expect(row('1').getByTestId('mp-b-cell').textContent).toContain('QAR 3.75');
+    expect(row('2').getByTestId('mp-difference').textContent).toBe('Only on Talabat');
+    expect(row('2').getByTestId('mp-b-cell').textContent).toContain('Not in the file');
+    // 4.000 and 4 are the same price.
+    expect(row('3').getByTestId('mp-difference').textContent).toBe('Same on both');
+    for (const cell of screen.getAllByTestId(/^mp-(a|b|difference)-cell$/)) {
+      expect(cell.querySelectorAll('button, input, select, textarea, a')).toHaveLength(0);
+    }
+    // On a phone both stack under the name, then the difference.
+    expect(within(row('1').getByTestId('mp-stacked')).getByText('Talabat vs Snoonu')).toBeTruthy();
+    expect(screen.getByTestId('compare-note').textContent).toContain('latest Snoonu file');
+    // "Only mismatches" is for one marketplace against the catalogue; two have their own filter.
+    expect(screen.queryByRole('checkbox', { name: 'Only mismatches' })).toBeNull();
+  });
+
+  it('"Only where … differ" sends marketplacesDiffer, kept in the URL; price or availability can be chosen', async () => {
+    serve(twoMarketplaces);
+    renderAt('/catalogue?marketplace=talabat&compare=snoonu', <CatalogueView />);
+    await screen.findByRole('columnheader', { name: 'Talabat vs Snoonu' });
+    fireEvent.click(differBox());
+    await waitFor(() => expect(lastList()).toMatchObject({ compareMarketplaceId: 'snoonu', marketplacesDiffer: 'any' }));
+    expect(search()).toBe('?marketplace=talabat&compare=snoonu&differ=any');
+    await waitFor(() => expect(screen.queryByText('Product 3')).toBeNull());
+    fireEvent.change(screen.getByTestId('differ-on'), { target: { value: 'price' } });
+    await waitFor(() => expect(lastList().marketplacesDiffer).toBe('price'));
+    expect(search()).toBe('?marketplace=talabat&compare=snoonu&differ=price');
+    fireEvent.click(differBox());
+    await waitFor(() => expect(lastList().marketplacesDiffer).toBeUndefined());
+    expect(search()).toBe('?marketplace=talabat&compare=snoonu');
+  });
+
+  it('says so when the two marketplaces match, and a third choice waits until one is unpressed', async () => {
+    serve(p => ok({ items: p.marketplacesDiffer ? [] : [withMp('1', mp(), mp({ marketplaceId: p.compareMarketplaceId ?? 'snoonu' }))], nextCursor: null, counts: counts() }),
+      [{ marketplaceId: 'talabat', hasData: true }, { marketplaceId: 'snoonu', hasData: true }, { marketplaceId: 'rafeeq', hasData: true }]);
+    renderAt('/catalogue?marketplace=talabat&compare=snoonu&differ=any', <CatalogueView />);
+    expect(await screen.findByText('Talabat and Snoonu match')).toBeTruthy();
+    expect(toggleOf('Rafeeq').disabled).toBe(true);
+    expect(toggleOf('Rafeeq').title).toBe('Compare at most 2 marketplaces at once');
+    fireEvent.click(toggleOf('Snoonu'));
+    await waitFor(() => expect(toggleOf('Rafeeq').disabled).toBe(false));
     expect(search()).toBe('?marketplace=talabat');
-    fireEvent.keyDown(viewTab('Talabat'), { key: 'End' });
-    await waitFor(() => expect(selectedTab()).toBe('Snoonu'));
-    fireEvent.keyDown(viewTab('Snoonu'), { key: 'ArrowRight' });
-    await waitFor(() => expect(selectedTab()).toBe('Catalogue'));
-    fireEvent.keyDown(viewTab('Catalogue'), { key: 'ArrowLeft' });
-    await waitFor(() => expect(selectedTab()).toBe('Snoonu'));
-    fireEvent.keyDown(viewTab('Snoonu'), { key: 'Home' });
-    await waitFor(() => expect(selectedTab()).toBe('Catalogue'));
-    expect(document.activeElement).toBe(viewTab('Catalogue'));
+    fireEvent.click(toggleOf('Rafeeq'));
+    await waitFor(() => expect(search()).toBe('?marketplace=talabat&compare=rafeeq'));
   });
 
-  it('without settings.view, takes the tabs from the recon summary marketplaces that have a file and says when they were compared', async () => {
+  it('a backend that cannot compare two shows the first marketplace alone and says why', async () => {
+    serve(p => (p.compareMarketplaceId
+      ? fail(400, 'Invalid request', [{ path: '', message: 'Unrecognized key: "compareMarketplaceId"' }])
+      : ok({ items: [p.marketplaceId ? withMp('1', mp()) : prod('1')], nextCursor: null, counts: counts() })));
+    renderAt('/catalogue?marketplace=talabat&compare=snoonu', <CatalogueView />);
+    await screen.findByText('Snoonu values cannot be shown next to Talabat: This server cannot compare two marketplaces yet. The list below shows Talabat alone.');
+    expect(screen.getByRole('columnheader', { name: 'Availability on Talabat' })).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: 'Only where Talabat and Snoonu differ' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Only mismatches' })).toBeTruthy();
+  });
+
+  it('without settings.view, takes the choices from the recon summary marketplaces that have a file and says when they were compared', async () => {
     vi.stubEnv('VITE_REAL_RECON', 'true');
     perms.add('recon.view');
     const s = (marketplaceId: string, hasData: boolean) => ({
@@ -417,10 +481,10 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     };
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs()).not.toBeNull());
-    expect(tabNames()).toEqual(['Catalogue', 'Talabat']);
+    await waitFor(() => expect(compareGroup()).not.toBeNull());
+    expect(toggleNames()).toEqual(['Talabat']);
     expect(calls(u => u.startsWith('/api/settings'))).toHaveLength(0);
-    fireEvent.click(viewTab('Talabat'));
+    fireEvent.click(toggleOf('Talabat'));
     expect((await screen.findByTestId('marketplace-note')).textContent).toBe(
       `Marketplace values are from the latest Talabat file, uploaded ${qatarDateTime(FILE)} (Qatar time). Compared ${qatarDateTime(COMPUTED)} (Qatar time); right after an upload the comparison can be one run behind.`);
   });
@@ -459,7 +523,7 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     await screen.findByText('We could not load the catalogue');
   });
 
-  it('keeps the bulk actions in a marketplace tab, counting a filter selection without "Only mismatches"', async () => {
+  it('keeps the bulk actions, counting a filter selection without "Only mismatches"', async () => {
     perms.add('catalogue.stock_edit');
     serve(p => (p.marketplaceStatus
       ? ok({ items: [withMp('1', mp({ comparison: 'mismatch' }))], nextCursor: null, counts: counts({ all: 1, active: 1 }) })
@@ -472,6 +536,14 @@ describe('catalogue: marketplace tabs (GET /api/products?marketplaceId=)', () =>
     await screen.findByText(/Every product \(40\)/);
     const countCall = calls(isList).find(([u]) => params(String(u)).limit === '1')!;
     expect(params(countCall[0] as string)).toEqual({ tab: 'all', limit: '1' });
+  });
+
+  it('with "Only where … differ" on, the bulk note names that filter too', async () => {
+    perms.add('catalogue.stock_edit');
+    serve(twoMarketplaces);
+    renderAt('/catalogue?marketplace=talabat&compare=snoonu&differ=any', <CatalogueView />);
+    await screen.findByRole('columnheader', { name: 'Talabat vs Snoonu' });
+    expect(screen.getByTestId('ticked-count').textContent).toContain('A bulk change uses the search and category only, not "Only where Talabat and Snoonu differ".');
   });
 });
 

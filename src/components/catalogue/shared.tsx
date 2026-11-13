@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type Q
 import { CheckCircle2, CircleSlash, Sparkles } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import {
-  PRODUCTS_PAGE_SIZE, productsApi, type MarketplaceStatusFilter, type ProductDetail, type ProductItem, type ProductPage, type ProductStatus,
+  PRODUCTS_PAGE_SIZE, productsApi, type MarketplaceStatusFilter, type MarketplacesDiffer, type ProductDetail, type ProductItem, type ProductPage, type ProductStatus,
   type ProductTab,
 } from '../../api/products';
 import { categoriesApi, type CategoryNode } from '../../api/categories';
@@ -22,11 +22,27 @@ export interface ProductFilter {
   /** Asks for each product's values on this marketplace (GET /api/products?marketplaceId=). */
   marketplaceId?: string;
   marketplaceStatus?: MarketplaceStatusFilter;
+  /** A second marketplace next to the first ("Compare with Talabat and Snoonu"). */
+  compareMarketplaceId?: string;
+  /** Only with compareMarketplaceId: where the two differ, or a product is on only one. */
+  marketplacesDiffer?: MarketplacesDiffer;
 }
 const productListKey = (f: ProductFilter) => ['products', 'list', f] as const;
 
-/** A list page, plus why the marketplace values could not be shown when the backend refused them. */
-export type CataloguePage = ProductPage & { marketplaceProblem?: string };
+/**
+ * A list page, plus why the marketplace values could not be shown when the backend refused them, or (compareProblem)
+ * why the second marketplace could not be, while the first one still shows.
+ */
+export type CataloguePage = ProductPage & { marketplaceProblem?: string; compareProblem?: string };
+
+/** A 400 about the second marketplace: not enabled, or a backend that cannot compare two yet (unknown keys). */
+function compareRefusal(e: unknown): string | undefined {
+  if (!(e instanceof ApiError) || e.status !== 400) return undefined;
+  const about = (s: string | undefined) => /compareMarketplaceId|marketplacesDiffer/.test(s ?? '');
+  const d = e.details.find(x => about(x.path) || about(x.message));
+  if (d) return d.path === 'compareMarketplaceId' ? d.message : 'This server cannot compare two marketplaces yet.';
+  return about(e.message) ? 'This server cannot compare two marketplaces yet.' : undefined;
+}
 
 /**
  * A 400 about the marketplace parameters: the marketplace is not enabled for the store, or the backend predates the
@@ -43,10 +59,16 @@ async function listPage(filter: ProductFilter, cursor: string | undefined, signa
   try {
     return await productsApi.list({ ...filter, cursor, limit: PRODUCTS_PAGE_SIZE }, signal);
   } catch (e) {
+    // The second marketplace first: then the first one still shows, and the view says why the second is missing.
+    const compareProblem = filter.compareMarketplaceId ? compareRefusal(e) : undefined;
+    if (compareProblem) {
+      const { compareMarketplaceId: _c, marketplacesDiffer: _d, ...one } = filter;
+      return { ...(await listPage(one, cursor, signal)), compareProblem };
+    }
     const problem = filter.marketplaceId ? marketplaceRefusal(e) : undefined;
     if (!problem) throw e;
     // Show the catalogue without marketplace values rather than an error page; the view says why.
-    const { marketplaceId: _m, marketplaceStatus: _s, ...plain } = filter;
+    const { marketplaceId: _m, marketplaceStatus: _s, compareMarketplaceId: _c, marketplacesDiffer: _d, ...plain } = filter;
     const page = await productsApi.list({ ...plain, cursor, limit: PRODUCTS_PAGE_SIZE }, signal);
     return { ...page, marketplaceProblem: problem };
   }

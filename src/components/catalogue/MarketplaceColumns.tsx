@@ -67,11 +67,76 @@ export const StackedMarketplaceValues: React.FC<{ m: ProductMarketplaceValues | 
     </dl>
   ) : null;
 
-/** The newest upload time among the shown rows. */
-export function newestUpload(items: ProductItem[]): string | null {
+// ───────── Two marketplaces side by side ─────────
+
+export type MarketplacesDifference = 'same' | 'price' | 'availability' | 'both' | 'only_a' | 'only_b' | 'neither';
+
+/**
+ * How two marketplaces' values for one product compare with each other (not with the catalogue). The backend's
+ * marketplacesDiffer filter uses the same rule: price exact in fils, availability, or listed on only one.
+ */
+export function marketplacesDifference(a: ProductMarketplaceValues, b: ProductMarketplaceValues): MarketplacesDifference {
+  if (!a.inFile && !b.inFile) return 'neither';
+  if (!a.inFile) return 'only_b';
+  if (!b.inFile) return 'only_a';
+  const fils = (p: string | null) => (p === null ? null : Math.round(Number(p) * 1000));
+  const price = fils(a.price) !== fils(b.price);
+  const availability = a.available !== b.available;
+  return price && availability ? 'both' : price ? 'price' : availability ? 'availability' : 'same';
+}
+
+export function differenceText(d: MarketplacesDifference, a: string, b: string): string {
+  switch (d) {
+    case 'same': return 'Same on both';
+    case 'price': return 'Price differs';
+    case 'availability': return 'Availability differs';
+    case 'both': return 'Price and availability differ';
+    case 'only_a': return `Only on ${a}`;
+    case 'only_b': return `Only on ${b}`;
+    case 'neither': return 'On neither';
+  }
+}
+
+/** "Talabat vs Snoonu": same, or what differs between the two marketplaces. */
+export const DifferenceBadge: React.FC<{ a: ProductMarketplaceValues | undefined; b: ProductMarketplaceValues | undefined; aName: string; bName: string }> = ({ a, b, aName, bName }) => {
+  if (!a || !b) return null;
+  const d = marketplacesDifference(a, b);
+  const quiet = d === 'same' || d === 'neither';
+  return (
+    <span data-testid="mp-difference" data-difference={d}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${quiet ? 'bg-gray-100 text-gray-700 border-gray-300' : 'bg-amber-50 text-amber-900 border-amber-300'}`}>
+      {differenceText(d, aName, bName)}
+    </span>
+  );
+};
+
+/** One marketplace in one cell (two side by side): availability, price, then the comparison with the catalogue. */
+export const MarketplaceSummaryCell: React.FC<{ m: ProductMarketplaceValues | undefined; latest: string | null }> = ({ m, latest }) =>
+  m ? (
+    <span className="inline-flex flex-col items-start gap-1">
+      <MarketplaceAvailabilityCell m={m} />
+      {m.inFile && <MarketplacePriceCell m={m} latest={latest} />}
+      <ComparedBadge m={m} />
+    </span>
+  ) : null;
+
+/** On a phone, two marketplaces stack under the product name, then what differs between them. */
+export const StackedTwoMarketplaces: React.FC<{
+  a: ProductMarketplaceValues | undefined; b: ProductMarketplaceValues | undefined; aName: string; bName: string; latestA: string | null; latestB: string | null;
+}> = ({ a, b, aName, bName, latestA, latestB }) =>
+  a || b ? (
+    <dl data-testid="mp-stacked" className="md:hidden mt-1.5 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[11px]">
+      <dt className="text-gray-500">{aName}</dt><dd><MarketplaceSummaryCell m={a} latest={latestA} /></dd>
+      <dt className="text-gray-500">{bName}</dt><dd><MarketplaceSummaryCell m={b} latest={latestB} /></dd>
+      <dt className="text-gray-500">{`${aName} vs ${bName}`}</dt><dd><DifferenceBadge a={a} b={b} aName={aName} bName={bName} /></dd>
+    </dl>
+  ) : null;
+
+/** The newest upload time among the shown rows (of the main marketplace, or with `which`, of the second one). */
+export function newestUpload(items: ProductItem[], which: 'marketplace' | 'compareMarketplace' = 'marketplace'): string | null {
   let best: string | null = null;
   for (const i of items) {
-    const t = i.marketplace?.sourceUploadedAt;
+    const t = i[which]?.sourceUploadedAt;
     if (t && (!best || Date.parse(t) > Date.parse(best))) best = t;
   }
   return best;

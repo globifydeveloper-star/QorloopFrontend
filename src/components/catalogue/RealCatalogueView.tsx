@@ -22,6 +22,7 @@ import { money2 } from '../../lib/format';
 import { EXPECTED_PRICE_HINT, PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
+import { BulkOffersImport } from '../pricing/BulkOffersImport';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { BulkStockDialog } from '../stock/BulkStockDialog';
 import { CatalogueExportButton } from './CatalogueExportButton';
@@ -135,6 +136,7 @@ export const RealCatalogueView: React.FC = () => {
   const [editing, setEditing] = useState<string | null>(null);
   // Bulk price change (pricing.bulk): ticked rows belong to the filter they were ticked under.
   const canBulk = showPrice && can('pricing.bulk');
+  const canOfferBulk = canEditPrice && can('products.view');
   const filterKey = JSON.stringify(filter);
   const [tick, setTick] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: filterKey, ids: new Set() });
   const ticked = tick.key === filterKey ? tick.ids : NONE;
@@ -145,11 +147,12 @@ export const RealCatalogueView: React.FC = () => {
   });
   const allTicked = items.length > 0 && items.every(p => ticked.has(p.id));
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [offersBulkOpen, setOffersBulkOpen] = useState(false);
   const bulkFilter = { q: filter.q || undefined, categoryId: filter.categoryId, subcategoryId: filter.subcategoryId };
   const filterSummary = describeFilter(filter.q, filter.categoryId, filter.subcategoryId, names);
   // Bulk stock edit (catalogue.stock_edit) uses the same ticks; its filter selection takes products of any status.
   const canStockBulk = can('catalogue.stock_edit');
-  const canTick = canBulk || canStockBulk;
+  const canTick = canBulk || canStockBulk || canOfferBulk;
   const [stockBulkOpen, setStockBulkOpen] = useState(false);
   // The bulk changes take no marketplace filter: with "Only mismatches" or "Only where … differ" on, the list's counts
   // are narrowed, so count apart.
@@ -237,12 +240,13 @@ export const RealCatalogueView: React.FC = () => {
           </label>
         </div>
 
-        {canTick && (
-          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : 'Bulk stock edit'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
+      {canTick && (
+          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : canStockBulk ? 'Bulk stock edit' : 'Bulk update offers'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
             <span data-testid="ticked-count">
               {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked`
-                : canBulk ? 'Tick rows to change their prices together, or change every active product matching the filter.'
-                  : 'Tick rows to change their stock together, or change every product matching the filter.'}
+                : canBulk ? 'Tick rows to change their prices or offers, or change every active product matching the filter.'
+                  : canStockBulk ? 'Tick rows to change their stock together, or change every product matching the filter.'
+                    : 'Tick rows to update their offers, or import offers for the whole catalogue.'}
               {narrowedByStatus && ` A bulk change uses the search and category only, not "${narrowedLabel}".`}
             </span>
             <span className="flex items-center gap-2">
@@ -254,10 +258,17 @@ export const RealCatalogueView: React.FC = () => {
                   Bulk stock edit…
                 </button>
               )}
-              {canBulk && (
-                <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
-                  Bulk price change…
+              {canOfferBulk && (
+                <button type="button" onClick={() => setOffersBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold border border-[#027864] text-[#027864] bg-white hover:bg-[#E3FAF3] disabled:opacity-50">
+                  Bulk update offers…
                 </button>
+              )}
+              {canBulk && (
+                <>
+                  <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
+                    Bulk price change…
+                  </button>
+                </>
               )}
             </span>
           </div>
@@ -479,6 +490,7 @@ export const RealCatalogueView: React.FC = () => {
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}
         />
       )}
+      {offersBulkOpen && <BulkOffersImport selectedIds={[...ticked]} onClose={() => setOffersBulkOpen(false)} />}
       {stockBulkOpen && (
         <BulkStockDialog
           tickedIds={[...ticked]}

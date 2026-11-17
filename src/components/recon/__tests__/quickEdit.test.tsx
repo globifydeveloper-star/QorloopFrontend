@@ -116,6 +116,17 @@ function handle(u: string, i: RequestInit): Response {
     srv.stock[hit[1]] = stockOf(hit[1], { erpStock: prev.erpStock, catalogueStock: b.choice === 'erp' ? prev.erpStock : prev.conflict!.ownerStock, source: b.choice === 'erp' ? 'erp' : 'owner' });
     return ok(srv.stock[hit[1]]);
   }
+  if (m === 'POST' && p === '/api/products/block/preview') {
+    const b = bodyOf([u, i]);
+    return ok({ reason: b.reason, reasonLabel: 'Old product', selected: b.productIds.length, toBlock: b.productIds.length, alreadyBlocked: 0, notFound: 0, activeOffersToEnd: 0, offersNote: null, previewToken: 'f'.repeat(64) });
+  }
+  if (m === 'POST' && p === '/api/products/block') {
+    // Blocked: the next recompute drops its rows (the backend deletes them and leaves the product out).
+    const ids: string[] = bodyOf([u, i]).productIds;
+    srv.stockRows = srv.stockRows.filter(r => !ids.includes(r.productId));
+    srv.computedAt = LATER;
+    return ok({ reason: 'old', reasonLabel: 'Old product', blocked: ids.length, alreadyBlocked: 0, notFound: 0, offersEnded: 0, offersNote: null, blockedAt: LATER });
+  }
   hit = /^\/api\/products\/([^/]+)$/.exec(p);
   if (hit && m === 'GET') return ok(srv.products[hit[1]] ?? detail(hit[1]));
   hit = /^\/api\/pricing\/products\/([^/]+)$/.exec(p);
@@ -303,6 +314,29 @@ describe('quick edit drawer', () => {
     expect(screen.getByTestId('drawer-position').textContent).toBe('No longer in this list: the comparison says it is fixed');
     fireEvent.click(dialog().getByRole('button', { name: /Next/ }));
     expect(await screen.findByRole('dialog', { name: 'Product 2' })).toBeTruthy();
+  });
+
+  it('blocks an old product from the drawer; the comparison then leaves it out of the report', async () => {
+    perms.add('products.block');
+    const { invalidated } = renderAt('/reports/stock?marketplace=talabat', <StockMismatchesView />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Product 1' }));
+    const drawer = within(await screen.findByRole('dialog', { name: 'Product 1' }));
+    fireEvent.click(drawer.getByRole('button', { name: 'Block Product 1' }));
+    const d = () => within(screen.getByRole('dialog', { name: 'Block "Product 1"' }));
+    fireEvent.click(d().getByRole('radio', { name: 'Old product' }));
+    expect(await d().findByText('1 product will be blocked.')).toBeTruthy();
+    fireEvent.click(d().getByRole('button', { name: 'Block product' }));
+    await waitFor(() => expect(d().getByRole('heading', { name: 'Blocked 1 product' })).toBeTruthy());
+    expect(bodyOf(calls((u, m) => m === 'POST' && path(u) === '/api/products/block')[0])).toEqual({ productIds: ['1'], reason: 'old', previewToken: 'f'.repeat(64) });
+    for (const key of [['products'], ['recon', 'summary'], ['recon', 'rows']]) expect(invalidated()).toContain(JSON.stringify(key));
+    fireEvent.click(d().getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Edit Product 1' })).toBeNull());
+    expect(screen.getByTestId('drawer-position').textContent).toBe('No longer in this list: the comparison says it is fixed');
+  });
+
+  it('offers no Block in the drawer without products.block', async () => {
+    await openFromStockReport();
+    expect(screen.queryByRole('button', { name: 'Block Product 1' })).toBeNull();
   });
 
   it('stock 409 reloads and shows the newer values; 400 and 403 in plain words', async () => {

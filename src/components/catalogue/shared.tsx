@@ -26,6 +26,8 @@ export interface ProductFilter {
   compareMarketplaceId?: string;
   /** Only with compareMarketplaceId: where the two differ, or a product is on only one. */
   marketplacesDiffer?: MarketplacesDiffer;
+  /** 'only': the Blocked tab. Unset: the backend leaves blocked products out. */
+  blocked?: 'only';
 }
 const productListKey = (f: ProductFilter) => ['products', 'list', f] as const;
 

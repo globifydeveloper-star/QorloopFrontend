@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { RefreshCw, Search, Upload } from 'lucide-react';
-import { marketplaceListingsApi, type MarketplaceListingsFilter } from '../../api/marketplaceListings';
+import { listingIsBlocked, marketplaceListingsApi, type MarketplaceListingsFilter } from '../../api/marketplaceListings';
 import type { ReconMarketplaceId } from '../../api/recon';
 import { useAuth } from '../../auth/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -30,7 +30,10 @@ export const MarketplaceCatalogue: React.FC<{ marketplaceId: ReconMarketplaceId 
     getNextPageParam: last => last.nextCursor ?? undefined,
     retry: false,
   });
-  const items = list.data?.pages.flatMap(p => p.items) ?? [];
+  // Listings matched to a blocked product are left out (the listings endpoint marks them; it does not filter them).
+  const all = list.data?.pages.flatMap(p => p.items) ?? [];
+  const items = all.filter(l => !listingIsBlocked(l));
+  const hiddenBlocked = all.length - items.length;
   const first = list.data?.pages[0];
   const filtered = Boolean(q || availability !== 'all' || match !== 'all');
   const upload = () => openUploadModal(marketplaceId);
@@ -98,7 +101,10 @@ export const MarketplaceCatalogue: React.FC<{ marketplaceId: ReconMarketplaceId 
                 </tr>)}</tbody>
               </table>
             </div>}
-      {first && <div role="status" className="border-t border-gray-100 px-4 py-3 text-[11px] text-gray-500">{items.length.toLocaleString()} of {first.total.toLocaleString()} listings loaded</div>}
+      {first && <div role="status" className="border-t border-gray-100 px-4 py-3 text-[11px] text-gray-500">
+        {all.length.toLocaleString()} of {first.total.toLocaleString()} listings loaded
+        {hiddenBlocked > 0 && ` · ${hiddenBlocked.toLocaleString()} of them ${hiddenBlocked === 1 ? 'belongs to a blocked product and is' : 'belong to blocked products and are'} hidden`}
+      </div>}
       {list.isError && list.data && <div role="alert" className="px-4 pb-3 text-xs text-red-700">
         We could not {list.isFetchNextPageError ? 'load more listings' : 'refresh the listings'}. <button type="button" className="underline font-semibold" onClick={() => void (list.isFetchNextPageError ? list.fetchNextPage() : list.refetch())}>Try again</button>
       </div>}

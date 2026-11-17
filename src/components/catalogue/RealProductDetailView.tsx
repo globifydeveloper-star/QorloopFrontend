@@ -5,7 +5,8 @@ import { CheckCircle2, CircleSlash, Info, RefreshCw } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import { ApiError } from '../../api/client';
-import { productsApi, type ProductDetail, type UpdateProductRequest } from '../../api/products';
+import { PRODUCT_BLOCK_REASON_LABELS, productsApi, type ProductDetail, type UpdateProductRequest } from '../../api/products';
+import { BLOCK_PERMISSION, BlockButton, UnblockDialog } from './blocking';
 import { MARKETPLACE_NAMES } from '../../lib/pricing';
 import { matchView, pathFor } from '../../routes/paths';
 import { ErrorState, LoadingState } from '../common/States';
@@ -48,9 +49,12 @@ export const RealProductDetailView: React.FC = () => {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">{p.nameEn}</h1>
           <ProductStatusPill status={p.status} />
+          {p.isBlocked && <span data-testid="blocked-pill" className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border border-red-200 bg-red-50 text-red-700">Blocked</span>}
+          {!p.isBlocked && <span className="ml-auto"><BlockButton product={p} variant="button" /></span>}
         </div>
         <p className="text-xs text-gray-500 mt-0.5 font-mono">Barcode {p.barcode}{p.sku ? ` · SKU ${p.sku}` : ''}</p>
       </div>
+      {p.isBlocked && <BlockedBanner product={p} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -71,6 +75,27 @@ export const RealProductDetailView: React.FC = () => {
           {!realSettingsEnabled() && <NotAvailableYet title="Change history" hint="The change history is not connected to the server yet." />}
         </div>
       </div>
+    </div>
+  );
+};
+
+/** A blocked product's page says so, with why, when and by whom, and offers Unblock (products.block). */
+const BlockedBanner: React.FC<{ product: ProductDetail }> = ({ product: p }) => {
+  const { can } = useAuth();
+  const [open, setOpen] = useState(false);
+  const reason = p.blockedReason ? PRODUCT_BLOCK_REASON_LABELS[p.blockedReason] ?? p.blockedReason : null;
+  return (
+    <div role="status" className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl border border-red-200 bg-red-50 text-xs text-red-900">
+      <p>
+        <span className="font-semibold">{`Blocked${reason ? ` (${reason})` : ''}`}</span>
+        {p.blockedAt && ` on ${qatarDateTime(p.blockedAt)} (Qatar time)`}
+        {p.blockedBy?.name && ` by ${p.blockedBy.name}`}
+        {'. The Dashboard, Review, comparisons, generated files, bulk price changes and offers leave it out.'}
+      </p>
+      {can(BLOCK_PERMISSION) && (
+        <button type="button" onClick={() => setOpen(true)} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white text-gray-800 hover:bg-gray-50">Unblock</button>
+      )}
+      {open && <UnblockDialog products={[p]} onClose={() => setOpen(false)} />}
     </div>
   );
 };

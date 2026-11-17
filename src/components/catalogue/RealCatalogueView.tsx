@@ -28,6 +28,10 @@ import { BULK_OFFER_ROWS_MAX } from '../../api/pricing';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { BulkStockDialog } from '../stock/BulkStockDialog';
 import { CatalogueExportButton } from './CatalogueExportButton';
+import { MarketplaceCatalogue } from './MarketplaceCatalogue';
+import { BlockedProductsView } from './BlockedProductsView';
+import { BLOCK_PERMISSION, BlockDialog, useBlockedCount, type BlockTarget } from './blocking';
+import type { ReconMarketplaceId } from '../../api/recon';
 
 const TAB_LABELS: Record<ProductTab, string> = {
   all: 'All', active: 'Active', inactive: 'Inactive', new: 'New', missing: 'Missing from ERP',
@@ -42,11 +46,60 @@ function describeFilter(q: string, categoryId: string | undefined, subcategoryId
   return [q ? `Search "${q}"` : '', where].filter(Boolean).join(' · ');
 }
 
+/** The catalogue page's views: ?view=talabat|snoonu|blocked (none = the catalogue). */
+export const CATALOGUE_VIEWS = ['catalogue', 'talabat', 'snoonu', 'blocked'] as const;
+export type CatalogueViewId = (typeof CATALOGUE_VIEWS)[number];
+const MARKETPLACE_VIEWS: Partial<Record<CatalogueViewId, ReconMarketplaceId>> = { talabat: 'talabat', snoonu: 'snoonu' };
+
+const ViewTabs: React.FC<{ view: CatalogueViewId; onChange: (v: CatalogueViewId) => void }> = ({ view, onChange }) => {
+  const blocked = useBlockedCount();
+  const label = (v: CatalogueViewId) => v === 'catalogue' ? 'Catalogue' : v === 'blocked'
+    ? `Blocked${typeof blocked.data === 'number' ? ` (${blocked.data.toLocaleString('en-US')})` : ''}`
+    : marketplaceName(v);
+  return (
+    <div role="tablist" aria-label="Catalogue view" className="flex flex-wrap gap-1 border-b border-gray-200">
+      {CATALOGUE_VIEWS.map(v => (
+        <button
+          key={v} role="tab" aria-selected={view === v} onClick={() => onChange(v)}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px ${view === v ? 'border-[#027864] text-[#027864]' : 'border-transparent text-gray-500 hover:text-gray-800'}`}
+        >
+          {label(v)}
+        </button>
+      ))}
+    </div>
+  );
+};
+
 /**
- * CAT-001: the catalogue from GET /api/products, with per-tab counts from the backend. "Compare with" shows one or two
- * marketplaces' values next to the catalogue's, read-only; the list is always your catalogue.
+ * CAT-001 with its views: Catalogue | Talabat | Snoonu | Blocked (n). The catalogue and the marketplace tabs leave
+ * blocked products out; the Blocked tab lists them. The view lives in the URL (?view=), so Back and links keep it.
  */
 export const RealCatalogueView: React.FC = () => {
+  const [params, setParams] = useSearchParams();
+  const asked = params.get('view');
+  const view: CatalogueViewId = (CATALOGUE_VIEWS as readonly string[]).includes(asked ?? '') ? asked as CatalogueViewId : 'catalogue';
+  // A new view is a history entry and starts clean: the catalogue's compare and filter parameters belong to it.
+  const choose = (v: CatalogueViewId) => setParams(v === 'catalogue' ? new URLSearchParams() : new URLSearchParams({ view: v }));
+  const tabs = <ViewTabs view={view} onChange={choose} />;
+  if (view === 'catalogue') return <CatalogueList viewTabs={tabs} />;
+  const marketplaceId = MARKETPLACE_VIEWS[view];
+  return (
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">Catalogue</h1>
+        <p className="text-xs text-gray-500 mt-0.5">All products in your Qorloop catalogue. Keep Arabic names, categories and status up to date.</p>
+      </div>
+      {tabs}
+      {marketplaceId ? <MarketplaceCatalogue key={marketplaceId} marketplaceId={marketplaceId} /> : <BlockedProductsView />}
+    </div>
+  );
+};
+
+/**
+ * The Catalogue tab: GET /api/products, with per-tab counts from the backend (blocked products left out). "Compare with"
+ * shows one or two marketplaces' values next to the catalogue's, read-only; the list is always your catalogue.
+ */
+const CatalogueList: React.FC<{ viewTabs: React.ReactNode }> = ({ viewTabs }) => {
   const { openUploadModal } = useApp();
   const { can } = useAuth();
   const [tab, setTab] = useState<ProductTab>('all');
@@ -105,7 +158,8 @@ export const RealCatalogueView: React.FC = () => {
   const tree = useCategoryTree();
   const names = useMemo(() => indexCategories(tree.data), [tree.data]);
 
-  const items = list.data?.pages.flatMap(p => p.items) ?? [];
+  // The backend leaves blocked products out by default; a row that still says so is never shown here.
+  const items = (list.data?.pages.flatMap(p => p.items) ?? []).filter(p => !p.isBlocked);
   const counts = list.data?.pages[0]?.counts;
   const filtered = Boolean(q || category || onlyMismatches || differ);
   const marketplaceProblem = marketplaceId ? list.data?.pages[0]?.marketplaceProblem : undefined;
@@ -156,7 +210,10 @@ export const RealCatalogueView: React.FC = () => {
   const canStockBulk = can('catalogue.stock_edit');
   // Bulk offer (pricing.edit) uses the same ticks: a table of the ticked rows, up to BULK_OFFER_ROWS_MAX; more go
   // through the Excel offer import (canOfferBulk).
-  const canTick = canBulk || canStockBulk || canEditPrice;
+  // Block (products.block): one row, or the ticked rows, after a preview.
+  const canBlock = can(BLOCK_PERMISSION);
+  const [blocking, setBlocking] = useState<BlockTarget[] | null>(null);
+  const canTick = canBulk || canStockBulk || canEditPrice || canBlock;
   const [stockBulkOpen, setStockBulkOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [offerTooMany, setOfferTooMany] = useState(false);
@@ -177,7 +234,8 @@ export const RealCatalogueView: React.FC = () => {
   const bulkCountPending = narrowedByStatus
     ? plainCounts.isPending || plainCounts.isFetching
     : list.isPending || list.isPlaceholderData || (list.isFetching && !list.isFetchingNextPage);
-  const columns = 7 + (showPrice ? 1 : 0) + (canEditPrice ? 1 : 0) + (canTick ? 1 : 0) + (showMarketplace ? 3 : 0);
+  const rowActions = canEditPrice || canBlock;
+  const columns = 7 + (showPrice ? 1 : 0) + (rowActions ? 1 : 0) + (canTick ? 1 : 0) + (showMarketplace ? 3 : 0);
 
   return (
     <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-6">
@@ -205,6 +263,8 @@ export const RealCatalogueView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {viewTabs}
 
       {choices.length > 0 && (
         <CompareWith marketplaceIds={choices.map(c => c.marketplaceId)} selected={[marketplaceId, compareId].filter(Boolean)} onChange={choose} />
@@ -252,17 +312,27 @@ export const RealCatalogueView: React.FC = () => {
         </div>
 
         {canTick && (
-          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : canStockBulk ? 'Bulk stock edit' : 'Bulk offer'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
+          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : canStockBulk ? 'Bulk stock edit' : canEditPrice ? 'Bulk offer' : 'Block products'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
             <span data-testid="ticked-count">
               {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked`
                 : canBulk ? 'Tick rows to change their prices or offers, or change every active product matching the filter.'
                   : canStockBulk ? 'Tick rows to change their stock together, or change every product matching the filter.'
-                    : 'Tick rows to set an offer on them, or import offers from Excel for the whole catalogue.'}
+                    : canEditPrice ? 'Tick rows to set an offer on them, or import offers from Excel for the whole catalogue.'
+                      : 'Tick rows to block them together.'}
               {narrowedByStatus && ` A bulk change uses the search and category only, not "${narrowedLabel}".`}
             </span>
             <span className="flex items-center gap-2">
               {ticked.size > 0 && (
                 <button type="button" onClick={() => setTick({ key: filterKey, ids: new Set() })} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white hover:bg-gray-50">Clear ticks</button>
+              )}
+              {canBlock && (
+                <button
+                  type="button" onClick={() => setBlocking(items.filter(p => ticked.has(p.id)))} disabled={ticked.size === 0 || !list.data}
+                  title={ticked.size === 0 ? 'Tick rows to block them.' : undefined}
+                  className="h-8 px-3 rounded-lg font-semibold border border-red-200 text-red-700 bg-white hover:bg-red-50 disabled:opacity-50"
+                >
+                  Block…
+                </button>
               )}
               {canStockBulk && (
                 <button type="button" onClick={() => setStockBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">
@@ -406,7 +476,7 @@ export const RealCatalogueView: React.FC = () => {
                   )}
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Category</th>
-                  {canEditPrice && <th className="px-4 py-3"><span className="sr-only">Price actions</span></th>}
+                  {rowActions && <th className="px-4 py-3"><span className="sr-only">{canEditPrice ? 'Price actions' : 'Actions'}</span></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
@@ -462,14 +532,21 @@ export const RealCatalogueView: React.FC = () => {
                           : p.categoryId ? <span className="text-gray-400">—</span>
                             : <span className="text-amber-700">No category</span>}
                       </td>
-                      {canEditPrice && (
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                          <button
-                            type="button" onClick={() => setEditing(editing === p.id ? null : p.id)} aria-expanded={editing === p.id}
-                            aria-label={`Change the price of ${p.nameEn}`} className="font-semibold text-[#027864] hover:underline"
-                          >
-                            Change price
-                          </button>
+                      {rowActions && (
+                        <td className="px-4 py-3 text-right whitespace-nowrap space-x-3">
+                          {canEditPrice && (
+                            <button
+                              type="button" onClick={() => setEditing(editing === p.id ? null : p.id)} aria-expanded={editing === p.id}
+                              aria-label={`Change the price of ${p.nameEn}`} className="font-semibold text-[#027864] hover:underline"
+                            >
+                              Change price
+                            </button>
+                          )}
+                          {canBlock && (
+                            <button type="button" onClick={() => setBlocking([p])} aria-label={`Block ${p.nameEn}`} className="font-semibold text-red-700 hover:underline">
+                              Block
+                            </button>
+                          )}
                         </td>
                       )}
                     </tr>
@@ -517,6 +594,13 @@ export const RealCatalogueView: React.FC = () => {
           filterSummary={filterSummary}
           onClose={() => setBulkOpen(false)}
           onApplied={() => setTick({ key: filterKey, ids: new Set() })}
+        />
+      )}
+      {blocking && (
+        <BlockDialog
+          products={blocking}
+          onClose={() => setBlocking(null)}
+          onBlocked={r => { if (r.blocked > 0) { setTick({ key: filterKey, ids: new Set() }); setEditing(null); } }}
         />
       )}
       {offersBulkOpen && <BulkOffersImport selectedIds={[...ticked]} onClose={() => setOffersBulkOpen(false)} />}

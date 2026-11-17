@@ -61,6 +61,55 @@ export interface ProductItem {
   marketplace?: ProductMarketplaceValues;
   /** Only with compareMarketplaceId: the same values on the second marketplace ("Compare with Talabat and Snoonu"). */
   compareMarketplace?: ProductMarketplaceValues;
+  /**
+   * Blocked products (backend migration 202611170001): ignored by every check and change, separate from status.
+   * Absent from a backend without blocking (read as not blocked).
+   */
+  isBlocked?: boolean;
+  blockedAt?: string | null;
+  blockedReason?: ProductBlockReason | null;
+  /** PROPOSED (not in the backend's list items yet, it stores blocked_by only): who blocked it. Absent: shown as "—". */
+  blockedBy?: { id: string | null; name: string | null } | null;
+}
+
+/** Why a product is blocked (backend packages/core/src/products/blocking.ts). */
+export type ProductBlockReason = 'old' | 'seasonal' | 'other';
+export const PRODUCT_BLOCK_REASONS: readonly ProductBlockReason[] = ['old', 'seasonal', 'other'];
+export const PRODUCT_BLOCK_REASON_LABELS: Record<ProductBlockReason, string> = { old: 'Old product', seasonal: 'Seasonal', other: 'Other' };
+/** POST /api/products/block, /block/preview and /unblock take at most this many productIds. */
+export const PRODUCT_BLOCK_IDS_MAX = 500;
+/** How the list treats blocked products: exclude (the backend default, not sent), only (the Blocked tab), include. */
+export type BlockedFilter = 'exclude' | 'only' | 'include';
+
+export interface BlockPreview {
+  reason: ProductBlockReason;
+  reasonLabel: string;
+  /** toBlock + alreadyBlocked. */
+  selected: number;
+  toBlock: number;
+  alreadyBlocked: number;
+  notFound: number;
+  /** Active offers (dates include now) on the products to block: they end when the block is confirmed. */
+  activeOffersToEnd: number;
+  offersNote: string | null;
+  previewToken: string;
+}
+export interface BlockResult {
+  reason: ProductBlockReason;
+  reasonLabel: string;
+  blocked: number;
+  alreadyBlocked: number;
+  notFound: number;
+  offersEnded: number;
+  offersNote: string | null;
+  blockedAt: string;
+}
+export interface UnblockResult {
+  unblocked: number;
+  notBlocked: number;
+  notFound: number;
+  offersRestored: number;
+  offersNote: string | null;
 }
 
 /** "Only where they differ": compared with each other, not with the catalogue (backend docs/products-api.md). */
@@ -130,8 +179,11 @@ export type TabCounts = Record<ProductTab, number>;
 export interface ProductPage {
   items: ProductItem[];
   nextCursor: string | null;
-  /** One count per tab for the same search and category filter. */
-  counts: TabCounts;
+  /**
+   * One count per tab for the same search and category filter. `blocked` (a backend with blocking): the blocked products
+   * of the same filters whatever `blocked` asked, so the Blocked tab always has its number.
+   */
+  counts: TabCounts & { blocked?: number };
 }
 
 export interface ProductListQuery {
@@ -150,6 +202,8 @@ export interface ProductListQuery {
   compareMarketplaceId?: string;
   /** Only with compareMarketplaceId: products where the two marketplaces differ, or that are on only one. */
   marketplacesDiffer?: MarketplacesDiffer;
+  /** Left out (the backend's exclude) unless asked: an older backend's strict query rejects the key. */
+  blocked?: BlockedFilter;
 }
 
 export interface CategoryName {
@@ -216,6 +270,7 @@ export const productsApi = {
         cursor: query.cursor, limit: query.limit,
         marketplaceId, marketplaceStatus: marketplaceId ? query.marketplaceStatus : undefined,
         compareMarketplaceId: compareId, marketplacesDiffer: compareId ? query.marketplacesDiffer : undefined,
+        blocked: query.blocked && query.blocked !== 'exclude' ? query.blocked : undefined,
       },
     });
     if (!marketplaceId) return page;
@@ -233,4 +288,12 @@ export const productsApi = {
   /** Replies with the updated product detail. */
   update: (id: string, body: UpdateProductRequest) => api<ProductDetail>(`/api/products/${enc(id)}`, { method: 'PATCH', body }),
   activate: (body: ActivateRequest) => api<ActivateResult>('/api/products/activate', { method: 'POST', body }),
+  /** Writes nothing: what a block of these products would do, and the token the block needs (products.block). */
+  blockPreview: (body: { productIds: string[]; reason: ProductBlockReason }) =>
+    api<BlockPreview>('/api/products/block/preview', { method: 'POST', body }),
+  /** 409 when the products, their blocked state or their active offers changed since the preview. */
+  block: (body: { productIds: string[]; reason: ProductBlockReason; previewToken: string }) =>
+    api<BlockResult>('/api/products/block', { method: 'POST', body }),
+  /** Ended offers are not restored. */
+  unblock: (body: { productIds: string[] }) => api<UnblockResult>('/api/products/unblock', { method: 'POST', body }),
 };

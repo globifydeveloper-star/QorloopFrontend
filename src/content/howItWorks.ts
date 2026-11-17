@@ -168,6 +168,15 @@ export const HOW_IT_WORKS = {
       ],
     },
     {
+      id: 'block-product', title: 'A product is old or seasonal',
+      steps: [
+        'Open the Catalogue, then choose Block on the product, or tick several rows and choose Block.',
+        'Choose a reason: Old product, Seasonal or Other. The preview says how many products are blocked and which active offers end.',
+        'A blocked product is left out of the Dashboard, Review, comparisons, generated files, bulk price changes and offers.',
+        'Find it in the Blocked tab. Choose Unblock to bring it back as it was. Offers that ended do not come back.',
+      ],
+    },
+    {
       id: 'stock-conflict', title: 'A stock conflict after an ERP upload',
       steps: [
         'A conflict means the ERP changed a stock that someone had edited by hand.',
@@ -257,6 +266,11 @@ export const HOW_IT_WORKS = {
     {
       id: 'activate', label: 'Activate new products and manage categories',
       permissions: ['products.activate', 'categories.manage'],
+      roles: { owner: true, admin: true, catalogue_manager: true, analyst: false },
+    },
+    {
+      id: 'block', label: 'Block and unblock old or seasonal products',
+      permissions: ['products.block'],
       roles: { owner: true, admin: true, catalogue_manager: true, analyst: false },
     },
     {

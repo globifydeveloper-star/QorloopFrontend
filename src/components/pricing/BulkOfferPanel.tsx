@@ -35,7 +35,8 @@ export const BulkOfferPanel: React.FC<{
 }> = ({ products, onClose, onApplied }) => {
   const qc = useQueryClient();
   const today = useMemo(() => qatarToday(), []);
-  const [rows, setRows] = useState<OfferRow[]>(() => products.map(p => rowFrom(p, today)));
+  // A blocked product takes no offer (the backend rejects it as product_blocked): it never enters the table.
+  const [rows, setRows] = useState<OfferRow[]>(() => products.filter(p => !p.isBlocked).map(p => rowFrom(p, today)));
   const [same, setSame] = useState<SameForAll>({ price: '', start: '', end: '' });
   const [dirty, setDirty] = useState(false);
   const [phase, setPhase] = useState<Phase>('edit');

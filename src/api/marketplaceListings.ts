@@ -16,10 +16,15 @@ export interface MarketplaceListing {
   price: number;
   available: boolean;
   updatedAt: string;
-  product: { id: string; nameEn: string; barcode: string } | null;
+  product: { id: string; nameEn: string; barcode: string; isBlocked?: boolean } | null;
   sourceFile: { id: string; fileName: string } | null;
   availabilityAdjustment: MarketplaceAvailabilityState | null;
+  /** Matched to a blocked product (a backend with blocking): the marketplace tabs leave the row out. */
+  isBlocked?: boolean;
 }
+
+/** A listing matched to a blocked product: never shown in the marketplace tabs. */
+export const listingIsBlocked = (l: MarketplaceListing) => l.isBlocked === true || l.product?.isBlocked === true;
 export interface MarketplaceListingsPage {
   items: MarketplaceListing[];
   total: number;

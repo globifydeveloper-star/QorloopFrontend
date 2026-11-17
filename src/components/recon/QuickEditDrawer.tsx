@@ -10,6 +10,7 @@ import { pathFor } from '../../routes/paths';
 import { ErrorState, LoadingState } from '../common/States';
 import { SideDrawer } from '../common/SideDrawer';
 import { productKey } from '../catalogue/shared';
+import { BLOCK_PERMISSION, BlockButton } from '../catalogue/blocking';
 import { ProductStockPanel } from '../stock/ProductStockPanel';
 import { stockFileLink } from './stockFileLink';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
@@ -118,6 +119,7 @@ export const QuickEditDrawer: React.FC<{
       {marketplaceExportValue
         ? <div data-slot="marketplace-export-value">{marketplaceExportValue}</div>
         : <DefaultExportValue row={row} marketplaceId={list.summary.marketplaceId} />}
+      <BlockSection row={row} />
     </SideDrawer>
   );
 };
@@ -141,6 +143,18 @@ const DefaultExportValue: React.FC<{ row: ReconRow; marketplaceId: string }> = (
         </Link>
       </Section>
     </div>
+  );
+};
+
+/** Block an old or seasonal product from here (products.block): it then leaves this list after the next comparison. */
+const BlockSection: React.FC<{ row: ReconRow }> = ({ row }) => {
+  const { can } = useAuth();
+  if (!can(BLOCK_PERMISSION)) return null;
+  return (
+    <Section title="Old or seasonal product?">
+      <p className="text-xs text-gray-500">Block it to leave it out of the Dashboard, Review and every comparison until you unblock it.</p>
+      <BlockButton key={row.productId} product={{ id: row.productId, nameEn: row.nameEn }} variant="button" />
+    </Section>
   );
 };
 

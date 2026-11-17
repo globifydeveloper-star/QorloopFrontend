@@ -50,7 +50,8 @@ const calls = (pred: (url: string, method: string) => boolean) =>
   fetchMock.mock.calls.filter(([u, i]) => pred(String(u), (i as RequestInit | undefined)?.method ?? 'GET'));
 const bodyOf = (c: unknown[]) => JSON.parse(String((c[1] as RequestInit).body));
 const params = (u: string) => Object.fromEntries(new URL(u, 'http://x').searchParams);
-const isList = (u: string, m: string) => m === 'GET' && u.startsWith('/api/products?');
+// The catalogue list; the Blocked tab's count (blocked=only) is its own request (blockedProducts.test.tsx).
+const isList = (u: string, m: string) => m === 'GET' && u.startsWith('/api/products?') && !/[?&]blocked=only/.test(u);
 
 const Where = () => {
   const l = useLocation();

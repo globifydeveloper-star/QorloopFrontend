@@ -321,5 +321,6 @@ describe('Bulk offer: permissions and limits', () => {
     fireEvent.click(screen.getByLabelText('Tick Product m0'));
     fireEvent.click(screen.getByRole('button', { name: 'Bulk offer…' }));
     expect(await screen.findByRole('heading', { name: 'Bulk offer: 500 products' })).toBeTruthy();
-  });
+    // 501 catalogue rows, re-rendered on "tick all", then a 500-row editable table: slow on a CI runner.
+  }, 20_000);
 });

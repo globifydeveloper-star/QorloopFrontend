@@ -23,6 +23,8 @@ import { EXPECTED_PRICE_HINT, PriceSourceChip } from '../pricing/shared';
 import { RowPriceEditor } from '../pricing/InlinePriceEditor';
 import { BulkPriceChangeDialog } from '../pricing/BulkPriceChangeDialog';
 import { BulkOffersImport } from '../pricing/BulkOffersImport';
+import { BulkOfferPanel } from '../pricing/BulkOfferPanel';
+import { BULK_OFFER_ROWS_MAX } from '../../api/pricing';
 import { CatalogueStockCell } from '../stock/StockCell';
 import { BulkStockDialog } from '../stock/BulkStockDialog';
 import { CatalogueExportButton } from './CatalogueExportButton';
@@ -152,8 +154,17 @@ export const RealCatalogueView: React.FC = () => {
   const filterSummary = describeFilter(filter.q, filter.categoryId, filter.subcategoryId, names);
   // Bulk stock edit (catalogue.stock_edit) uses the same ticks; its filter selection takes products of any status.
   const canStockBulk = can('catalogue.stock_edit');
-  const canTick = canBulk || canStockBulk || canOfferBulk;
+  // Bulk offer (pricing.edit) uses the same ticks: a table of the ticked rows, up to BULK_OFFER_ROWS_MAX; more go
+  // through the Excel offer import (canOfferBulk).
+  const canTick = canBulk || canStockBulk || canEditPrice;
   const [stockBulkOpen, setStockBulkOpen] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offerTooMany, setOfferTooMany] = useState(false);
+  const offerReason = !canEditPrice ? 'You need permission to edit prices to set offers.' : ticked.size === 0 ? 'Tick rows to set an offer on them.' : undefined;
+  const openOffer = () => {
+    if (ticked.size > BULK_OFFER_ROWS_MAX) setOfferTooMany(true);
+    else { setOfferTooMany(false); setOfferOpen(true); }
+  };
   // The bulk changes take no marketplace filter: with "Only mismatches" or "Only where … differ" on, the list's counts
   // are narrowed, so count apart.
   const narrowedByStatus = Boolean(marketplaceId && (marketplaceStatus || (differ && !compareProblem)) && !marketplaceProblem);
@@ -240,13 +251,13 @@ export const RealCatalogueView: React.FC = () => {
           </label>
         </div>
 
-      {canTick && (
-          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : canStockBulk ? 'Bulk stock edit' : 'Bulk update offers'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
+        {canTick && (
+          <div role="toolbar" aria-label={canBulk ? 'Bulk price change' : canStockBulk ? 'Bulk stock edit' : 'Bulk offer'} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-gray-100 bg-[#F8FBFA] text-xs text-gray-600">
             <span data-testid="ticked-count">
               {ticked.size > 0 ? `${ticked.size} ${ticked.size === 1 ? 'product' : 'products'} ticked`
                 : canBulk ? 'Tick rows to change their prices or offers, or change every active product matching the filter.'
                   : canStockBulk ? 'Tick rows to change their stock together, or change every product matching the filter.'
-                    : 'Tick rows to update their offers, or import offers for the whole catalogue.'}
+                    : 'Tick rows to set an offer on them, or import offers from Excel for the whole catalogue.'}
               {narrowedByStatus && ` A bulk change uses the search and category only, not "${narrowedLabel}".`}
             </span>
             <span className="flex items-center gap-2">
@@ -259,18 +270,36 @@ export const RealCatalogueView: React.FC = () => {
                 </button>
               )}
               {canOfferBulk && (
-                <button type="button" onClick={() => setOffersBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold border border-[#027864] text-[#027864] bg-white hover:bg-[#E3FAF3] disabled:opacity-50">
-                  Bulk update offers…
+                <button type="button" onClick={() => setOffersBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">
+                  Offers from Excel…
                 </button>
               )}
-              {canBulk && (
+              {showPrice && (
                 <>
-                  <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
-                    Bulk price change…
+                  <button
+                    type="button" onClick={openOffer} disabled={Boolean(offerReason) || !list.data}
+                    title={offerReason} aria-describedby={offerReason ? 'bulk-offer-reason' : undefined}
+                    className="h-8 px-3 rounded-lg font-semibold border border-[#027864] text-[#027864] bg-white hover:bg-[#E3FAF3] disabled:opacity-50"
+                  >
+                    Bulk offer…
                   </button>
+                  {offerReason && <span id="bulk-offer-reason" className={canEditPrice ? 'sr-only' : 'text-[11px] text-gray-500'}>{offerReason}</span>}
                 </>
               )}
+              {canBulk && (
+                <button type="button" onClick={() => setBulkOpen(true)} disabled={!list.data} className="h-8 px-3 rounded-lg font-semibold text-white bg-[#027864] hover:bg-[#02604F] disabled:opacity-50">
+                  Bulk price change…
+                </button>
+              )}
             </span>
+          </div>
+        )}
+        {canTick && offerTooMany && ticked.size > BULK_OFFER_ROWS_MAX && (
+          <div role="alert" className="px-4 py-2.5 border-b border-gray-100 bg-amber-50 text-xs text-amber-900">
+            {`Too many for the table: use the Excel template. The Bulk offer table takes at most ${BULK_OFFER_ROWS_MAX} products; ${ticked.size} are ticked.`}
+            {canOfferBulk && (
+              <> <button type="button" onClick={() => { setOfferTooMany(false); setOffersBulkOpen(true); }} className="font-semibold text-[#027864] underline">Open the Excel offer import</button></>
+            )}
           </div>
         )}
 
@@ -491,6 +520,13 @@ export const RealCatalogueView: React.FC = () => {
         />
       )}
       {offersBulkOpen && <BulkOffersImport selectedIds={[...ticked]} onClose={() => setOffersBulkOpen(false)} />}
+      {offerOpen && (
+        <BulkOfferPanel
+          products={items.filter(p => ticked.has(p.id))}
+          onClose={() => setOfferOpen(false)}
+          onApplied={() => setTick({ key: filterKey, ids: new Set() })}
+        />
+      )}
       {stockBulkOpen && (
         <BulkStockDialog
           tickedIds={[...ticked]}

@@ -335,13 +335,15 @@ describe('permissions', () => {
     expect(screen.queryByRole('form', { name: 'Change the price' })).toBeNull();
   });
 
-  it('pricing.edit alone: inline edit but no bulk; pricing.bulk alone: bulk but no inline edit', async () => {
+  it('pricing.edit alone: inline edit and Bulk offer but no bulk price change; pricing.bulk alone: bulk but no inline edit', async () => {
     perms.delete('pricing.bulk');
     handler = (u, i) => (isList(u, method(i)) ? list([item('p1')]) : undefined);
     renderAt('/catalogue', <CatalogueView />);
     expect(await screen.findByRole('button', { name: 'Change the price of Product p1' })).toBeTruthy();
     expect(screen.queryByRole('toolbar', { name: 'Bulk price change' })).toBeNull();
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    // Rows can be ticked for the Bulk offer table (pricing.edit), not for a bulk price change.
+    expect(screen.getByRole('toolbar', { name: 'Bulk offer' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Bulk price change…' })).toBeNull();
     cleanup();
 
     perms.add('pricing.bulk');

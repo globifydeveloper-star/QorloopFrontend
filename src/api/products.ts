@@ -1,5 +1,8 @@
 import { api } from './client';
-import type { MarketplacePrice, ProductPricing } from './pricing';
+import type { MarketplacePrice, OfferState, ProductPricing } from './pricing';
+
+/** A product's offer as the list shows it (PROPOSED, offers v1 step 2). */
+export interface ProductOfferSummary { price: number; validFrom: string | null; validUntil: string | null; state?: OfferState }
 
 /**
  * Products API (GET/PATCH /api/products…, POST /api/products/activate). Mirrors the backend's products module:
@@ -44,6 +47,13 @@ export interface ProductItem {
   updatedAt: string;
   /** Present only for roles with pricing.view: the resolved Marketplace price and the rule step that chose it. */
   marketplacePrice?: MarketplacePrice;
+  /**
+   * PROPOSED (offers v1 step 2, not in the backend yet): the resolved price without the offer. Absent from an older
+   * backend; the bulk offer table then uses marketplacePrice when no offer sets it.
+   */
+  normalPrice?: number;
+  /** PROPOSED (offers v1 step 2): the product's offer, null for none; absent from an older backend (unknown). */
+  offer?: ProductOfferSummary | null;
   /**
    * Only when the list was asked with marketplaceId, and only from a backend that has the marketplace columns
    * (docs/products-api.md). Absent means "not available": show nothing extra.

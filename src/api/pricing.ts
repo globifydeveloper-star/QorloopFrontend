@@ -315,6 +315,57 @@ export interface BulkApplyResult extends BulkCounts {
   removed: number;
 }
 
+// ── Bulk offers, one row per product (POST /api/pricing/offers/bulk/preview and /apply; pricing.edit) ──
+// NOT IN THE BACKEND YET. The request is the one agreed for the "Bulk offer" table: items [{productId, price,
+// validFrom?, validUntil}]. The answer is not documented: it is read defensively (offerTable.ts readBulkOfferPreview),
+// with the row outcomes, rejection codes and warnings of docs/reports/2026-11-11-offers-v1-step-0.md section F.
+
+/** Rows the table sends at once (the ticked-ids limit of a bulk selection); more go through the Excel template. */
+export const BULK_OFFER_ROWS_MAX = BULK_PRODUCT_IDS_MAX;
+
+export interface BulkOfferItem {
+  productId: string;
+  /** 0 < price < the normal price, at most 3 decimals. */
+  price: number;
+  /** ISO with +03:00: the start day at 00:00 Qatar time. Omitted = starts now. */
+  validFrom?: string;
+  /** ISO with +03:00: the end day at 23:59:59.999 Qatar time (the whole end day, inclusive). */
+  validUntil: string;
+}
+export interface BulkOfferRequest { items: BulkOfferItem[] }
+export interface BulkOfferApplyRequest extends BulkOfferRequest {
+  /** One per confirmation of a preview (8-100 of A-Za-z0-9_-), sent again on every retry of it. */
+  idempotencyKey: string;
+  previewToken?: string;
+}
+
+export type BulkOfferOutcome = 'set' | 'unchanged' | 'rejected';
+export type BulkOfferWarningCode = 'replaces_offer' | 'export_value_outranks';
+export interface BulkOfferWarning { code: BulkOfferWarningCode | string; message?: string; marketplaceId?: string }
+export interface BulkOfferPreviewRow {
+  productId: string;
+  nameEn?: string;
+  barcode?: string;
+  outcome: BulkOfferOutcome;
+  /** For rejected rows: not_found, product_not_active, invalid_price, price_not_below_normal, end_before_start, ... */
+  reason?: string;
+  message?: string;
+  warnings: BulkOfferWarning[];
+}
+export interface BulkOfferPreview {
+  willChange: number;
+  unchanged: number;
+  rejected: number;
+  rows: BulkOfferPreviewRow[];
+  previewToken?: string;
+}
+export interface BulkOfferApplyResult extends BulkOfferPreview {
+  /** true: this idempotency key was already applied; nothing was written again. */
+  replayed: boolean;
+  operationId?: string;
+  appliedAt?: string;
+}
+
 export const pricingApi = {
   settings: (signal?: AbortSignal) => api<PricingSettings>('/api/pricing/settings', { signal }),
   updateSettings: (body: UpdatePricingSettings) => api<PricingSettings>('/api/pricing/settings', { method: 'PUT', body }),
@@ -345,4 +396,8 @@ export const pricingApi = {
   bulkPreview: (body: BulkPriceRequest) => api<BulkPreview>('/api/pricing/bulk/preview', { method: 'POST', body }),
   /** pricing.bulk. Re-planned from current data; a replay of the same key and body answers replayed: true. */
   bulkApply: (body: BulkApplyRequest) => api<BulkApplyResult>('/api/pricing/bulk/apply', { method: 'POST', body }),
+  /** pricing.edit. Writes nothing. The raw answer: read it with readBulkOfferPreview. */
+  bulkOfferPreview: (body: BulkOfferRequest) => api<unknown>('/api/pricing/offers/bulk/preview', { method: 'POST', body }),
+  /** pricing.edit. A replay of the same key answers the first result. The raw answer: read it with readBulkOfferResult. */
+  bulkOfferApply: (body: BulkOfferApplyRequest) => api<unknown>('/api/pricing/offers/bulk/apply', { method: 'POST', body }),
 };

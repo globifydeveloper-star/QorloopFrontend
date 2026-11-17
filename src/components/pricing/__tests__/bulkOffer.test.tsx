@@ -266,6 +266,21 @@ describe('Bulk offer: preview and apply', () => {
   });
 });
 
+describe('Bulk offer: a server without the bulk offers API', () => {
+  it('a 404 for the whole call says the API is missing, not that a product was not found', async () => {
+    handler = (u, i) => (isPreview(u, method(i)) ? json(404, { error: { code: 'NOT_FOUND', message: 'Cannot POST /api/pricing/offers/bulk/preview' } }) : undefined);
+    renderCatalogue();
+    const panel = await openWith(['p1']);
+    fireEvent.change(panel.getByLabelText('Promo price for Product p1'), { target: { value: '8' } });
+    fireEvent.change(panel.getByLabelText('End date for Product p1'), { target: { value: END } });
+    fireEvent.click(panel.getByRole('button', { name: 'Preview 1 row' }));
+    const alert = (await panel.findByRole('alert')).textContent!;
+    expect(alert).toContain('Bulk offers are not available on this server yet');
+    expect(alert).not.toContain('product was not found');
+    expect(calls(isApply)).toHaveLength(0);
+  });
+});
+
 describe('Bulk offer: permissions and limits', () => {
   it('pricing.edit alone can tick rows and open it; it is disabled until rows are ticked', async () => {
     renderCatalogue();

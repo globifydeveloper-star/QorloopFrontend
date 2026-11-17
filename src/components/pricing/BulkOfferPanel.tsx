@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, X } from 'lucide-react';
 import { pricingApi, type BulkOfferApplyResult, type BulkOfferItem, type BulkOfferPreview } from '../../api/pricing';
 import type { ProductItem } from '../../api/products';
+import { ApiError } from '../../api/client';
 import { ConfirmDialog } from '../uploads/shared';
 import { expectRecompute, marketplaceName } from '../recon/shared';
 import { qatarDateTime } from '../../lib/format';
@@ -15,6 +16,7 @@ import {
 } from './offerTable';
 
 type Phase = 'edit' | 'previewing' | 'preview' | 'applying' | 'done';
+export const NOT_AVAILABLE = 'Bulk offers are not available on this server yet: it has no bulk offers API. Nothing was changed. Set offers one product at a time on the product page, or use Offers from Excel.';
 const productsText = (n: number) => `${count(n)} ${n === 1 ? 'product' : 'products'}`;
 const cellCls = (bad?: boolean) =>
   `h-8 px-2 text-xs border rounded-md bg-white disabled:bg-gray-50 disabled:text-gray-600 ${bad ? 'border-red-400' : 'border-gray-300'}`;
@@ -125,6 +127,9 @@ export const BulkOfferPanel: React.FC<{
   };
 
   const errorText = error ? changeErrors(error).general : undefined;
+  // The bulk API rejects an unknown product inside its answer (a rejected row), never with a 404: a 404 for the whole
+  // call means this server has no bulk offers API (it is not in the backend yet).
+  const missingApi = error instanceof ApiError && error.status === 404;
   const warnings = preview ? warningSummary(preview.rows) : undefined;
   const rejectedRows = preview?.rows.filter(r => r.outcome === 'rejected') ?? [];
 
@@ -237,7 +242,8 @@ export const BulkOfferPanel: React.FC<{
                 {phase === 'applying' && <p role="status">Applying… Keep this panel open.</p>}
                 {errorText && (
                   <p role="alert" className="text-red-700">
-                    {phase === 'preview' ? <>We could not confirm the change: {errorText} If the connection dropped it may already be applied; trying again is safe and will not apply it twice.</>
+                    {missingApi ? <>{NOT_AVAILABLE}</>
+                      : phase === 'preview' ?<>We could not confirm the change: {errorText} If the connection dropped it may already be applied; trying again is safe and will not apply it twice.</>
                       : isStale(error) ? <>Nothing was changed. {errorText} Run the preview again.</>
                         : <>We could not run the preview: {errorText}</>}
                   </p>

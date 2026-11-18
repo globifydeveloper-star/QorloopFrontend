@@ -12,8 +12,7 @@ const ICONS: Record<HowItWorksIcon, React.ElementType> = {
 };
 
 const SECTION_ORDER = [
-  C.sections.what, C.sections.loop, C.sections.sources, C.sections.words, C.sections.situations,
-  C.sections.limits, C.sections.roles, C.sections.tips, C.sections.glossary,
+  C.sections.what, C.sections.loop, C.sections.screens, C.sections.words, C.sections.situations, C.sections.roles, C.sections.glossary,
 ];
 
 const card = 'bg-white border border-gray-200 rounded-2xl shadow-sm';
@@ -43,6 +42,10 @@ export const HowItWorksView: React.FC = () => (
     <Section {...C.sections.what}>
       <div className={`${card} p-5 space-y-2 text-sm text-gray-700`}>
         {C.what.map(p => <p key={p}>{p}</p>)}
+        <h3 className="pt-2 text-sm font-bold text-gray-900">{C.keepInMindTitle}</h3>
+        <ul className="space-y-1.5">
+          {C.keepInMind.map(t => <li key={t} className="flex gap-2"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" aria-hidden />{t}</li>)}
+        </ul>
       </div>
     </Section>
 
@@ -72,19 +75,13 @@ export const HowItWorksView: React.FC = () => (
       </ol>
     </Section>
 
-    <Section {...C.sections.sources}>
-      <TermList terms={C.sources} />
+    <Section {...C.sections.screens}>
+      <TermList terms={C.screens} />
+      <p className="text-xs text-gray-500">{C.screensNote}</p>
     </Section>
 
     <Section {...C.sections.words}>
       <TermList terms={C.words} />
-      <div className={`${card} p-5 space-y-3`}>
-        <h3 className="text-sm font-bold text-gray-900">{C.compareTitle}</h3>
-        <TermList terms={C.compare} plain />
-        <p role="note" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-900">
-          <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" aria-hidden /> {C.compareWarning}
-        </p>
-      </div>
     </Section>
 
     <Section {...C.sections.situations}>
@@ -101,23 +98,6 @@ export const HowItWorksView: React.FC = () => (
             </ol>
           </details>
         ))}
-      </div>
-    </Section>
-
-    <Section {...C.sections.limits}>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className={`${card} p-5`}>
-          <h3 className="text-sm font-bold text-gray-900">{C.canTitle}</h3>
-          <ul className="mt-2 space-y-1.5 text-sm text-gray-700">
-            {C.can.map(t => <li key={t} className="flex gap-2"><Check className="w-4 h-4 mt-0.5 shrink-0 text-[#027864]" aria-hidden />{t}</li>)}
-          </ul>
-        </div>
-        <div className={`${card} p-5`}>
-          <h3 className="text-sm font-bold text-gray-900">{C.cannotTitle}</h3>
-          <ul className="mt-2 space-y-1.5 text-sm text-gray-700">
-            {C.cannot.map(t => <li key={t} className="flex gap-2"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600" aria-hidden />{t}</li>)}
-          </ul>
-        </div>
       </div>
     </Section>
 
@@ -145,12 +125,6 @@ export const HowItWorksView: React.FC = () => (
       <p className="text-xs text-gray-500">{C.roleFootnote}</p>
     </Section>
 
-    <Section {...C.sections.tips}>
-      <ul className={`${card} p-5 space-y-1.5 text-sm text-gray-700`}>
-        {C.tips.map(t => <li key={t} className="flex gap-2"><Check className="w-4 h-4 mt-0.5 shrink-0 text-[#027864]" aria-hidden />{t}</li>)}
-      </ul>
-    </Section>
-
     <Section {...C.sections.glossary}>
       <TermList terms={C.glossary} />
     </Section>
@@ -164,10 +138,10 @@ const Section: React.FC<{ id: string; title: string; children: React.ReactNode }
   </section>
 );
 
-const TermList: React.FC<{ terms: readonly Term[]; plain?: boolean }> = ({ terms, plain }) => (
-  <dl className={plain ? 'space-y-2' : `${card} divide-y divide-gray-100`}>
+const TermList: React.FC<{ terms: readonly Term[] }> = ({ terms }) => (
+  <dl className={`${card} divide-y divide-gray-100`}>
     {terms.map(t => (
-      <div key={t.term} className={`${plain ? '' : 'px-5 py-3'} flex flex-col sm:flex-row sm:gap-4`}>
+      <div key={t.term} className="px-5 py-3 flex flex-col sm:flex-row sm:gap-4">
         <dt className="sm:w-56 shrink-0 text-sm font-semibold text-gray-900 flex flex-wrap items-center gap-2">
           {t.term}
           {t.urgent && <span className="px-2 py-0.5 rounded-full border border-red-200 bg-red-50 text-[11px] font-semibold text-red-700">{C.urgentBadge}</span>}

@@ -96,13 +96,17 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 
 const viewTabs = () => within(screen.getByRole('tablist', { name: 'Catalogue view' }));
+const statusTabs = () => within(screen.getByRole('tablist', { name: 'Product status' }));
 const dialogNamed = (name: string | RegExp) => within(screen.getByRole('dialog', { name }));
 
 describe('catalogue tabs', () => {
   it('shows Catalogue | Talabat | Snoonu | Blocked (count), and the catalogue list asks without blocked (left out)', async () => {
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    await waitFor(() => expect(viewTabs().getAllByRole('tab').map(t => t.textContent)).toEqual(['Catalogue', 'Talabat', 'Snoonu', 'Blocked (2)']));
+    expect(viewTabs().getAllByRole('tab').map(t => t.textContent)).toEqual(['Catalogue', 'Talabat', 'Snoonu']);
+    // Blocked is the last status tab, after Missing from ERP, with the number of blocked products.
+    await waitFor(() => expect(statusTabs().getAllByRole('tab').map(t => t.textContent)).toEqual(
+      ['All (2)', 'Active (2)', 'Inactive (0)', 'New (0)', 'Missing from ERP (0)', 'Blocked (2)']));
     expect(viewTabs().getByRole('tab', { name: 'Catalogue' }).getAttribute('aria-selected')).toBe('true');
     expect(calls(isCatalogueList).length).toBeGreaterThan(0);
     expect(calls(isList).filter(([u]) => !isBlockedCount(String(u), 'GET')).every(([u]) => params(String(u)).blocked === undefined)).toBe(true);
@@ -119,7 +123,7 @@ describe('catalogue tabs', () => {
   it('switches to the Blocked tab (in the URL): name, barcode, reason, date and blocked by, and search works there', async () => {
     renderAt('/catalogue', <CatalogueView />);
     await screen.findByText('Product 1');
-    fireEvent.click(viewTabs().getByRole('tab', { name: /Blocked/ }));
+    fireEvent.click(statusTabs().getByRole('tab', { name: /Blocked/ }));
     expect(screen.getByTestId('where').textContent).toBe('/catalogue?view=blocked');
     const table = within(await screen.findByRole('table', { name: 'Blocked products' }));
     expect(table.getAllByRole('columnheader').map(h => h.textContent)).toEqual(
@@ -192,7 +196,7 @@ describe('block', () => {
     // The catalogue, the counts, pricing and the comparison (Dashboard and Review) refresh.
     expect(invalidated()).toEqual(expect.arrayContaining(['["products"]', '["pricing"]', '["recon","summary"]', '["recon","rows"]']));
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Product 1' })).toBeNull());
-    await waitFor(() => expect(viewTabs().getByRole('tab', { name: /Blocked/ }).textContent).toBe('Blocked (3)'));
+    await waitFor(() => expect(statusTabs().getByRole('tab', { name: /Blocked/ }).textContent).toBe('Blocked (3)'));
     fireEvent.click(d().getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
@@ -240,7 +244,7 @@ describe('block', () => {
     await screen.findByText('Product 1');
     expect(screen.queryByRole('button', { name: 'Block Product 1' })).toBeNull();
     expect(screen.queryByRole('toolbar')).toBeNull();
-    fireEvent.click(viewTabs().getByRole('tab', { name: /Blocked/ }));
+    fireEvent.click(statusTabs().getByRole('tab', { name: /Blocked/ }));
     await screen.findByText('Product 8');
     expect(screen.queryByRole('button', { name: 'Unblock Product 8' })).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
@@ -267,7 +271,7 @@ describe('unblock', () => {
     await waitFor(() => expect(d().getByRole('heading', { name: 'Unblocked 1 product' })).toBeTruthy());
     expect(bodyOf(calls(post('/api/products/unblock'))[0])).toEqual({ productIds: ['8'] });
     await waitFor(() => expect(screen.queryByRole('link', { name: 'Product 8' })).toBeNull());
-    await waitFor(() => expect(viewTabs().getByRole('tab', { name: /Blocked/ }).textContent).toBe('Blocked (1)'));
+    await waitFor(() => expect(statusTabs().getByRole('tab', { name: /Blocked/ }).textContent).toBe('Blocked (1)'));
   });
 
   it('unblocks the ticked rows together', async () => {
@@ -289,7 +293,7 @@ describe('unblock', () => {
     handler = (u, i) => (isList(u, method(i)) && params(u).blocked ? fail(400, 'Validation failed', [{ path: 'blocked', message: 'Unrecognized key' }]) : undefined);
     renderAt('/catalogue?view=blocked', <CatalogueView />);
     expect(await screen.findByText('Blocking is not available yet')).toBeTruthy();
-    expect(viewTabs().getByRole('tab', { name: 'Blocked' }).textContent).toBe('Blocked');
+    expect(statusTabs().getByRole('tab', { name: 'Blocked' }).textContent).toBe('Blocked');
   });
 });
 

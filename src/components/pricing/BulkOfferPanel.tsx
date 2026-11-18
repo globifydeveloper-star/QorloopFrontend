@@ -16,7 +16,7 @@ import {
 } from './offerTable';
 
 type Phase = 'edit' | 'previewing' | 'preview' | 'applying' | 'done';
-export const NOT_AVAILABLE = 'Bulk offers are not available on this server yet: it has no bulk offers API. Nothing was changed. Set offers one product at a time on the product page, or use Offers from Excel.';
+export const NOT_AVAILABLE = 'Bulk offers are not available on this server yet: it has no bulk offers API. Nothing was changed. Set offers one product at a time on the product page.';
 const productsText = (n: number) => `${count(n)} ${n === 1 ? 'product' : 'products'}`;
 const cellCls = (bad?: boolean) =>
   `h-8 px-2 text-xs border rounded-md bg-white disabled:bg-gray-50 disabled:text-gray-600 ${bad ? 'border-red-400' : 'border-gray-300'}`;

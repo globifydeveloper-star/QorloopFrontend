@@ -78,28 +78,26 @@ describe('How it works page', () => {
   it('shows the content of each section', () => {
     mount();
     const region = (id: keyof typeof C.sections) => within(main().getByRole('region', { name: C.sections[id].title }));
-    for (const p of C.what) expect(region('what').getByText(p)).toBeTruthy();
-    for (const t of C.sources) expect(region('sources').getByText(t.meaning)).toBeTruthy();
-    for (const t of [...C.words, ...C.compare]) expect(region('words').getByText(t.term)).toBeTruthy();
-    expect(region('words').getByText(C.compareWarning)).toBeTruthy();
+    for (const p of [...C.what, ...C.keepInMind]) expect(region('what').getByText(p)).toBeTruthy();
+    for (const t of C.screens) expect(region('screens').getByText(t.meaning)).toBeTruthy();
+    // The main screens, by their menu names, with Update files described as the main screen.
+    expect(region('screens').getAllByRole('term').map(t => t.textContent)).toEqual(['Dashboard', 'Uploads', 'Update files', 'Generated files', 'Catalogue', 'Pricing']);
+    for (const t of C.words) expect(region('words').getByText(t.term)).toBeTruthy();
     // Renamed labels: My pricing and Pricing, never the old "Marketplace price" or "Compare against".
-    expect(region('words').getByText('The “Compare prices with” switch (under Advanced)')).toBeTruthy();
     expect(main().queryByText(/Marketplace price|Compare against/)).toBeNull();
     expect(within(region('words').getByText('Available but out of stock').closest('dt') as HTMLElement).getByText('Urgent')).toBeTruthy();
-    for (const t of [...C.can, ...C.cannot]) expect(region('limits').getByText(t)).toBeTruthy();
-    for (const t of C.tips) expect(region('tips').getByText(t)).toBeTruthy();
-    expect(region('glossary').getAllByRole('term').map(t => t.textContent)).toEqual(['ERP', 'Marketplace', 'Catalogue', 'Listing', 'Mismatch', 'Rule chain', 'Mapping', 'Store']);
+    expect(region('glossary').getAllByRole('term').map(t => t.textContent)).toEqual(['ERP', 'Marketplace', 'Catalogue', 'My pricing', 'Offer', 'Blocked', 'Mapping']);
   });
 
-  it('shows the daily loop as six numbered cards, each with a button to a real screen', async () => {
+  it('shows the daily loop as five numbered cards, each with a button to a real screen', async () => {
     mount();
-    const loop = within(main().getByRole('list', { name: 'The daily loop' }));
+    const loop = within(main().getByRole('list', { name: 'Your day in five steps' }));
     const cards = loop.getAllByTestId('loop-step');
-    expect(cards).toHaveLength(6);
+    expect(cards).toHaveLength(5);
     expect(cards.map(c => within(c).getByRole('heading', { level: 3 }).textContent)).toEqual(C.loop.map(s => s.title));
     const expected: [string, string][] = [
-      ['Open Uploads', '/uploads'], ['Open Uploads', '/uploads'], ['Open Uploads', '/uploads'],
-      ['Open Dashboard', '/'], ['Open Catalogue', '/catalogue'], ['Open Generated files', '/files'],
+      ['Open Uploads', '/uploads'], ['Open Uploads', '/uploads'], ['Open Dashboard', '/'],
+      ['Open Update files', '/update-files'], ['Open Update files', '/update-files'],
     ];
     cards.forEach((c, i) => {
       const link = within(c).getByRole('link');
@@ -109,8 +107,8 @@ describe('How it works page', () => {
       expect(matchView(href)).toEqual({ view: C.loop[i].action.view });
     });
 
-    fireEvent.click(within(cards[4]).getByRole('link', { name: /Open Catalogue/ }));
-    await waitFor(() => expect(where()).toBe('/catalogue'));
+    fireEvent.click(within(cards[0]).getByRole('link', { name: /Open Uploads/ }));
+    await waitFor(() => expect(where()).toBe('/uploads'));
     expect(screen.queryByText('Page not found')).toBeNull();
   });
 
@@ -120,7 +118,7 @@ describe('How it works page', () => {
 
   it('lists the common situations as an accordion that opens from the keyboard', () => {
     mount();
-    const region = main().getByRole('region', { name: 'Common situations' });
+    const region = main().getByRole('region', { name: 'How do I…?' });
     const items = region.querySelectorAll('details');
     expect(items).toHaveLength(C.situations.length);
     const summaries = [...items].map(d => d.querySelector('summary')!.textContent);
@@ -143,10 +141,10 @@ describe('How it works page', () => {
     expect(rows).toHaveLength(C.roles.length);
     const cells = (label: string) => within(table.getByRole('rowheader', { name: label }).closest('tr') as HTMLElement).getAllByRole('cell').map(c => c.textContent);
     expect(cells('Change security settings')).toEqual(['Yes', 'No', 'No', 'No']);
-    expect(cells('Invite team members, change roles and remove members')).toEqual(['Yes', 'Yes', 'No', 'No']);
-    expect(cells('Edit stock and prices, one by one or many at once')).toEqual(['Yes', 'Yes', 'Yes', 'No']);
+    expect(cells('Change store settings and manage the team')).toEqual(['Yes', 'Yes', 'No', 'No']);
+    expect(cells('Fix stock and prices, set offers, block products and make files')).toEqual(['Yes', 'Yes', 'Yes', 'No']);
     expect(cells('Export reports')).toEqual(['Yes', 'Yes', 'Yes', 'If allowed in Settings']);
-    expect(cells('See who changed what in Activity')).toEqual(['Yes', 'Yes', 'Yes', 'Yes']);
+    expect(cells('See everything and download generated files')).toEqual(['Yes', 'Yes', 'Yes', 'Yes']);
   });
 
   it.each(['owner', 'admin', 'catalogue_manager', 'analyst'] as Role[])('the sidebar item opens the page for the %s role', async (r) => {

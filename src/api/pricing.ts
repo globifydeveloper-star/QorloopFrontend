@@ -320,7 +320,7 @@ export interface BulkApplyResult extends BulkCounts {
 // validFrom?, validUntil}]. The answer is not documented: it is read defensively (offerTable.ts readBulkOfferPreview),
 // with the row outcomes, rejection codes and warnings of docs/reports/2026-11-11-offers-v1-step-0.md section F.
 
-/** Rows the table sends at once (the ticked-ids limit of a bulk selection); more go through the Excel template. */
+/** Rows the table sends at once (the ticked-ids limit of a bulk selection). */
 export const BULK_OFFER_ROWS_MAX = BULK_PRODUCT_IDS_MAX;
 
 export interface BulkOfferItem {

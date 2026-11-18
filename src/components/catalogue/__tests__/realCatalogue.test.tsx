@@ -119,7 +119,7 @@ describe('catalogue (CAT-001)', () => {
     expect(r.getByRole('link', { name: 'Product 1' }).getAttribute('href')).toBe('/catalogue/1');
 
     expect(within(screen.getByRole('tablist', { name: 'Product status' })).getAllByRole('tab').map(t => t.textContent)).toEqual(
-      ['All (3)', 'Active (2)', 'Inactive (0)', 'New (1)', 'Missing from ERP (0)']);
+      ['All (3)', 'Active (2)', 'Inactive (0)', 'New (1)', 'Missing from ERP (0)', 'Blocked']);
   });
 
   it('switches tabs, debounces search, filters by category or subcategory and loads more by cursor', async () => {

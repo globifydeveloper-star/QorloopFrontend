@@ -20,7 +20,7 @@ const unsupported = (e: unknown) =>
  * The Blocked tab: GET /api/products?blocked=only with the same search as the catalogue. Name, barcode, reason, when and
  * by whom; Unblock one or the ticked rows (products.block).
  */
-export const BlockedProductsView: React.FC = () => {
+export const BlockedProductsView: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { can } = useAuth();
   const canUnblock = can(BLOCK_PERMISSION);
   const [search, setSearch] = useState('');
@@ -41,9 +41,9 @@ export const BlockedProductsView: React.FC = () => {
   const total = list.data?.pages[0]?.counts.blocked ?? list.data?.pages[0]?.counts.all;
 
   return (
-    <section aria-label="Blocked products" className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+    <section aria-label="Blocked products" className={embedded ? '' : 'bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden'}>
       <div className="px-4 pt-4 pb-3 border-b border-gray-100">
-        <h2 className="text-sm font-bold text-gray-900">Blocked products</h2>
+        {!embedded && <h2 className="text-sm font-bold text-gray-900">Blocked products</h2>}
         <p className="text-xs text-gray-500 mt-0.5">{BLOCK_EXPLAINED}</p>
       </div>
       <div className="p-4 border-b border-gray-100">

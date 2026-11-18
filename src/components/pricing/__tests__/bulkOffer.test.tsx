@@ -310,13 +310,14 @@ describe('Bulk offer: permissions and limits', () => {
     expect(screen.queryByRole('button', { name: 'Bulk offer…' })).toBeNull();
   });
 
-  it('over 500 ticked rows the table does not open and points to the Excel template', async () => {
+  it('over 500 ticked rows the table does not open and asks for fewer rows', async () => {
     const many = Array.from({ length: 501 }, (_, n) => item(`m${n}`));
     handler = (u, i) => (isList(u, method(i)) ? page(many) : undefined);
     renderCatalogue();
     fireEvent.click(await screen.findByLabelText('Tick every row shown'));
     fireEvent.click(screen.getByRole('button', { name: 'Bulk offer…' }));
-    expect(screen.getByRole('alert').textContent).toContain('Too many for the table: use the Excel template.');
+    expect(screen.getByRole('alert').textContent).toContain('Too many for the table: the Bulk offer table takes at most 500 products; 501 are ticked.');
+    expect(screen.queryByRole('button', { name: /Excel/ })).toBeNull();
     expect(screen.queryByRole('dialog', { name: /^Bulk offer:/ })).toBeNull();
     fireEvent.click(screen.getByLabelText('Tick Product m0'));
     fireEvent.click(screen.getByRole('button', { name: 'Bulk offer…' }));

@@ -97,7 +97,9 @@ const DemoGenerateFilesView: React.FC = () => {
       {/* Breadcrumb & Header */}
       <div>
         <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1">
-          <span className="text-blue-600 cursor-pointer hover:underline">Outputs</span>
+          <button onClick={() => navigate('dashboard')} className="hover:text-gray-800 text-blue-600 hover:underline">
+            Workspace
+          </button>
           <span>/</span>
           <span className="text-gray-700">Generate marketplace files</span>
         </div>

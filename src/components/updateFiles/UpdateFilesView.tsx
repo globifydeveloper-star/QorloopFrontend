@@ -59,7 +59,7 @@ const UpdateFiles: React.FC = () => {
           <StepBody step={state.step} {...props} />
         </div>
         {/* Talabat and Snoonu together, under every step except Export (which shows the same in full). */}
-        {state.step !== 'export' && <ExportPanel marketplaces={marketplaces} reference={reference} variant="bar" onOpenExport={() => set({ step: 'export' })} />}
+        {state.step !== 'export' && <ExportPanel marketplaces={marketplaces} reference={reference} file={{ kind: state.kind, scope: state.scope }} variant="bar" onOpenExport={() => set({ step: 'export' })} />}
       </>
     );
   }
@@ -83,7 +83,10 @@ const UpdateFiles: React.FC = () => {
 const StepBody: React.FC<StepProps & { step: Step }> = ({ step, ...props }) => {
   if (step === 'review') return <ReviewStep {...props} />;
   if (step === 'adjust') return <AdjustStep {...props} />;
-  return <ExportPanel marketplaces={props.marketplaces} reference={props.reference} variant="full" />;
+  return (
+    <ExportPanel marketplaces={props.marketplaces} reference={props.reference} variant="full"
+      file={{ kind: props.state.kind, scope: props.state.scope }} onFileChange={props.set} />
+  );
 };
 
 /** Review, Adjust, Export: each is a link-like button; the current one has aria-current="step". */

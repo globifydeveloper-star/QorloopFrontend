@@ -3,20 +3,31 @@ import { useQueries, useQuery, useQueryClient, type QueryClient } from '@tanstac
 import { AlertTriangle, CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import type { ReconMarketplaceSummary, ReconReference } from '../../api/recon';
-import { generatedFilesApi, type FilePreview, type FileSelection, type GenerationJob } from '../../api/generatedFiles';
+import { FILE_SCOPES, generatedFilesApi, type FileKind, type FilePreview, type FileScope, type FileSelection, type GenerationJob } from '../../api/generatedFiles';
 import { useAuth } from '../../auth/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { HOW_IT_WORKS } from '../../content/howItWorks';
 import { count } from '../pricing/priceChange';
 import { marketplaceName, reconErrorText } from '../recon/shared';
-import { filesTiming, startDownload } from '../files/RealGenerateFilesView';
+import { KIND_LABELS, SCOPE_LABELS, filesTiming, startDownload } from '../files/RealGenerateFilesView';
 import { invalidateOnboarding } from '../onboarding/shared';
 import { EXPORT_PREVIEW_KEY } from './queries';
 import { rowsText } from './logic';
 
-/** The file this screen exports: stock and price, only the products that need a change (and every pending value). */
-export const exportSelection = (marketplaceId: ReconMarketplaceSummary['marketplaceId'], reference: ReconReference): FileSelection =>
-  ({ marketplaceId, kind: 'stock_price', scope: 'mismatches', reference });
+/** What the exported file updates and which products it holds. The default: stock and price, the products that need a change. */
+export interface FileChoice { kind: FileKind; scope: FileScope }
+export const DEFAULT_FILE: FileChoice = { kind: 'stock_price', scope: 'mismatches' };
+
+/** The file this screen exports (the products in it always carry every value you adjusted). */
+export const exportSelection = (marketplaceId: ReconMarketplaceSummary['marketplaceId'], reference: ReconReference, file: FileChoice = DEFAULT_FILE): FileSelection =>
+  ({ marketplaceId, kind: file.kind, scope: file.scope, reference });
+
+/** The Export step's heading line, in plain words, for the current file options. */
+export function fileDescription({ kind, scope }: FileChoice) {
+  const what = kind === 'stock' ? 'Availability only (prices stay unchanged)' : kind === 'price' ? 'Prices only (availability stays unchanged)' : 'Stock and price';
+  const which = scope === 'all' ? 'every listed product' : 'the products that need a change and every value you adjusted';
+  return `${what}, for ${which}. The files are built from each marketplace's latest file.`;
+}
 
 export const NEXT_STEP_TEXT = "Upload each file in the marketplace's portal, then upload the fresh export here to confirm.";
 
@@ -37,9 +48,12 @@ const blockedText = (e: unknown) => (e instanceof ApiError && e.status === 409 ?
  * EXPORT: per marketplace, the generated-file preview (rows that will change, availability vs price, blocked), the
  * "Export Talabat" / "Export Snoonu" / "Export both" buttons, progress, and a download button per finished file (the
  * download link is made when you click and lasts 5 minutes). `bar` is the sticky bar under the other steps; `full` is
- * the Export step.
+ * the Export step, where `onFileChange` shows the file options (what the file updates, which products it holds).
  */
-export const ExportPanel: React.FC<{ marketplaces: ReconMarketplaceSummary[]; reference: ReconReference; variant: 'bar' | 'full'; onOpenExport?: () => void }> = ({ marketplaces, reference, variant, onOpenExport }) => {
+export const ExportPanel: React.FC<{
+  marketplaces: ReconMarketplaceSummary[]; reference: ReconReference; variant: 'bar' | 'full'; onOpenExport?: () => void;
+  file?: FileChoice; onFileChange?: (patch: Partial<FileChoice>) => void;
+}> = ({ marketplaces, reference, variant, onOpenExport, file = DEFAULT_FILE, onFileChange }) => {
   const { can } = useAuth();
   const qc = useQueryClient();
   const [jobs, setJob] = useJobs();
@@ -48,8 +62,8 @@ export const ExportPanel: React.FC<{ marketplaces: ReconMarketplaceSummary[]; re
 
   const previews = useQueries({
     queries: marketplaces.map(m => ({
-      queryKey: [...EXPORT_PREVIEW_KEY, m.marketplaceId, reference],
-      queryFn: () => generatedFilesApi.preview(exportSelection(m.marketplaceId, reference)),
+      queryKey: [...EXPORT_PREVIEW_KEY, m.marketplaceId, reference, file.kind, file.scope],
+      queryFn: () => generatedFilesApi.preview(exportSelection(m.marketplaceId, reference, file)),
       enabled: canPreview,
       retry: false,
     })),
@@ -87,7 +101,7 @@ export const ExportPanel: React.FC<{ marketplaces: ReconMarketplaceSummary[]; re
     if (!exportable(i)) return;
     setJob(qc, m.marketplaceId, { starting: true });
     try {
-      const { jobId } = await generatedFilesApi.generate(exportSelection(m.marketplaceId, reference), previews[i]?.data?.exportToken);
+      const { jobId } = await generatedFilesApi.generate(exportSelection(m.marketplaceId, reference, file), previews[i]?.data?.exportToken);
       setJob(qc, m.marketplaceId, { jobId });
     } catch (e) {
       // 409: the values changed since the preview, or the file is blocked; the preview shows the current state.
@@ -135,11 +149,12 @@ export const ExportPanel: React.FC<{ marketplaces: ReconMarketplaceSummary[]; re
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 id="export-heading" className="text-sm font-bold text-gray-900">Export the files</h2>
-          <p className="text-[11px] text-gray-500">Stock and price, for the products that need a change and every value you adjusted. The files are built from each marketplace&apos;s latest file.</p>
+          <p data-testid="export-description" className="text-[11px] text-gray-500">{fileDescription(file)}</p>
         </div>
         {both}
       </div>
-      {reference === 'erp' && (
+      {onFileChange && <FileOptions file={file} onChange={onFileChange} />}
+      {reference === 'erp' && file.kind !== 'stock' && (
         <p role="alert" className="flex items-start gap-2 px-4 py-3 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-900">
           <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" aria-hidden /> {HOW_IT_WORKS.compareWarning}
         </p>
@@ -250,6 +265,33 @@ const MarketplaceExport: React.FC<{
     </div>
   );
 };
+
+/** The default first. */
+const KIND_ORDER: readonly FileKind[] = ['stock_price', 'stock', 'price'];
+
+/** What the file updates and which products it holds. Every change makes a new preview. */
+const FileOptions: React.FC<{ file: FileChoice; onChange: (patch: Partial<FileChoice>) => void }> = ({ file, onChange }) => (
+  <div aria-label="File options" role="group" className="grid gap-4 sm:grid-cols-2 rounded-xl border border-gray-200 bg-[#F8FBFA] px-4 py-3">
+    <fieldset>
+      <legend className="text-xs font-bold text-gray-900 mb-1">What the file updates</legend>
+      {KIND_ORDER.map(k => (
+        <Choice key={k} name="export-kind" label={KIND_LABELS[k]} checked={file.kind === k} onChange={() => onChange({ kind: k })} />
+      ))}
+    </fieldset>
+    <fieldset>
+      <legend className="text-xs font-bold text-gray-900 mb-1">Products in the file</legend>
+      {FILE_SCOPES.map(s => (
+        <Choice key={s} name="export-scope" label={SCOPE_LABELS[s]} checked={file.scope === s} onChange={() => onChange({ scope: s })} />
+      ))}
+    </fieldset>
+  </div>
+);
+
+const Choice: React.FC<{ name: string; label: string; checked: boolean; onChange: () => void }> = ({ name, label, checked, onChange }) => (
+  <label className="flex items-center gap-2 py-0.5 text-xs text-gray-800 cursor-pointer">
+    <input type="radio" name={name} checked={checked} onChange={onChange} className="accent-[#027864]" /> {label}
+  </label>
+);
 
 const NextStep: React.FC<{ marketplaces: ReconMarketplaceSummary[] }> = ({ marketplaces }) => {
   const { can } = useAuth();

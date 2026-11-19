@@ -181,8 +181,21 @@ describe('the active item', () => {
   it('the Pricing screen is called Pricing in the menu and the breadcrumb, never "Marketplace price"', () => {
     mount('/pricing');
     expect(within(screen.getByRole('banner')).getByText('Pricing')).toBeTruthy();
-    expect(within(screen.getByRole('banner')).getByText('Admin')).toBeTruthy();
+    expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Workspace' })).toBeTruthy();
     expect(screen.queryByText(/Marketplace price/)).toBeNull();
+  });
+
+  it('the breadcrumb parent opens its screen', async () => {
+    mount('/settings/team');
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('button', { name: 'Settings' }));
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/settings'));
+  });
+
+  it('the breadcrumb does not link to the screen you are on', () => {
+    mount('/');
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }));
+    expect(crumbs.queryByRole('button', { name: 'Workspace' })).toBeNull();
+    expect(crumbs.getByText('Workspace')).toBeTruthy();
   });
 
   it('report tabs keep Reports highlighted', () => {

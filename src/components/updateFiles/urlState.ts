@@ -1,11 +1,13 @@
 import { useSearchParams } from 'react-router-dom';
 import { RECON_REFERENCES, type ReconMarketplaceSummary, type ReconReference, type ReconRowType } from '../../api/recon';
 import type { ValueFilter } from '../../api/marketplaceValues';
+import { FILE_KINDS, FILE_SCOPES, type FileKind, type FileScope } from '../../api/generatedFiles';
 import { pathFor } from '../../routes/paths';
 
 /**
  * Everything the "Update marketplace files" screen remembers lives in the address bar, so Back, refresh and a shared
  * link open the same tab, step and filter: ?marketplace=talabat&step=adjust&show=needs&type=all&reference=erp
+ * The Export step's file options are kept the same way: &kind=stock&scope=all (defaults: stock and price, changes only).
  */
 
 export const STEPS = ['review', 'adjust', 'export'] as const;
@@ -46,6 +48,9 @@ export interface UpdateFilesState {
   type: ReconRowType;
   /** undefined: the store's default (the summary names it). */
   reference?: ReconReference;
+  /** The exported file: what it updates and which products it holds. */
+  kind: FileKind;
+  scope: FileScope;
 }
 
 export function readState(p: URLSearchParams): UpdateFilesState {
@@ -55,10 +60,12 @@ export function readState(p: URLSearchParams): UpdateFilesState {
     show: one(p.get('show'), SHOWS) ?? 'needs',
     type: one(p.get('type'), TYPES) ?? 'all',
     reference: one(p.get('reference'), RECON_REFERENCES),
+    kind: one(p.get('kind'), FILE_KINDS) ?? 'stock_price',
+    scope: one(p.get('scope'), FILE_SCOPES) ?? 'mismatches',
   };
 }
 
-const DEFAULTS: Partial<Record<keyof UpdateFilesState, string>> = { step: 'review', show: 'needs', type: 'all' };
+const DEFAULTS: Partial<Record<keyof UpdateFilesState, string>> = { step: 'review', show: 'needs', type: 'all', kind: 'stock_price', scope: 'mismatches' };
 
 export function useUpdateFilesState() {
   const [params, setParams] = useSearchParams();
@@ -91,3 +98,20 @@ export interface StepProps {
 /** The Dashboard card's "Update marketplace file" and other links into this screen. */
 export const updateFilesLink = (marketplaceId: string, step?: Step) =>
   `${pathFor('update-files')}?${new URLSearchParams({ marketplace: marketplaceId, ...(step && step !== 'review' ? { step } : {}) })}`;
+
+/**
+ * The Export step with the file options already chosen. Links into the old Generate files form (?marketplace, kind,
+ * scope, reference) are sent here once Update files is on; unknown and default values are left out.
+ */
+export function exportLink(choices: { marketplace?: string | null; kind?: string | null; scope?: string | null; reference?: string | null }) {
+  const p = new URLSearchParams();
+  if (choices.marketplace) p.set('marketplace', choices.marketplace);
+  p.set('step', 'export');
+  const kind = one(choices.kind ?? null, FILE_KINDS);
+  if (kind && kind !== 'stock_price') p.set('kind', kind);
+  const scope = one(choices.scope ?? null, FILE_SCOPES);
+  if (scope && scope !== 'mismatches') p.set('scope', scope);
+  const reference = one(choices.reference ?? null, RECON_REFERENCES);
+  if (reference) p.set('reference', reference);
+  return `${pathFor('update-files')}?${p}`;
+}

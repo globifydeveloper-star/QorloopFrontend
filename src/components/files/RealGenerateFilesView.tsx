@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileSpreadsheet, Info, Loader2, Lock, XCircle } from 'lucide-react';
 import { ApiError } from '../../api/client';
@@ -13,6 +13,8 @@ import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { invalidateOnboarding } from '../onboarding/shared';
 import { AdvancedDisclosure, useAdvanced } from '../common/AdvancedDisclosure';
 import { ErpPriceFileWarning } from '../common/ErpPriceFileWarning';
+import { realMarketplaceValuesEnabled } from '../../lib/features';
+import { exportLink } from '../updateFiles/urlState';
 import { REFERENCE_IN_TEXT, REFERENCE_LABELS, marketplaceName, money2, qatarDateTime, reconErrorText, useReconSummary } from '../recon/shared';
 
 export const KIND_LABELS: Record<FileKind, string> = { stock: 'Stock', price: 'Price', stock_price: 'Stock and price' };
@@ -40,7 +42,31 @@ export async function startDownload(id: string) {
   a.remove();
 }
 
-export const RealGenerateFilesView: React.FC = () => {
+/**
+ * With Update files on, files are made in its Export step, and this screen is only the list of files made so far.
+ * A link into the old form (?marketplace, kind, scope, reference) opens the Export step with the same choices.
+ * Without it (the marketplace-values backend is not there yet), this is still the place to make a file.
+ */
+export const RealGenerateFilesView: React.FC = () => (realMarketplaceValuesEnabled() ? <FileHistoryView /> : <GenerateFilesForm />);
+
+const FileHistoryView: React.FC = () => {
+  const params = new URLSearchParams(useLocation().search);
+  if (['marketplace', 'kind', 'scope', 'reference', 'from'].some(k => params.has(k))) {
+    return <Navigate replace to={exportLink({ marketplace: params.get('marketplace'), kind: params.get('kind'), scope: params.get('scope'), reference: params.get('reference') })} />;
+  }
+  return (
+    <Page title="Generated files" subtitle="Every file Qorloop has made in the last 30 days, ready to download again.">
+      <div role="note" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-[#027864]/30 bg-[#F2F7F6] px-4 py-3 text-xs text-gray-800">
+        <Info className="w-4 h-4 shrink-0 text-[#027864]" aria-hidden />
+        <span>To make a new file, use the Export step of Update files.</span>
+        <Link to={exportLink({})} data-testid="open-export" className="font-semibold text-[#027864] hover:underline">Open Export</Link>
+      </div>
+      <History />
+    </Page>
+  );
+};
+
+const GenerateFilesForm: React.FC = () => {
   const { can } = useAuth();
   const initial = new URLSearchParams(useLocation().search);
   const requestedMarketplace = initial.get('marketplace');
@@ -251,11 +277,15 @@ export const RealGenerateFilesView: React.FC = () => {
   );
 };
 
-const Page: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+const Page: React.FC<{ children: React.ReactNode; title?: string; subtitle?: string }> = ({
+  children,
+  title = 'Generate marketplace files',
+  subtitle = "Build a corrected copy of a marketplace's own file, then upload it to the marketplace portal yourself.",
+}) => (
   <div className="p-8 max-w-7xl mx-auto space-y-6">
     <div>
-      <h1 className="text-2xl font-bold tracking-tight text-gray-900">Generate marketplace files</h1>
-      <p className="text-xs text-gray-500 mt-0.5">Build a corrected copy of a marketplace&apos;s own file, then upload it to the marketplace portal yourself.</p>
+      <h1 className="text-2xl font-bold tracking-tight text-gray-900">{title}</h1>
+      <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
     </div>
     {children}
   </div>

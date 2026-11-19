@@ -3,46 +3,72 @@ import { Search, Bell, ChevronRight } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../auth/AuthContext';
 import { ViewType } from '../../types';
+import { VIEW_PERMISSION } from '../../routes/paths';
 
-const VIEW_TITLES: Partial<Record<ViewType, [string, string]>> = {
-  dashboard: ['Workspace', 'Dashboard'],
-  uploads: ['Workspace', 'Uploads'],
-  'upload-review': ['Uploads', 'Review upload'],
-  'column-mapping': ['Uploads', 'Match columns'],
-  reports: ['Reports', 'Stock mismatches'],
-  'reports-stock': ['Reports', 'Stock mismatches'],
-  'reports-price-discrepancies': ['Reports', 'Price discrepancies'],
-  'reports-price-mismatches': ['Reports', 'Price mismatches'],
-  catalogue: ['Catalogue', 'All products'],
-  'product-detail': ['Catalogue', 'Product'],
-  'new-product': ['Catalogue', 'New products'],
-  'new-products': ['Catalogue', 'New products'],
-  'stock-conflicts': ['Catalogue', 'Stock conflicts'],
-  categories: ['Catalogue', 'Categories'],
-  'category-detail': ['Catalogue', 'Category'],
-  markups: ['Admin', 'Pricing'],
-  templates: ['Outputs', 'Templates'],
-  'outputs-generate': ['Outputs', 'Generated files'],
-  settings: ['Workspace', 'Settings'],
-  activity: ['Workspace', 'Activity'],
-  team: ['Settings', 'Team'],
-  onboarding: ['Workspace', 'Help & onboarding'],
+/** A parent crumb: its label and the screen it opens. Every parent is a real screen, so every crumb can be clicked. */
+type Crumb = { label: string; view: ViewType };
+
+const WORKSPACE: Crumb = { label: 'Workspace', view: 'dashboard' };
+const UPLOADS: Crumb = { label: 'Uploads', view: 'uploads' };
+const REPORTS: Crumb = { label: 'Reports', view: 'reports-stock' };
+const CATALOGUE: Crumb = { label: 'Catalogue', view: 'catalogue' };
+const CATEGORIES: Crumb = { label: 'Categories', view: 'categories' };
+const SETTINGS: Crumb = { label: 'Settings', view: 'settings' };
+
+export const VIEW_TITLES: Record<ViewType, [Crumb, string]> = {
+  dashboard: [WORKSPACE, 'Dashboard'],
+  uploads: [WORKSPACE, 'Uploads'],
+  'upload-review': [UPLOADS, 'Review upload'],
+  'column-mapping': [UPLOADS, 'Match columns'],
+  'update-files': [WORKSPACE, 'Update files'],
+  'how-it-works': [WORKSPACE, 'How it works'],
+  reports: [REPORTS, 'Stock mismatches'],
+  'reports-stock': [REPORTS, 'Stock mismatches'],
+  'reports-price-discrepancies': [REPORTS, 'Price discrepancies'],
+  'reports-price-mismatches': [REPORTS, 'Price mismatches'],
+  catalogue: [CATALOGUE, 'All products'],
+  'product-detail': [CATALOGUE, 'Product'],
+  'new-product': [CATALOGUE, 'New products'],
+  'new-products': [CATALOGUE, 'New products'],
+  'stock-conflicts': [CATALOGUE, 'Stock conflicts'],
+  categories: [CATALOGUE, 'Categories'],
+  'category-detail': [CATEGORIES, 'Category'],
+  markups: [WORKSPACE, 'Pricing'],
+  templates: [SETTINGS, 'Templates'],
+  'outputs-generate': [WORKSPACE, 'Generated files'],
+  settings: [WORKSPACE, 'Settings'],
+  activity: [WORKSPACE, 'Activity'],
+  team: [SETTINGS, 'Team'],
+  onboarding: [WORKSPACE, 'Help & onboarding'],
 };
 
 export const Header: React.FC = () => {
   const { navigate, currentView } = useApp();
-  const { me } = useAuth();
+  const { can } = useAuth();
 
-  const [section, page] = VIEW_TITLES[currentView] || ['Workspace', me?.tenant.name ?? ''];
+  const [parent, page] = VIEW_TITLES[currentView] ?? [WORKSPACE, ''];
+  // A parent is a link unless it is this very screen or a screen this role cannot open (the server still enforces it).
+  const guard = VIEW_PERMISSION[parent.view];
+  const linkable = parent.view !== currentView && (!guard || can(guard));
 
   return (
     <header className="bg-white/90 backdrop-blur border-b border-gray-200 px-8 h-[68px] flex items-center justify-between gap-6 sticky top-0 z-10">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-[13px] text-gray-500 min-w-0">
-        <span className="truncate">{section}</span>
-        <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-        <span className="font-semibold text-gray-900 truncate">{page}</span>
-      </div>
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[13px] text-gray-500 min-w-0">
+        {linkable ? (
+          <button
+            type="button"
+            onClick={() => navigate(parent.view)}
+            className="truncate rounded hover:text-gray-900 hover:underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00D9A9]/50"
+          >
+            {parent.label}
+          </button>
+        ) : (
+          <span className="truncate">{parent.label}</span>
+        )}
+        <ChevronRight className="w-3.5 h-3.5 text-gray-300 shrink-0" aria-hidden />
+        <span aria-current="page" className="font-semibold text-gray-900 truncate">{page}</span>
+      </nav>
 
       <div className="flex items-center gap-3">
         {/* Search */}

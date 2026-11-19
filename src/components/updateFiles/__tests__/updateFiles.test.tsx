@@ -613,6 +613,33 @@ describe('Update marketplace files', () => {
       expect(await bar.findByTestId('download-snoonu')).toBeTruthy();
     });
 
+    it('the file options change what is previewed and exported, and stay in the address bar', async () => {
+      renderAt('/update-files?step=export');
+      const options = within(await screen.findByRole('group', { name: 'File options' }));
+      expect((options.getByRole('radio', { name: 'Stock and price' }) as HTMLInputElement).checked).toBe(true);
+      expect((options.getByRole('radio', { name: 'Only products that need a change' }) as HTMLInputElement).checked).toBe(true);
+
+      fireEvent.click(options.getByRole('radio', { name: 'Stock' }));
+      fireEvent.click(options.getByRole('radio', { name: 'All listed products' }));
+      await waitFor(() => expect(where().get('kind')).toBe('stock'));
+      expect(where().get('scope')).toBe('all');
+      expect(screen.getByTestId('export-description').textContent).toMatch(/^Availability only \(prices stay unchanged\), for every listed product/);
+      const previewOf = (id: string) => calls((u, m) => m === 'POST' && u.endsWith('/generated-files/preview')).map(bodyOf).filter(b => b.marketplaceId === id);
+      await waitFor(() => expect(previewOf('talabat').at(-1)).toEqual({ marketplaceId: 'talabat', kind: 'stock', scope: 'all', reference: 'marketplace' }));
+
+      await waitFor(() => expect((screen.getByTestId('export-talabat') as HTMLButtonElement).disabled).toBe(false));
+      fireEvent.click(screen.getByTestId('export-talabat'));
+      await waitFor(() => expect(calls((u, m) => m === 'POST' && path(u) === '/api/generated-files').length).toBe(1));
+      expect(bodyOf(calls((u, m) => m === 'POST' && path(u) === '/api/generated-files')[0])).toMatchObject({ marketplaceId: 'talabat', kind: 'stock', scope: 'all' });
+    });
+
+    it('a link with file options opens the Export step with them chosen', async () => {
+      renderAt('/update-files?step=export&kind=price');
+      const options = within(await screen.findByRole('group', { name: 'File options' }));
+      expect((options.getByRole('radio', { name: 'Price' }) as HTMLInputElement).checked).toBe(true);
+      await waitFor(() => expect(calls((u, m) => m === 'POST' && u.endsWith('/generated-files/preview')).map(bodyOf).every(b => b.kind === 'price')).toBe(true));
+    });
+
     it('a blocked file says why and cannot be exported', async () => {
       fetchMock.mockImplementation(async (u: string, i: RequestInit = {}) =>
         path(String(u)) === '/api/generated-files/preview' && bodyOf([u, i]).marketplaceId === 'snoonu'

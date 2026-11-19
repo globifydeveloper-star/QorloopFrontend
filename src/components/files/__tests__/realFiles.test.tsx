@@ -3,7 +3,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { ReconMarketplaceSummary, ReconSummary } from '../../../api/recon';
 import type { FilePreview, GeneratedFile, GenerationJob } from '../../../api/generatedFiles';
 
@@ -121,6 +121,30 @@ describe('flag', () => {
     renderView();
     expect(screen.getByText('Recent output files')).toBeTruthy();
     expect(calls(u => u.startsWith('/api/')).length).toBe(0);
+  });
+});
+
+describe('with Update files on, this screen is the list of files made so far', () => {
+  const Where = () => <output data-testid="where">{`${useLocation().pathname}${useLocation().search}`}</output>;
+  const renderWithWhere = (at: string) => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[at]}><Routes><Route path="*" element={<><GenerateFilesView /><Where /></>} /></Routes></MemoryRouter></QueryClientProvider>);
+  };
+  beforeEach(() => vi.stubEnv('VITE_REAL_MARKETPLACE_VALUES', 'true'));
+
+  it('shows the history and a link to the Export step, never the form', async () => {
+    renderWithWhere('/files');
+    expect(screen.getByRole('heading', { level: 1, name: 'Generated files' })).toBeTruthy();
+    expect(await screen.findAllByTestId('history-row')).toHaveLength(1);
+    expect(screen.queryByRole('region', { name: 'Choose the file' })).toBeNull();
+    expect(calls(isPreview).length).toBe(0);
+    fireEvent.click(screen.getByTestId('open-export'));
+    expect(screen.getByTestId('where').textContent).toBe('/update-files?step=export');
+  });
+
+  it('a link into the old form opens the Export step with the same choices', () => {
+    renderWithWhere('/files?marketplace=snoonu&kind=stock&scope=mismatches&reference=erp&from=stock-mismatch');
+    expect(screen.getByTestId('where').textContent).toBe('/update-files?marketplace=snoonu&step=export&kind=stock&reference=erp');
   });
 });
 

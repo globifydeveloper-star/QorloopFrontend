@@ -3,7 +3,7 @@ import { readExportCounts, readPreview, readValueItem, type MarketplaceValueItem
 import type { ReconRow } from '../../../api/recon';
 import { applySet, applyUseCatalogue, differsFromRule, fieldSource, resaveWithPersistent, rowState, sourceText, valueErrors } from '../logic';
 import { actionText, buildBulkRequest } from '../BulkValuesDialog';
-import { bulkFilter, readState } from '../urlState';
+import { bulkFilter, exportLink, readState } from '../urlState';
 import { ApiError } from '../../../api/client';
 
 const item = (over: Partial<MarketplaceValueItem> = {}): MarketplaceValueItem => ({
@@ -161,9 +161,15 @@ describe('export value logic', () => {
   });
 
   it('reads the URL state with safe defaults', () => {
-    expect(readState(new URLSearchParams(''))).toEqual({ marketplace: null, step: 'review', show: 'needs', type: 'all', reference: undefined });
-    expect(readState(new URLSearchParams('marketplace=snoonu&step=export&show=pinned&type=price&reference=erp')))
-      .toEqual({ marketplace: 'snoonu', step: 'export', show: 'pinned', type: 'price', reference: 'erp' });
-    expect(readState(new URLSearchParams('step=nope&show=x')).step).toBe('review');
+    expect(readState(new URLSearchParams(''))).toEqual({ marketplace: null, step: 'review', show: 'needs', type: 'all', reference: undefined, kind: 'stock_price', scope: 'mismatches' });
+    expect(readState(new URLSearchParams('marketplace=snoonu&step=export&show=pinned&type=price&reference=erp&kind=stock&scope=all')))
+      .toEqual({ marketplace: 'snoonu', step: 'export', show: 'pinned', type: 'price', reference: 'erp', kind: 'stock', scope: 'all' });
+    expect(readState(new URLSearchParams('step=nope&show=x&kind=new_products&scope=y'))).toMatchObject({ step: 'review', kind: 'stock_price', scope: 'mismatches' });
+  });
+
+  it('links to the Export step with the file options, leaving out defaults and unknown values', () => {
+    expect(exportLink({})).toBe('/update-files?step=export');
+    expect(exportLink({ marketplace: 'talabat', kind: 'stock', scope: 'mismatches', reference: 'erp' })).toBe('/update-files?marketplace=talabat&step=export&kind=stock&reference=erp');
+    expect(exportLink({ kind: 'stock_price', scope: 'all', reference: 'nope' })).toBe('/update-files?step=export&scope=all');
   });
 });

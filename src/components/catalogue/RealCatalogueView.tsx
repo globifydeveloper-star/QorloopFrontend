@@ -10,6 +10,8 @@ import { indexCategories, type Category } from '../../api/categories';
 import { pathFor } from '../../routes/paths';
 import { EmptyState, ErrorState, LoadingState } from '../common/States';
 import { ProductStatusPill, qar, useCategoryTree, useDebounced, useProductCounts, useProductList } from './shared';
+import { CategoryCell } from './CategoryCell';
+import { StatusToggle } from './StatusToggle';
 import {
   ComparedBadge, DifferenceBadge, MarketplaceAvailabilityCell, MarketplacePriceCell, MarketplaceSummaryCell, StackedMarketplaceValues,
   StackedTwoMarketplaces, marketplaceNote, newestUpload,
@@ -212,6 +214,8 @@ const CatalogueList: React.FC<{ viewTabs: React.ReactNode; showBlocked: boolean;
   // Bulk offer (pricing.edit) uses the same ticks: a table of the ticked rows, up to BULK_OFFER_ROWS_MAX.
   // Block (products.block): one row, or the ticked rows, after a preview.
   const canBlock = can(BLOCK_PERMISSION);
+  const canEditProduct = can('products.edit');
+  const canActivate = can('products.activate');
   const [blocking, setBlocking] = useState<BlockTarget[] | null>(null);
   const canTick = canBulk || canStockBulk || canEditPrice || canBlock;
   const [stockBulkOpen, setStockBulkOpen] = useState(false);
@@ -484,8 +488,6 @@ const CatalogueList: React.FC<{ viewTabs: React.ReactNode; showBlocked: boolean;
               </thead>
               <tbody className="divide-y divide-gray-100 text-gray-700">
                 {items.map(p => {
-                  const cat = p.categoryId ? names.get(p.categoryId) : undefined;
-                  const sub = p.subcategoryId ? names.get(p.subcategoryId) : undefined;
                   return (
                     <React.Fragment key={p.id}>
                     <tr className={ticked.has(p.id) ? 'bg-[#F2F7F6]' : 'hover:bg-gray-50'}>
@@ -527,13 +529,14 @@ const CatalogueList: React.FC<{ viewTabs: React.ReactNode; showBlocked: boolean;
                         </>
                       )}
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <ProductStatusPill status={p.status} />
+                        <span className="inline-flex items-center gap-2">
+                          <StatusToggle product={p} canEdit={canEditProduct} canActivate={canActivate} />
+                          <ProductStatusPill status={p.status} />
+                        </span>
                         {!p.inLatestErpFile && <div className="mt-1 text-[11px] text-amber-700">Not in latest ERP file</div>}
                       </td>
                       <td className="px-4 py-3">
-                        {cat ? <>{cat.nameEn}{sub && <span className="text-gray-500"> › {sub.nameEn}</span>}</>
-                          : p.categoryId ? <span className="text-gray-400">—</span>
-                            : <span className="text-amber-700">No category</span>}
+                        <CategoryCell product={p} tree={tree.data} names={names} editable={canEditProduct} />
                       </td>
                       {rowActions && (
                         <td className="px-4 py-3 text-right whitespace-nowrap space-x-3">

@@ -188,6 +188,195 @@ describe('catalogue (CAT-001)', () => {
   });
 });
 
+describe('catalogue: category and subcategory in the table (PATCH /api/products/:id)', () => {
+  const isPatch = (id: string) => (u: string, m: string) => m === 'PATCH' && u === `/api/products/${id}`;
+  const listWith = (...items: ProductItem[]): Handler => (u, i) =>
+    (isList(u, i.method ?? 'GET') ? ok({ items, nextCursor: null, counts: counts() }) : undefined);
+  const openEditor = async (name: string) => {
+    await screen.findByRole('option', { name: 'Dairy' }); // the tree has loaded (the filter lists it)
+    fireEvent.click(await screen.findByRole('button', { name: `Change the category of ${name}` }));
+    return within(screen.getByRole('group', { name: `Category of ${name}` }));
+  };
+
+  it('is plain text without products.edit', async () => {
+    perms.delete('products.edit');
+    handler = listWith(prod('1', { categoryId: 'cat_dairy', subcategoryId: 'sub_milk' }), prod('2'));
+    renderAt('/catalogue', <CatalogueView />);
+    const row = (await screen.findByText('Product 1')).closest('tr')!;
+    expect(row.textContent).toContain('Dairy › Milk');
+    expect(within(screen.getByText('Product 2').closest('tr')!).getByText('No category')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Change the category of/ })).toBeNull();
+  });
+
+  it('sets a category and subcategory on one product with expectedUpdatedAt, and the row shows them', async () => {
+    const list = listWith(prod('1'));
+    handler = (u, i) => {
+      if (isPatch('1')(u, i.method ?? 'GET')) {
+        return ok(detail({ id: '1', nameEn: 'Product 1', categoryId: 'cat_dairy', subcategoryId: 'sub_milk', updatedAt: LATER }));
+      }
+      return list(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    const editor = await openEditor('Product 1');
+    const category = editor.getByRole('combobox', { name: 'Category of Product 1' });
+    const subcategory = editor.getByRole('combobox', { name: 'Subcategory of Product 1' });
+    expect(document.activeElement).toBe(category);
+    expect((subcategory as HTMLSelectElement).disabled).toBe(true);
+    expect((editor.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(category, { target: { value: 'cat_dairy' } });
+    expect((subcategory as HTMLSelectElement).disabled).toBe(false);
+    fireEvent.change(subcategory, { target: { value: 'sub_milk' } });
+    fireEvent.click(editor.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(calls(isPatch('1'))).toHaveLength(1));
+    expect(bodyOf(calls(isPatch('1'))[0])).toEqual({ categoryId: 'cat_dairy', subcategoryId: 'sub_milk', expectedUpdatedAt: UPDATED });
+    await waitFor(() => expect(screen.queryByRole('group', { name: 'Category of Product 1' })).toBeNull());
+    expect(screen.getByText('Product 1').closest('tr')!.textContent).toContain('Dairy › Milk');
+    expect(app.showToast).toHaveBeenCalledWith('Category saved', 'success');
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change the category of Product 1' }));
+  });
+
+  it('a new category clears the subcategory; one without subcategories says so; "No category" clears both', async () => {
+    handler = (u, i) => {
+      if (isPatch('1')(u, i.method ?? 'GET')) return ok(detail({ id: '1', nameEn: 'Product 1', categoryId: null, subcategoryId: null, updatedAt: LATER }));
+      return listWith(prod('1', { categoryId: 'cat_dairy', subcategoryId: 'sub_milk' }))(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    const editor = await openEditor('Product 1');
+    const category = editor.getByRole('combobox', { name: 'Category of Product 1' }) as HTMLSelectElement;
+    const subcategory = editor.getByRole('combobox', { name: 'Subcategory of Product 1' }) as HTMLSelectElement;
+    expect([category.value, subcategory.value]).toEqual(['cat_dairy', 'sub_milk']);
+
+    fireEvent.change(category, { target: { value: 'cat_snacks' } });
+    expect(subcategory.value).toBe('');
+    expect(subcategory.disabled).toBe(true);
+    expect(editor.getByRole('option', { name: 'No subcategories' })).toBeTruthy();
+
+    fireEvent.change(category, { target: { value: '' } });
+    fireEvent.click(editor.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(calls(isPatch('1'))).toHaveLength(1));
+    expect(bodyOf(calls(isPatch('1'))[0])).toEqual({ categoryId: null, subcategoryId: null, expectedUpdatedAt: UPDATED });
+    expect(await within(screen.getByText('Product 1').closest('tr')!).findByText('No category')).toBeTruthy();
+  });
+
+  it('Escape and Cancel close it without saving and return focus to the cell', async () => {
+    handler = listWith(prod('1'));
+    renderAt('/catalogue', <CatalogueView />);
+    let editor = await openEditor('Product 1');
+    fireEvent.change(editor.getByRole('combobox', { name: 'Category of Product 1' }), { target: { value: 'cat_dairy' } });
+    fireEvent.keyDown(editor.getByRole('combobox', { name: 'Category of Product 1' }), { key: 'Escape' });
+    expect(screen.queryByRole('group', { name: 'Category of Product 1' })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Change the category of Product 1' }));
+
+    editor = await openEditor('Product 1');
+    expect((editor.getByRole('combobox', { name: 'Category of Product 1' }) as HTMLSelectElement).value).toBe('');
+    fireEvent.click(editor.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('group', { name: 'Category of Product 1' })).toBeNull();
+    expect(calls((u, m) => m === 'PATCH')).toHaveLength(0);
+  });
+
+  it('a 409 says the product changed, and Reload loads the list again', async () => {
+    handler = (u, i) => {
+      if (isPatch('1')(u, i.method ?? 'GET')) return fail(409, 'Conflict');
+      return listWith(prod('1'))(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    const editor = await openEditor('Product 1');
+    fireEvent.change(editor.getByRole('combobox', { name: 'Category of Product 1' }), { target: { value: 'cat_dairy' } });
+    fireEvent.click(editor.getByRole('button', { name: 'Save' }));
+    expect((await editor.findByRole('alert')).textContent).toContain('This product changed; reload');
+    const before = calls(isList).length;
+    fireEvent.click(editor.getByRole('button', { name: 'Reload' }));
+    await waitFor(() => expect(calls(isList).length).toBeGreaterThan(before));
+    expect(screen.queryByRole('group', { name: 'Category of Product 1' })).toBeNull();
+  });
+
+  it('shows the API field error and keeps the editor open', async () => {
+    handler = (u, i) => {
+      if (isPatch('1')(u, i.method ?? 'GET')) return fail(400, 'Validation failed', [{ path: 'subcategoryId', message: 'The subcategory is not under that category' }]);
+      return listWith(prod('1'))(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    const editor = await openEditor('Product 1');
+    fireEvent.change(editor.getByRole('combobox', { name: 'Category of Product 1' }), { target: { value: 'cat_dairy' } });
+    fireEvent.change(editor.getByRole('combobox', { name: 'Subcategory of Product 1' }), { target: { value: 'sub_milk' } });
+    fireEvent.click(editor.getByRole('button', { name: 'Save' }));
+    expect((await editor.findByRole('alert')).textContent).toBe('The subcategory is not under that category');
+    expect(screen.getByRole('group', { name: 'Category of Product 1' })).toBeTruthy();
+    expect(app.showToast).not.toHaveBeenCalled();
+  });
+});
+
+describe('catalogue: Active / Inactive switch (PATCH /api/products/:id { status })', () => {
+  const isPatch = (id: string) => (u: string, m: string) => m === 'PATCH' && u === `/api/products/${id}`;
+  const listWith = (...items: ProductItem[]): Handler => (u, i) =>
+    (isList(u, i.method ?? 'GET') ? ok({ items, nextCursor: null, counts: counts() }) : undefined);
+  const tabNames = () => within(screen.getByRole('tablist', { name: 'Product status' })).getAllByRole('tab').map(t => t.textContent);
+
+  it('turns an active product off with expectedUpdatedAt; the row stays, its pill and the tab counts move', async () => {
+    handler = (u, i) => {
+      if (isPatch('1')(u, i.method ?? 'GET')) return ok(detail({ id: '1', nameEn: 'Product 1', status: 'inactive', updatedAt: LATER }));
+      return listWith(prod('1'), prod('2', { status: 'inactive' }))(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    const sw = await screen.findByRole('switch', { name: 'Active: Product 1' });
+    expect(sw.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('switch', { name: 'Active: Product 2' }).getAttribute('aria-checked')).toBe('false');
+
+    fireEvent.click(sw);
+    await waitFor(() => expect(calls(isPatch('1'))).toHaveLength(1));
+    expect(bodyOf(calls(isPatch('1'))[0])).toEqual({ status: 'inactive', expectedUpdatedAt: UPDATED });
+    await waitFor(() => expect(screen.getByRole('switch', { name: 'Active: Product 1' }).getAttribute('aria-checked')).toBe('false'));
+    expect(within(screen.getByText('Product 1').closest('tr')!).getByTestId('status-pill').textContent).toBe('Inactive');
+    expect(tabNames().slice(0, 3)).toEqual(['All (3)', 'Active (1)', 'Inactive (1)']);
+    expect(app.showToast).toHaveBeenCalledWith('Product 1 is now inactive', 'success');
+  });
+
+  it('activates a new product with products.activate', async () => {
+    handler = (u, i) => {
+      if (isPatch('3')(u, i.method ?? 'GET')) return ok(detail({ id: '3', nameEn: 'Product 3', status: 'active', updatedAt: LATER }));
+      return listWith(prod('3', { status: 'new' }))(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Active: Product 3' }));
+    await waitFor(() => expect(calls(isPatch('3'))).toHaveLength(1));
+    expect(bodyOf(calls(isPatch('3'))[0])).toEqual({ status: 'active', expectedUpdatedAt: UPDATED });
+    await waitFor(() => expect(tabNames().slice(0, 4)).toEqual(['All (3)', 'Active (3)', 'Inactive (0)', 'New (0)']));
+  });
+
+  it('without products.activate it can turn products off but not on', async () => {
+    perms.delete('products.activate');
+    handler = listWith(prod('1'), prod('2', { status: 'inactive' }));
+    renderAt('/catalogue', <CatalogueView />);
+    const off = await screen.findByRole('switch', { name: 'Active: Product 2' }) as HTMLButtonElement;
+    expect(off.disabled).toBe(true);
+    expect(off.title).toBe('You cannot activate products.');
+    expect((screen.getByRole('switch', { name: 'Active: Product 1' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('shows no switch without products.edit', async () => {
+    perms.delete('products.edit');
+    handler = listWith(prod('1'));
+    renderAt('/catalogue', <CatalogueView />);
+    await screen.findByText('Product 1');
+    expect(screen.queryByRole('switch')).toBeNull();
+    expect(screen.getByTestId('status-pill').textContent).toBe('Active');
+  });
+
+  it('a 409 says the product changed and loads the list again; the switch keeps its state', async () => {
+    handler = (u, i) => {
+      if (isPatch('1')(u, i.method ?? 'GET')) return fail(409, 'Conflict');
+      return listWith(prod('1'))(u, i);
+    };
+    renderAt('/catalogue', <CatalogueView />);
+    fireEvent.click(await screen.findByRole('switch', { name: 'Active: Product 1' }));
+    await waitFor(() => expect(app.showToast).toHaveBeenCalledWith('This product changed; reload: Product 1', 'error'));
+    await waitFor(() => expect(calls(isList).length).toBeGreaterThan(1));
+    expect(screen.getByRole('switch', { name: 'Active: Product 1' }).getAttribute('aria-checked')).toBe('true');
+  });
+});
+
 describe('catalogue: "Compare with" one or two marketplaces (GET /api/products?marketplaceId=&compareMarketplaceId=)', () => {
   const FILE = '2026-11-08T10:00:00.000Z';
   const OLDER = '2026-11-01T10:00:00.000Z';

@@ -602,7 +602,7 @@ describe('Update marketplace files', () => {
       expect(screen.getByText(/lasts 5 minutes/)).toBeTruthy();
     });
 
-    it('the bar under the other steps shows only the selected tab's marketplace, with no "Export both"', async () => {
+    it('the bar under the other steps shows only the marketplace of the selected tab, with no "Export both"', async () => {
       renderAt('/update-files?step=adjust');
       const bar = within(await screen.findByTestId('export-bar'));
       await waitFor(() => expect(bar.getByTestId('export-summary-talabat').textContent).toContain('3 products will change'));

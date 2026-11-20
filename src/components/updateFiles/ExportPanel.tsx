@@ -26,7 +26,7 @@ export const exportSelection = (marketplaceId: ReconMarketplaceSummary['marketpl
 export function fileDescription({ kind, scope }: FileChoice) {
   const what = kind === 'stock' ? 'Availability only (prices stay unchanged)' : kind === 'price' ? 'Prices only (availability stays unchanged)' : 'Stock and price';
   const which = scope === 'all' ? 'every listed product' : 'the products that need a change and every value you adjusted';
-  return `${what}, for ${which}. The files are built from each marketplace's latest file.`;
+  return `${what}, for ${which}. The file is built from the marketplace's latest file.`;
 }
 
 export const NEXT_STEP_TEXT = "Upload each file in the marketplace's portal, then upload the fresh export here to confirm.";

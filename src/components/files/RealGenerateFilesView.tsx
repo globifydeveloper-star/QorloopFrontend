@@ -91,7 +91,7 @@ const GenerateFilesForm: React.FC = () => {
   const [job, setJob] = useState<{ jobId: string; key: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // The price reference is an Advanced choice (?advanced=1). Without it every file uses My pricing.
+  // The price reference is an Advanced choice (?advanced=1). Without it every file uses Catalogue pricing.
   const [advanced] = useAdvanced();
   // a marketplace that is no longer available falls back to the first available one
   const chosen = available.some(m => m.marketplaceId === marketplaceId) ? marketplaceId : available[0]?.marketplaceId ?? null;

@@ -151,13 +151,13 @@ export const SOURCE_STYLES: Record<PriceSource, string> = {
 };
 
 export const REFERENCE_LABELS: Record<CompareReference, string> = {
-  marketplace: 'My pricing',
+  marketplace: 'Catalogue pricing',
   erp: 'ERP price',
 };
 
-/** The reference inside a sentence: "compared against My pricing", "compared against the ERP price". */
+/** The reference inside a sentence: "compared against Catalogue pricing", "compared against the ERP price". */
 export const REFERENCE_IN_TEXT: Record<CompareReference, string> = {
-  marketplace: 'My pricing',
+  marketplace: 'Catalogue pricing',
   erp: 'the ERP price',
 };
 

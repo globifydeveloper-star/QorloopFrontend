@@ -83,10 +83,10 @@ describe('How it works page', () => {
     // The main screens, by their menu names, with Update files described as the main screen.
     expect(region('screens').getAllByRole('term').map(t => t.textContent)).toEqual(['Dashboard', 'Uploads', 'Update files', 'Generated files', 'Catalogue', 'Pricing']);
     for (const t of C.words) expect(region('words').getByText(t.term)).toBeTruthy();
-    // Renamed labels: My pricing and Pricing, never the old "Marketplace price" or "Compare against".
+    // Renamed labels: Catalogue pricing and Pricing, never the old "Marketplace price" or "Compare against".
     expect(main().queryByText(/Marketplace price|Compare against/)).toBeNull();
     expect(within(region('words').getByText('Available but out of stock').closest('dt') as HTMLElement).getByText('Urgent')).toBeTruthy();
-    expect(region('glossary').getAllByRole('term').map(t => t.textContent)).toEqual(['ERP', 'Marketplace', 'Catalogue', 'My pricing', 'Offer', 'Blocked', 'Mapping']);
+    expect(region('glossary').getAllByRole('term').map(t => t.textContent)).toEqual(['ERP', 'Marketplace', 'Catalogue', 'Catalogue pricing', 'Offer', 'Blocked', 'Mapping']);
   });
 
   it('shows the daily loop as five numbered cards, each with a button to a real screen', async () => {

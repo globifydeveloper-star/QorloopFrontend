@@ -45,7 +45,7 @@ export const RealDashboardView: React.FC = () => {
 const Dashboard: React.FC = () => {
   const { openUploadModal, showToast } = useApp();
   const { can } = useAuth();
-  // Without Advanced the Dashboard compares with My pricing. Inside it, undefined is the store's default (pricing
+  // Without Advanced the Dashboard compares with Catalogue pricing. Inside it, undefined is the store's default (pricing
   // settings); the server names it in the reply.
   const [advanced] = useAdvanced();
   const [chosen, setRequested] = useState<ReconReference | undefined>(undefined);

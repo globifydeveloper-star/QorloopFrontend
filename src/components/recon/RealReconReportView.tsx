@@ -52,7 +52,7 @@ const Report: React.FC<{ kind: ReportKind }> = ({ kind }) => {
   const [params, setParams] = useSearchParams();
   const refParam = params.get('reference');
   const statusParam = params.get('status');
-  // Without Advanced (?advanced=1, or a link naming reference=erp) the report compares with My pricing.
+  // Without Advanced (?advanced=1, or a link naming reference=erp) the report compares with Catalogue pricing.
   const [advanced] = useAdvanced();
   const requested: ReconReference | undefined = !advanced ? 'marketplace' : isReference(refParam) ? refParam : undefined;
   const status = isStatus(statusParam) ? statusParam : undefined;

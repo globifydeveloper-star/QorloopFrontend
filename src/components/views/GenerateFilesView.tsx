@@ -277,7 +277,7 @@ const DemoGenerateFilesView: React.FC = () => {
         <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-xs space-y-4 text-xs">
           <h2 className="text-sm font-bold text-gray-900">File options</h2>
 
-          {/* Price in file: My pricing unless Advanced is opened */}
+          {/* Price in file: Catalogue pricing unless Advanced is opened */}
           <div className="space-y-2">
             <div className="block font-semibold text-gray-900">Price in file</div>
             <p className="text-[11px] text-gray-500">{REFERENCE_LABELS[compareReference]}</p>
@@ -292,7 +292,7 @@ const DemoGenerateFilesView: React.FC = () => {
                   className="mt-0.5 accent-[#027864]"
                 />
                 <div>
-                  <div className="font-semibold text-gray-900">My pricing (default)</div>
+                  <div className="font-semibold text-gray-900">Catalogue pricing (default)</div>
                   <div className="text-[11px] text-gray-500">
                     The price your pricing rules give each product — same on all marketplaces.
                   </div>

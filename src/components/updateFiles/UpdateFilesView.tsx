@@ -58,8 +58,8 @@ const UpdateFiles: React.FC = () => {
           {!can(EDIT_PERMISSION) && <ReadOnlyNote />}
           <StepBody step={state.step} {...props} />
         </div>
-        {/* Talabat and Snoonu together, under every step except Export (which shows the same in full). */}
-        {state.step !== 'export' && <ExportPanel marketplaces={marketplaces} reference={reference} file={{ kind: state.kind, scope: state.scope }} variant="bar" onOpenExport={() => set({ step: 'export' })} />}
+        {/* The selected tab's marketplace only, under every step except Export (which shows the same in full). */}
+        {state.step !== 'export' && <ExportPanel marketplaces={[selected]} reference={reference} file={{ kind: state.kind, scope: state.scope }} variant="bar" onOpenExport={() => set({ step: 'export' })} />}
       </>
     );
   }
@@ -84,7 +84,7 @@ const StepBody: React.FC<StepProps & { step: Step }> = ({ step, ...props }) => {
   if (step === 'review') return <ReviewStep {...props} />;
   if (step === 'adjust') return <AdjustStep {...props} />;
   return (
-    <ExportPanel marketplaces={props.marketplaces} reference={props.reference} variant="full"
+    <ExportPanel marketplaces={[props.summary]} reference={props.reference} variant="full"
       file={{ kind: props.state.kind, scope: props.state.scope }} onFileChange={props.set} />
   );
 };

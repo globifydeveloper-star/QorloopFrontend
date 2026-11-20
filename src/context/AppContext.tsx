@@ -129,7 +129,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     INITIAL_CATEGORY_PRICE_RULES
   );
   const [chosenCompareReference, setCompareReference] = useState<CompareReference>('marketplace');
-  // The ERP price is an Advanced choice (?advanced=1, see AdvancedDisclosure): without Advanced, screens use My pricing.
+  // The ERP price is an Advanced choice (?advanced=1, see AdvancedDisclosure): without Advanced, screens use Catalogue pricing.
   const compareReference: CompareReference = advancedOpen(location.search) ? chosenCompareReference : 'marketplace';
   const [marketplaceFilter, setMarketplaceFilter] = useState<MarketplaceId | null>(null);
   const logout = () => {
@@ -242,7 +242,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOutputFiles((prev) => [...newFiles, ...prev]);
     showToast(
       `Generated ${selectedMarketplaces.length} marketplace output files using ${
-        compareReference === 'marketplace' ? 'My pricing' : 'the ERP price'
+        compareReference === 'marketplace' ? 'Catalogue pricing' : 'the ERP price'
       }`
     );
   };

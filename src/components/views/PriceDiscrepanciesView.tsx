@@ -113,7 +113,7 @@ const DemoPriceDiscrepanciesView: React.FC = () => {
               Price discrepancies
             </h1>
             <p className="text-xs text-gray-500 mt-0.5">
-              Expected price = {compareReference === 'marketplace' ? 'My pricing (same on all marketplaces)' : 'ERP price'}. Tolerance 0.00 QAR.
+              Expected price = {compareReference === 'marketplace' ? 'Catalogue pricing (same on all marketplaces)' : 'ERP price'}. Tolerance 0.00 QAR.
             </p>
           </div>
 

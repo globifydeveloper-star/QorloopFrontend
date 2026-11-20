@@ -169,12 +169,12 @@ describe('generate files (OUT-001)', () => {
     await screen.findByRole('region', { name: 'Choose the file' });
     const radios = choose().getAllByRole('radio', { name: /Talabat|Snoonu|Keeta|Rafeeq/ });
     expect(radios.map(r => r.closest('label')!.textContent)).toEqual([expect.stringContaining('Talabat'), expect.stringContaining('Snoonu')]);
-    // The reference choice is under Advanced, closed by default: the file uses My pricing.
+    // The reference choice is under Advanced, closed by default: the file uses Catalogue pricing.
     expect(advancedBtn().getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryByRole('radio', { name: /My pricing|ERP price/ })).toBeNull();
-    expect(screen.getByRole('note').textContent).toBe('Prices in this file use My pricing.');
+    expect(screen.queryByRole('radio', { name: /Catalogue pricing|ERP price/ })).toBeNull();
+    expect(screen.getByRole('note').textContent).toBe('Prices in this file use Catalogue pricing.');
     openAdvanced();
-    expect(screen.getByRole('radio', { name: 'My pricing (store default)' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('radio', { name: 'Catalogue pricing (store default)' })).toHaveProperty('checked', true);
     const newProducts = screen.getByRole('radio', { name: /New products/ });
     expect(newProducts).toHaveProperty('disabled', true);
     expect(newProducts.closest('label')!.textContent).toContain('Not available yet');
@@ -374,7 +374,7 @@ describe('generated files history (OUT-002)', () => {
     expect(row.textContent).toContain('02 Nov 2026, 09:15');
     expect(row.textContent).toContain('Talabat');
     expect(row.textContent).toContain(FILE.fileName);
-    expect(row.textContent).toContain('Stock and price · Only products that need a change · My pricing');
+    expect(row.textContent).toContain('Stock and price · Only products that need a change · Catalogue pricing');
     expect(row.textContent).toContain('14');
     expect(row.textContent).toContain('Sara Owner');
     expect(row.textContent).toContain('02 Dec 2026, 09:15');
@@ -443,7 +443,7 @@ describe('ERP price only under Advanced, with an "I understand" gate', () => {
   const warning = () => screen.queryByTestId('erp-price-warning');
   const understand = () => screen.getByRole('checkbox', { name: 'I understand' });
 
-  it('without Advanced the preview and the file use My pricing', async () => {
+  it('without Advanced the preview and the file use Catalogue pricing', async () => {
     await ready();
     fireEvent.click(previewBtn());
     await screen.findByRole('region', { name: 'Preview' });
@@ -485,12 +485,12 @@ describe('ERP price only under Advanced, with an "I understand" gate', () => {
     expect(understand()).toHaveProperty('checked', false);
   });
 
-  it('closing Advanced goes back to My pricing', async () => {
+  it('closing Advanced goes back to Catalogue pricing', async () => {
     await ready();
     openAdvanced();
     fireEvent.click(screen.getByRole('radio', { name: 'ERP price' }));
     fireEvent.click(advancedBtn());
     expect(warning()).toBeNull();
-    expect(screen.getByRole('note').textContent).toBe('Prices in this file use My pricing.');
+    expect(screen.getByRole('note').textContent).toBe('Prices in this file use Catalogue pricing.');
   });
 });

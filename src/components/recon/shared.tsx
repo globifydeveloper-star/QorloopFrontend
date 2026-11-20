@@ -15,9 +15,9 @@ import {
 export const MARKETPLACE_LABELS: Record<ReconMarketplaceId, string> = { talabat: 'Talabat', snoonu: 'Snoonu', rafeeq: 'Rafeeq', keeta: 'Keeta' };
 export const marketplaceName = (id: string) => MARKETPLACE_LABELS[id as ReconMarketplaceId] ?? id;
 
-export const REFERENCE_LABELS: Record<ReconReference, string> = { marketplace: 'My pricing', erp: 'ERP price' };
-/** The reference inside a sentence: "compared with My pricing", "compared with the ERP price". */
-export const REFERENCE_IN_TEXT: Record<ReconReference, string> = { marketplace: 'My pricing', erp: 'the ERP price' };
+export const REFERENCE_LABELS: Record<ReconReference, string> = { marketplace: 'Catalogue pricing', erp: 'ERP price' };
+/** The reference inside a sentence: "compared with Catalogue pricing", "compared with the ERP price". */
+export const REFERENCE_IN_TEXT: Record<ReconReference, string> = { marketplace: 'Catalogue pricing', erp: 'the ERP price' };
 
 // ───────── Queries ─────────
 

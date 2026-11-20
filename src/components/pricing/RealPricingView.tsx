@@ -138,11 +138,11 @@ export const PricingSettingsForm: React.FC<{
       <section aria-label="Compare prices with" className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
         <div>
           <h2 className="text-sm font-bold text-gray-900">Compare prices with</h2>
-          <p className="text-xs text-gray-500">The dashboard, reports and generated files always use My pricing. This default only applies when someone opens Advanced on those screens.</p>
+          <p className="text-xs text-gray-500">The dashboard, reports and generated files always use Catalogue pricing. This default only applies when someone opens Advanced on those screens.</p>
         </div>
         <fieldset className="flex flex-wrap gap-4 text-sm" disabled={!editable}>
           <legend className="sr-only">Store default for compare prices with</legend>
-          {([['marketplace', 'My pricing'], ['erp', 'ERP price (advanced)']] as const).map(([v, label]) => (
+          {([['marketplace', 'Catalogue pricing'], ['erp', 'ERP price (advanced)']] as const).map(([v, label]) => (
             <label key={v} className="inline-flex items-center gap-2">
               <input type="radio" name="compare-default" value={v} checked={compare === v} onChange={() => setCompare(v)} className="accent-[#027864]" />
               {label}

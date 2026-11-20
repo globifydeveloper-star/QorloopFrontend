@@ -12,7 +12,7 @@ export const PRICE_SOURCE_COPY = {
   title: 'How do you set your marketplace prices?',
   intro: [
     'The ERP price alone is usually not your selling price, because you add a markup on top of it.',
-    'Qorloop compares the prices on each marketplace with “My pricing”: the price your pricing rules give each product.',
+    'Qorloop compares the prices on each marketplace with “Catalogue pricing”: the price your pricing rules give each product.',
   ],
   markupChoice: 'My prices are the ERP price plus my markup',
   markupHint: 'Set a default markup, and a different one for a category if you need it.',

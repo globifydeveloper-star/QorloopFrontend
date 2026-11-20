@@ -87,7 +87,7 @@ export const EDIT_PERMISSION = 'marketplace.values_edit';
 /** What every step gets from the screen. */
 export interface StepProps {
   summary: ReconMarketplaceSummary;
-  /** Every marketplace on a tab, for "Export both". */
+  /** Every marketplace on a tab (for the tabs and "Fill from"); Export uses only `summary`. */
   marketplaces: ReconMarketplaceSummary[];
   /** The one asked for in the URL, else the store's default (named by the summary). */
   reference: ReconReference;

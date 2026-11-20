@@ -258,7 +258,7 @@ export const HOW_IT_WORKS = {
     { term: 'ERP', meaning: 'Your own stock and sales system. Its file is the source of truth for stock.' },
     { term: 'Marketplace', meaning: 'A delivery app that sells your products, such as Talabat or Snoonu.' },
     { term: 'Catalogue', meaning: 'Qorloop’s copy of your products, with the stock and prices you can adjust.' },
-    { term: 'My pricing', meaning: 'The price your pricing rules give a product. Qorloop compares marketplace prices with it.' },
+    { term: 'Catalogue pricing', meaning: 'The price your pricing rules give a product. Qorloop compares marketplace prices with it.' },
     { term: 'Offer', meaning: 'A promo price for a set of dates. It comes before every other pricing rule.' },
     { term: 'Blocked', meaning: 'A product you have hidden from comparisons and files, with a reason.' },
     { term: 'Mapping', meaning: 'Which column in your file holds which value. You set it once per file layout.' },

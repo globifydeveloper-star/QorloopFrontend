@@ -116,7 +116,7 @@ describe('Pricing settings (PRC-001)', () => {
     expect(mode.value).toBe('percent');
     expect((screen.getByLabelText('Percent (%)') as HTMLInputElement).value).toBe('10');
     expect((screen.getByLabelText('Rounding') as HTMLSelectElement).value).toBe('0.25');
-    expect((screen.getByRole('radio', { name: 'My pricing' }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole('radio', { name: 'Catalogue pricing' }) as HTMLInputElement).checked).toBe(true);
     const perMp = within(screen.getByRole('region', { name: 'Different price per marketplace' }));
     expect((perMp.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
     expect(perMp.getByText(/many marketplace contracts require the same price everywhere/)).toBeTruthy();
@@ -598,12 +598,12 @@ describe('product detail pricing', () => {
 describe('price-source card "How do you set your marketplace prices?"', () => {
   const card = async () => within(await screen.findByRole('region', { name: 'How do you set your marketplace prices?' }));
 
-  it('explains the ERP price and My pricing and offers two plain choices', async () => {
+  it('explains the ERP price and Catalogue pricing and offers two plain choices', async () => {
     handler = backend;
     renderAt('/pricing', <MarkupsView />);
     const c = await card();
     expect(c.getByText(/The ERP price alone is usually not your selling price, because you add a markup/)).toBeTruthy();
-    expect(c.getByText(/Qorloop compares the prices on each marketplace with “My pricing”/)).toBeTruthy();
+    expect(c.getByText(/Qorloop compares the prices on each marketplace with “Catalogue pricing”/)).toBeTruthy();
     expect(c.getByRole('heading', { name: 'My prices are the ERP price plus my markup' })).toBeTruthy();
     expect(c.getByRole('heading', { name: 'My prices are already set in the marketplace' })).toBeTruthy();
     expect(calls((_u, m) => m !== 'GET')).toHaveLength(0); // nothing is stored

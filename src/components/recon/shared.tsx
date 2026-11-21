@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import {
   AlertOctagon, AlertTriangle, CheckCircle2, CircleSlash, EyeOff, FileX, HelpCircle, Sparkles, TrendingDown, XCircle,
 } from 'lucide-react';
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { money2, qatarDateTime } from '../../lib/format';
 import { invalidateOnboarding } from '../onboarding/shared';
 import {
@@ -123,6 +123,7 @@ export function useReconRows(filter: ReconRowFilter, opts: { enabled?: boolean; 
 }
 
 export function reconErrorText(e: unknown): string {
+  if (isStepUpRequired(e)) return STEP_UP_CANCELLED;
   if (e instanceof ApiError) return e.status === 403 ? 'You do not have permission to do this.' : e.message;
   return 'Something went wrong. Please try again.';
 }

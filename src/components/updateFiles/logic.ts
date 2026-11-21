@@ -1,5 +1,5 @@
 import { AlertOctagon, Ban, CheckCircle2, Clock, Pin, RotateCcw, XCircle } from 'lucide-react';
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { friendlyError } from '../../api/errors';
 import type { ReconRow } from '../../api/recon';
 import {
@@ -186,6 +186,7 @@ export function valueErrors(e: unknown): { fields: Partial<Record<'availability'
     return { fields: {}, general: `${f.title}. ${f.message}${f.requestId ? ` (Request ID ${f.requestId})` : ''}` };
   }
   if (isStale(e)) return { fields: {}, general: STALE_VALUE, stale: true };
+  if (isStepUpRequired(e)) return { fields: {}, general: STEP_UP_CANCELLED };
   if (e.status === 403) return { fields: {}, general: NO_EDIT_PERMISSION };
   if (e.status === 404) return { fields: {}, general: 'This product was not found. It may have been removed; reload the page.' };
   const fields: Partial<Record<'availability' | 'price' | 'reason', string>> = {};

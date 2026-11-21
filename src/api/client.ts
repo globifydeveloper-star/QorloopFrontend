@@ -20,6 +20,8 @@ export class ApiError extends Error {
     message: string,
     readonly details: { path?: string; message: string }[] = [],
     readonly requestId?: string,
+    /** Small fixed fields of an actionable code (attemptsLeft, retryAfterSeconds, window). Never free text. */
+    readonly meta: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = 'ApiError';
@@ -46,6 +48,51 @@ export function onAuthIssue(fn: (error: ApiError) => void) {
   return () => void authIssueListeners.delete(fn);
 }
 
+/**
+ * "Confirm it's you" (ADR 021): any request may answer 403 STEP_UP_REQUIRED (error.meta.window: security, work or
+ * single). The app registers one handler (the StepUpDialog) that asks for a fresh code and resolves true once it is
+ * verified, false when the user cancels. Requests that hit the step-up at the same time share one dialog. The original
+ * request is then sent once more: the server refused it before doing anything, so repeating it is safe.
+ */
+export type StepUpHandler = (window: string | undefined) => Promise<boolean>;
+let stepUpHandler: StepUpHandler | null = null;
+/** The confirmation in progress. Settled by the handler, or as cancelled when the handler goes away (dialog unmounted). */
+let stepUpPending: { promise: Promise<boolean>; settle: (ok: boolean) => void } | null = null;
+export function setStepUpHandler(fn: StepUpHandler) {
+  stepUpHandler = fn;
+  return () => {
+    if (stepUpHandler !== fn) return;
+    stepUpHandler = null;
+    stepUpPending?.settle(false);
+  };
+}
+export const isStepUpRequired = (e: unknown): boolean => e instanceof ApiError && e.status === 403 && e.code === 'STEP_UP_REQUIRED';
+/** What a screen says when the user closed "Confirm it's you": not a permission problem, and nothing was changed. */
+export const STEP_UP_CANCELLED = "Confirm it's you to continue: this action needs a fresh code. Nothing was changed.";
+function confirmIdentity(window: string | undefined): Promise<boolean> {
+  if (!stepUpHandler) return Promise.resolve(false);
+  if (!stepUpPending) {
+    let settle!: (ok: boolean) => void;
+    const entry = { promise: new Promise<boolean>(r => { settle = r; }), settle: (ok: boolean) => settle(ok) };
+    stepUpPending = entry;
+    void entry.promise.then(() => { if (stepUpPending === entry) stepUpPending = null; });
+    stepUpHandler(window).then(ok => entry.settle(ok), () => entry.settle(false));
+  }
+  return stepUpPending.promise;
+}
+async function withStepUp<T>(send: () => Promise<T>, stepUp: boolean): Promise<T> {
+  try { return await send(); } catch (e) {
+    if (!stepUp || !isStepUpRequired(e)) throw e;
+    const meta = (e as ApiError).meta;
+    const window = typeof meta.window === 'string' ? meta.window : undefined;
+    if (!(await confirmIdentity(window))) throw e;
+    return send();
+  }
+}
+
+/** Codes the sign-in and code screens show themselves: never the global "session expired" flow. */
+export const OTP_CODES = ['OTP_INVALID', 'OTP_LOCKED', 'CHALLENGE_EXPIRED', 'OTP_SEND_LIMIT'] as const;
+
 export function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined;
   const hit = document.cookie.split('; ').find(c => c.startsWith(name + '='));
@@ -61,9 +108,17 @@ interface Options {
   signal?: AbortSignal;
   /** Auth endpoints answer 401 for "wrong password": don't treat that as an expired session. */
   expectUnauthorized?: boolean;
+  /** These error codes are answers the caller shows itself (e.g. OTP_INVALID): no global session handling for them. */
+  expectedCodes?: readonly string[];
+  /** false: a 403 STEP_UP_REQUIRED is returned to the caller instead of opening the "Confirm it's you" dialog. */
+  stepUp?: boolean;
 }
 
-export async function api<T>(path: string, opts: Options = {}): Promise<T> {
+export function api<T>(path: string, opts: Options = {}): Promise<T> {
+  return withStepUp(() => send<T>(path, opts), opts.stepUp !== false && !opts.expectUnauthorized);
+}
+
+async function send<T>(path: string, opts: Options): Promise<T> {
   const method = opts.method ?? 'GET';
   const queryString = opts.query
     ? new URLSearchParams(Object.entries(opts.query).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString()
@@ -90,13 +145,20 @@ export async function api<T>(path: string, opts: Options = {}): Promise<T> {
 
   const text = await readBody(() => res.text());
   const json = parseJson(text);
-  if (!res.ok) throw failure(res, json, opts.expectUnauthorized);
+  if (!res.ok) throw failure(res, json, opts.expectUnauthorized, opts.expectedCodes);
   connectionReached();
   return ((json as { data?: T } | undefined)?.data ?? (json as T)) as T;
 }
 
-/** GET a binary file (cookies sent, body read as a Blob). Non-2xx is handled exactly like api(), including 401. */
-export async function apiBlob(path: string, signal?: AbortSignal): Promise<{ blob: Blob; headers: Headers }> {
+/**
+ * GET a binary file (cookies sent, body read as a Blob). Non-2xx is handled exactly like api(), including 401 and the
+ * step-up dialog: a fetched download can ask "Confirm it's you" and retry, which a plain <a href> could not.
+ */
+export function apiBlob(path: string, signal?: AbortSignal): Promise<{ blob: Blob; headers: Headers }> {
+  return withStepUp(() => sendBlob(path, signal), true);
+}
+
+async function sendBlob(path: string, signal?: AbortSignal): Promise<{ blob: Blob; headers: Headers }> {
   let res: Response;
   try {
     res = await fetch(BASE + path, { method: 'GET', credentials: 'include', signal });
@@ -124,7 +186,7 @@ function parseJson(text: string): unknown {
   try { return text ? JSON.parse(text) : undefined; } catch { return undefined; }
 }
 
-function failure(res: Response, json: unknown, expectUnauthorized?: boolean): ApiError {
+function failure(res: Response, json: unknown, expectUnauthorized?: boolean, expectedCodes?: readonly string[]): ApiError {
   const body = (json ?? {}) as Partial<ApiErrorBody>;
   if ((res.status === 502 || res.status === 503) && body.error?.code === UPSTREAM_UNREACHABLE) {
     connectionFailed();
@@ -133,10 +195,11 @@ function failure(res: Response, json: unknown, expectUnauthorized?: boolean): Ap
   connectionReached();
   const msg = body.error?.message;
   const message = Array.isArray(msg) ? msg.join(' ') : msg ?? `Request failed (${res.status})`;
-  const error = new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined);
-  if (!expectUnauthorized) {
+  const error = new ApiError(res.status, body.error?.code ?? 'ERROR', message, body.error?.details, body.requestId ?? res.headers.get('X-Request-ID') ?? undefined, body.error?.meta ?? {});
+  if (!expectUnauthorized && !expectedCodes?.includes(error.code)) {
+    // 401 SESSION_EXPIRED also means "this device's trust ended": either way, sign in again.
     if (res.status === 401) sessionExpiredListeners.forEach(fn => fn());
-    if (res.status === 401 || (res.status === 403 && ['MFA_REQUIRED', 'MFA_SETUP_REQUIRED', 'CSRF_REQUIRED'].includes(error.code)))
+    if (res.status === 401 || (res.status === 403 && ['AUTHENTICATOR_SETUP_REQUIRED', 'CSRF_REQUIRED'].includes(error.code)))
       authIssueListeners.forEach(fn => fn(error));
   }
   return error;

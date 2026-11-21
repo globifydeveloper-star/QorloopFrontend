@@ -9,7 +9,7 @@ import { AuthLayout } from './AuthLayout';
 import { Field, FormError, SubmitButton, forgetToken, passwordProblem, takeHashToken } from './controls';
 import { homeFor } from './LoginPage';
 
-/** AUTH-008. Accepting the invitation verifies the email, sets the name and password and starts a session. */
+/** AUTH-008. Accepting the invitation verifies the email, sets the name and password and signs the user straight in. */
 export const AcceptInvitationPage: React.FC = () => {
   const { establish } = useAuth();
   const navigate = useNavigate();
@@ -46,7 +46,7 @@ export const AcceptInvitationPage: React.FC = () => {
         <Field label="Confirm password" icon={Lock} type="password" autoComplete="new-password" value={confirm} onChange={setConfirm} error={mismatch} required />
         <FormError error={accept.error && !(Object.keys(field).length) ? accept.error : null} />
         <SubmitButton pending={accept.isPending}>Activate account</SubmitButton>
-        <p className="pt-1 text-center text-xs text-gray-400">Store Owners are asked to set up two-step verification next.</p>
+        <p className="pt-1 text-center text-xs text-gray-400">You are signed in straight away, and this browser is remembered as your device.</p>
       </form>
     </AuthLayout>
   );

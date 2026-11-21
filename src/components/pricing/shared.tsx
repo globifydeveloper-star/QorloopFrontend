@@ -3,7 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   CalendarClock, CalendarX, CheckCircle2, CircleSlash, Folder, FolderTree, Layers, MinusCircle, Package, Settings2, Store, Tag,
 } from 'lucide-react';
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { invalidateOnboarding } from '../onboarding/shared';
 import type { ChainStatus, OfferState, PriceChainStep, PriceRule, PriceSource, RoundingOption, RuleMode } from '../../api/pricing';
 import { money2, qatarDateTime } from '../../lib/format';
@@ -200,6 +200,7 @@ export const Chain: React.FC<{ chain: PriceChainStep[]; label?: string }> = ({ c
 // ───────── Errors ─────────
 
 export function pricingErrorText(e: unknown): string {
+  if (isStepUpRequired(e)) return STEP_UP_CANCELLED;
   if (e instanceof ApiError) return e.status === 403 ? 'You do not have permission to do this.' : e.message;
   return 'Something went wrong. Please try again.';
 }

@@ -20,25 +20,57 @@ export const ROLE_LABELS: Record<Role, string> = {
 /** Permission names are defined by the backend (packages/core/src/roles.ts). The UI only checks membership. */
 export type Permission = string;
 
-export type AuthState = 'authenticated' | 'mfa_setup_required' | 'mfa_required';
+/**
+ * Session states (ADR 021). `authenticator_setup_required` happens only when the store requires an authenticator app
+ * for everyone and this user has none yet.
+ */
+export type AuthState = 'authenticated' | 'authenticator_setup_required';
+
+/** The step-up windows a fresh code opens inside the session (null when closed). The server decides; these are hints. */
+export interface StepUpWindows {
+  /** Security actions (team, password, security settings, sign out all devices): 10 minutes. */
+  securityValidUntil: string | null;
+  /** Daily work (bulk prices and offers, export values, adoption, price source, pricing settings, downloads): 30 minutes. */
+  workValidUntil: string | null;
+}
 
 /** GET /api/auth/session inspects expiry without extending it. No CSRF/session token is returned. */
-export interface SessionStatus {
+export interface SessionStatus extends StepUpWindows {
   state: AuthState;
   expiresAt: string;
   idleExpiresAt: string;
-  nextAction: 'none' | 'verify_mfa' | 'setup_mfa';
+  nextAction: 'none' | 'setup_authenticator';
 }
 
 export interface SessionResponse {
   state: AuthState;
   csrfToken: string;
   expiresAt: string;
-  /** Returned once, after MFA enrollment is verified. Never stored by the app. */
-  recoveryCodes?: string[];
 }
 
-export interface Me {
+/**
+ * POST /api/auth/login on a browser that is not a trusted device: the challenge lives in an httpOnly cookie the app
+ * never reads. `otp_required`: a code was emailed to maskedEmail. `totp_required`: the authenticator app (or a recovery code).
+ */
+export interface ChallengeResponse {
+  state: 'otp_required' | 'totp_required';
+  challengeExpiresAt: string;
+  /** null: no more codes can be sent for this sign-in. */
+  resendAvailableAt: string | null;
+  maskedEmail: string | null;
+}
+export type LoginResponse = SessionResponse | ChallengeResponse;
+export const isChallenge = (r: LoginResponse): r is ChallengeResponse => r.state === 'otp_required' || r.state === 'totp_required';
+
+/** POST /api/auth/step-up/start. */
+export interface StepUpStart {
+  method: 'email' | 'totp';
+  expiresAt?: string;
+  resendAvailableAt: string | null;
+  maskedEmail: string | null;
+}
+
+export interface Me extends Partial<StepUpWindows> {
   user: { id: string; email: string; name: string };
   role: Role;
   permissions: Permission[];
@@ -64,7 +96,7 @@ export interface PendingInvitation {
 }
 
 export interface ApiErrorBody {
-  error: { code: string; message: string | string[]; details?: { path?: string; message: string }[] };
+  error: { code: string; message: string | string[]; details?: { path?: string; message: string }[]; meta?: Record<string, unknown> };
   requestId?: string;
 }
 

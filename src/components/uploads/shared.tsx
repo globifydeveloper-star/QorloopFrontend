@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Clock, Loader2, X, XCircle } from 'lucide-react';
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { DirectUploadError, UploadStepError } from '../../api/directUpload';
 import { UPLOAD_POLL_MS, isSettled, uploadsApi } from '../../api/uploads';
 import type { UploadRecord, UploadSource, UploadStatus } from '../../api/types';
@@ -47,6 +47,7 @@ export function useUploadStatus(id: string | null | undefined, enabled = true) {
 export function errorText(e: unknown): string {
   if (e instanceof UploadStepError || e instanceof DirectUploadError) return e.message;
   if (e instanceof ApiError) {
+    if (isStepUpRequired(e)) return STEP_UP_CANCELLED;
     if (e.status === 403) return 'You do not have permission to do this.';
     if (e.status === 404) return 'This upload was not found.';
     return e.message;

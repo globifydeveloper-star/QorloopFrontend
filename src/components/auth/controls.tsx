@@ -3,11 +3,12 @@ import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { ApiError } from '../../api/client';
 import { RequestId, friendlyError } from '../common/States';
 
-export const FormError: React.FC<{ error: unknown }> = ({ error }) => {
+/** `message` replaces the default wording (e.g. the code screens' "Wrong code, 2 tries left"). */
+export const FormError: React.FC<{ error: unknown; message?: string }> = ({ error, message: override }) => {
   if (!error) return null;
   const e = error instanceof ApiError ? error : null;
-  const friendly = e && (e.status === 0 || e.status >= 500 || e.status === 403 || e.status === 404);
-  const message = e?.status === 429 ? 'Too many attempts. Please wait a minute and try again.' : friendly ? friendlyError(e).message : e?.message ?? 'Something went wrong. Please try again.';
+  const friendly = !override && e && (e.status === 0 || e.status >= 500 || e.status === 403 || e.status === 404);
+  const message = override ?? (e?.status === 429 ? 'Too many attempts. Please wait a minute and try again.' : friendly ? friendlyError(e).message : e?.message ?? 'Something went wrong. Please try again.');
   return (
     <div role="alert" className="flex items-start gap-2 rounded-[10px] border border-red-200 bg-red-50 p-3 text-[13px] text-red-700">
       <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />

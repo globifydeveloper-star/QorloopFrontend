@@ -1,7 +1,7 @@
 import React, { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { Ban, X } from 'lucide-react';
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import {
   PRODUCT_BLOCK_IDS_MAX, PRODUCT_BLOCK_REASONS, PRODUCT_BLOCK_REASON_LABELS, productsApi,
@@ -51,6 +51,7 @@ export function invalidateAfterBlock(qc: QueryClient, changed: boolean) {
 
 function blockErrorText(e: unknown): string {
   if (e instanceof ApiError) {
+    if (isStepUpRequired(e)) return STEP_UP_CANCELLED;
     if (e.status === 403) return 'You do not have permission to block or unblock products.';
     if (e.status === 404) return 'This server cannot block products yet.';
     if (e.status === 409) return 'These products or their offers changed since the preview. Check the new preview, then confirm again.';

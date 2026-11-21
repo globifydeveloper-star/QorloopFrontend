@@ -12,7 +12,7 @@ export const SessionExpiredPage: React.FC = () => {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   return (
-    <AuthLayout title="Your session has expired" subtitle="For your security you were signed out after a period of inactivity.">
+    <AuthLayout title="Your session has expired" subtitle="Sign in again to continue. This happens after 7 days without use, 20 days after signing in, or when this device was signed out.">
       <button onClick={() => void logout().then(() => navigate('/login' + returnQuery(params.get('next')), { replace: true }))} className="w-full h-11 rounded-[10px] text-sm font-semibold text-white bg-[#027864] hover:bg-[#02604F]">
         Sign in again
       </button>

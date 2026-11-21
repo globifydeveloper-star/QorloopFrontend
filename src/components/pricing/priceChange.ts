@@ -1,4 +1,4 @@
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { INLINE_PERCENT_MAX, INLINE_PERCENT_MIN, PRICE_CHANGE_MAX, type InlinePriceMode } from '../../api/pricing';
 
 /**
@@ -59,6 +59,7 @@ export function readInlineValue(mode: InlinePriceMode, text: string) {
 export function changeErrors(e: unknown, fields: readonly string[] = []): { fields: Record<string, string>; general?: string } {
   if (!e) return { fields: {} };
   if (!(e instanceof ApiError)) return { fields: {}, general: 'Something went wrong. Please try again.' };
+  if (isStepUpRequired(e)) return { fields: {}, general: STEP_UP_CANCELLED };
   if (e.status === 403) return { fields: {}, general: 'You do not have permission to change prices.' };
   if (e.status === 404) return { fields: {}, general: 'This product was not found. It may have been removed; reload the page.' };
   const out: Record<string, string> = {};

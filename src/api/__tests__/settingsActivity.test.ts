@@ -53,7 +53,7 @@ describe('settings/activity/session API contracts', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('/api/products/a%2Fb/history?cursor=opaque%2B%2F%3D');
   });
   it('reads session status without requiring a token or calling readiness', async () => {
-    const session = { state: 'mfa_setup_required', expiresAt: '2026-11-03T10:00:00Z', idleExpiresAt: '2026-11-03T10:00:00Z', nextAction: 'setup_mfa' };
+    const session = { state: 'authenticator_setup_required', expiresAt: '2026-11-03T10:00:00Z', idleExpiresAt: '2026-11-03T10:00:00Z', nextAction: 'setup_authenticator', securityValidUntil: null, workValidUntil: '2026-11-03T09:30:00Z' };
     fetchMock.mockResolvedValue(ok(session));
     expect(await authApi.session()).toEqual(session);
     expect(fetchMock).toHaveBeenCalledTimes(1);

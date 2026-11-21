@@ -15,8 +15,11 @@ export function friendlyError(error: unknown): ErrorPresentation {
     return { kind: 'network', title: 'We could not reach Qorloop', message: NETWORK_MESSAGE };
   if (!(error instanceof ApiError)) return { kind: 'other', title: 'Something went wrong', message: 'Please try again.' };
   const requestId = error.requestId;
-  if (error.status === 401 || error.status === 403 && ['MFA_REQUIRED', 'MFA_SETUP_REQUIRED'].includes(error.code))
+  if (error.status === 401 || error.status === 403 && error.code === 'AUTHENTICATOR_SETUP_REQUIRED')
     return { kind: 'session', title: 'Please sign in again', message: 'Your sign-in needs attention. Please complete the sign-in steps.', requestId };
+  // The user closed "Confirm it's you" (or the code could not be checked): nothing was changed.
+  if (error.status === 403 && error.code === 'STEP_UP_REQUIRED')
+    return { kind: 'other', title: "Confirm it's you to continue", message: 'This action needs a fresh code. Nothing was changed. Try again and enter the code when asked.', requestId };
   if (error.code === 'CSRF_REQUIRED') return { kind: 'other', title: 'Please try saving again', message: 'We are refreshing your sign-in status. Review your changes and try again. If this continues, sign in again.', requestId };
   if (error.status === 403) return { kind: 'forbidden', title: 'You do not have permission', message: 'Ask your store Owner or an Admin if you need access.', requestId };
   if (error.status === 404) return { kind: 'not_found', title: 'We could not find this page', message: 'It may have moved or may no longer be available.', requestId };

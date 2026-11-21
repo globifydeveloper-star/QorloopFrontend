@@ -1,4 +1,4 @@
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import { friendlyError } from '../../api/errors';
 import {
   STOCK_BULK_LIMIT, STOCK_MAX, STOCK_PRODUCT_IDS_MAX, STOCK_REASON_MAX,
@@ -47,6 +47,7 @@ export function stockErrors(e: unknown, fields: readonly string[] = ['stock', 'r
     return { fields: {}, general: `${f.title}. ${f.message}${f.requestId ? ` (Request ID ${f.requestId})` : ''}` };
   }
   if (isStale(e)) return { fields: {}, general: e.message && e.message !== 'Conflict' ? `${STALE_STOCK} (${e.message})` : STALE_STOCK, stale: true };
+  if (isStepUpRequired(e)) return { fields: {}, general: STEP_UP_CANCELLED };
   if (e.status === 403) return { fields: {}, general: 'You do not have permission to change the catalogue stock. Ask your store Owner or an Admin.' };
   if (e.status === 404) return { fields: {}, general: 'This product was not found. It may have been removed; reload the page.' };
   const out: Record<string, string> = {};

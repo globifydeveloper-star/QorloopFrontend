@@ -19,18 +19,22 @@ const mount = () => render(<MemoryRouter initialEntries={['/reports/price?market
   <Route path="/reports/price" element={<RequireAuth><div>Protected content</div></RequireAuth>} />
   <Route path="/session-expired" element={<SessionExpiredPage />} />
   <Route path="/login" element={<div>Sign-in form</div>} />
-  <Route path="/mfa/setup" element={<div>Enroll MFA</div>} /><Route path="/mfa/verify" element={<div>Verify MFA</div>} />
+  <Route path="/authenticator/setup" element={<div>Set up authenticator</div>} />
 </Routes></MemoryRouter>);
 describe('auth guards and return path', () => {
-  it.each([['unauthenticated', '/login'], ['expired', '/session-expired'], ['mfa_required', '/mfa/verify'], ['mfa_setup_required', '/mfa/setup']] as const)('routes %s to %s with the original page', async (state, path) => {
+  it.each([['unauthenticated', '/login'], ['expired', '/session-expired'], ['authenticator_setup_required', '/authenticator/setup']] as const)('routes %s to %s with the original page', async (state, path) => {
     auth.status = state; mount(); await waitFor(() => expect(screen.getByTestId('where').textContent).toBe(path + '?next=%2Freports%2Fprice%3Fmarketplace%3Dtalabat')); expect(screen.queryByText('Protected content')).toBeNull();
   });
-  it('carries the expired page through sign-in and both MFA steps', async () => {
+  it('fails closed: a status it does not know (an older server\'s mfa_required) goes to sign-in, never into the app', async () => {
+    auth.status = 'mfa_required' as AuthStatus; mount();
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/login?next=%2Freports%2Fprice%3Fmarketplace%3Dtalabat'));
+    expect(screen.queryByText('Protected content')).toBeNull();
+  });
+  it('carries the expired page through sign-in and the authenticator setup step', async () => {
     auth.status = 'expired'; mount(); fireEvent.click(await screen.findByRole('button', { name: 'Sign in again' }));
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/login?next=%2Freports%2Fprice%3Fmarketplace%3Dtalabat'));
     const next = '/reports/price?marketplace=talabat';
-    expect(homeFor('mfa_setup_required', next)).toBe('/mfa/setup?next=' + encodeURIComponent(next));
-    expect(homeFor('mfa_required', next)).toBe('/mfa/verify?next=' + encodeURIComponent(next)); expect(homeFor('authenticated', next)).toBe(next);
+    expect(homeFor('authenticator_setup_required', next)).toBe('/authenticator/setup?next=' + encodeURIComponent(next)); expect(homeFor('authenticated', next)).toBe(next);
   });
   it('returns an already authenticated guest to the requested page', async () => {
     auth.status = 'authenticated'; render(<MemoryRouter initialEntries={['/login?next=%2Factivity']}><Where /><Routes><Route path="/login" element={<Guest><div>Login</div></Guest>} /><Route path="/activity" element={<div>Activity destination</div>} /></Routes></MemoryRouter>);

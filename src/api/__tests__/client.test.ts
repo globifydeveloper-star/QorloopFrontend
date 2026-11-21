@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, api, apiBlob, onSessionExpired } from '../client';
+import { ApiError, api, apiBlob, isStepUpRequired, onSessionExpired, setStepUpHandler } from '../client';
 import { connectionReached, connectionUnavailable } from '../connectivity';
 import { NETWORK_MESSAGE } from '../network';
 
@@ -80,5 +80,63 @@ describe('api client', () => {
     vi.spyOn(response, 'text').mockRejectedValue(new TypeError('Failed to fetch'));
     fetchMock.mockResolvedValue(response);
     await expect(api('/api/x')).rejects.toMatchObject({ status: 0, code: 'NETWORK', message: NETWORK_MESSAGE });
+  });
+});
+
+describe('"Confirm it\'s you" (403 STEP_UP_REQUIRED)', () => {
+  const stepUp = (window = 'work') => json(403, { error: { code: 'STEP_UP_REQUIRED', message: 'Confirm it is you with a fresh code', meta: { window } }, requestId: 'step-up-req' });
+  let off: (() => void) | undefined;
+  afterEach(() => { off?.(); off = undefined; });
+
+  it('asks once, then sends the original request again and returns its answer', async () => {
+    document.cookie = 'qorloop.csrf=abc123; path=/';
+    const handler = vi.fn(async () => true); off = setStepUpHandler(handler);
+    fetchMock.mockResolvedValueOnce(stepUp('security')).mockResolvedValueOnce(json(200, { data: { saved: true } }));
+    expect(await api('/api/pricing/bulk/apply', { method: 'POST', body: { a: 1 } })).toEqual({ saved: true });
+    expect(handler).toHaveBeenCalledWith('security');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [first, again] = fetchMock.mock.calls;
+    expect(again[0]).toBe(first[0]); expect(again[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ a: 1 }), credentials: 'include' });
+    expect((again[1].headers as Record<string, string>)['X-CSRF-Token']).toBe('abc123');
+  });
+
+  it('leaves the request refused (with its meta) when the user cancels, without signing out', async () => {
+    const expired = vi.fn(); const offExpired = onSessionExpired(expired);
+    off = setStepUpHandler(async () => false);
+    fetchMock.mockImplementation(() => Promise.resolve(stepUp()));
+    const err = (await api('/api/x', { method: 'POST', body: {} }).catch((e: unknown) => e)) as ApiError;
+    expect(err).toMatchObject({ status: 403, code: 'STEP_UP_REQUIRED', requestId: 'step-up-req', meta: { window: 'work' } });
+    expect(isStepUpRequired(err)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1); expect(expired).not.toHaveBeenCalled(); offExpired();
+  });
+
+  it('shares one dialog between requests that need it at the same time', async () => {
+    let release!: (ok: boolean) => void;
+    const handler = vi.fn(() => new Promise<boolean>(r => { release = r; })); off = setStepUpHandler(handler);
+    const seen: Record<string, number> = {};
+    fetchMock.mockImplementation((u: string) => Promise.resolve((seen[u] = (seen[u] ?? 0) + 1) === 1 ? stepUp() : json(200, { data: u })));
+    const both = Promise.all([api('/api/a', { method: 'POST' }), api('/api/b', { method: 'POST' })]);
+    await vi.waitFor(() => { expect(Object.keys(seen)).toHaveLength(2); expect(handler).toHaveBeenCalled(); });
+    release(true);
+    expect(await both).toEqual(['/api/a', '/api/b']);
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('works for fetched downloads too', async () => {
+    off = setStepUpHandler(async () => true);
+    fetchMock.mockResolvedValueOnce(stepUp()).mockResolvedValueOnce(new Response('xyz', { status: 200 }));
+    const { blob } = await apiBlob('/api/uploads/up_1/errors.xlsx');
+    expect(await blob.text()).toBe('xyz'); expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks only once per request, and never for requests that opt out or when no dialog is mounted', async () => {
+    const handler = vi.fn(async () => true); off = setStepUpHandler(handler);
+    fetchMock.mockImplementation(() => Promise.resolve(stepUp()));
+    await expect(api('/api/x', { method: 'POST' })).rejects.toMatchObject({ code: 'STEP_UP_REQUIRED' });
+    expect(handler).toHaveBeenCalledTimes(1); expect(fetchMock).toHaveBeenCalledTimes(2);
+    await expect(api('/api/auth/step-up/start', { method: 'POST', stepUp: false })).rejects.toMatchObject({ code: 'STEP_UP_REQUIRED' });
+    expect(handler).toHaveBeenCalledTimes(1);
+    off(); off = undefined;
+    await expect(api('/api/x', { method: 'POST' })).rejects.toMatchObject({ code: 'STEP_UP_REQUIRED' });
   });
 });

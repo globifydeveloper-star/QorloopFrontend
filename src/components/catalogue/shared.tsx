@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { CheckCircle2, CircleSlash, Sparkles } from 'lucide-react';
-import { ApiError } from '../../api/client';
+import { ApiError, STEP_UP_CANCELLED, isStepUpRequired } from '../../api/client';
 import {
   PRODUCTS_PAGE_SIZE, productsApi, type MarketplaceStatusFilter, type MarketplacesDiffer, type ProductDetail, type ProductItem, type ProductPage, type ProductStatus,
   type ProductTab,
@@ -150,6 +150,7 @@ export const CONFLICT_TEXT = 'This product changed; reload';
 
 export function catalogueErrorText(e: unknown): string {
   if (e instanceof ApiError) {
+    if (isStepUpRequired(e)) return STEP_UP_CANCELLED;
     if (e.status === 403) return 'You do not have permission to do this.';
     return e.message;
   }

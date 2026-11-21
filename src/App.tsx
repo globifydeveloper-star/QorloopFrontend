@@ -8,9 +8,10 @@ import { HowItWorksView } from './components/help/HowItWorksView';
 import { AcceptInvitationPage } from './components/auth/AcceptInvitationPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { ForgotPasswordPage, ResetPasswordPage } from './components/auth/PasswordResetPages';
-import { MfaSetupPage, MfaVerifyPage } from './components/auth/MfaPages';
+import { AuthenticatorSetupPage } from './components/auth/AuthenticatorSetupPage';
+import { StepUpDialog } from './components/auth/StepUpDialog';
 import { NoAccessPage, NotFoundPage, SessionExpiredPage } from './components/auth/SystemPages';
-import { RequireAuth, Guest } from './components/auth/AuthGate';
+import { RequireAuth, Guest, AUTHENTICATOR_SETUP_PATH } from './components/auth/AuthGate';
 import { OfflineBanner } from './components/common/OfflineBanner';
 import { TeamView } from './components/views/TeamView';
 import { ActivityView } from './components/activity/ActivityView';
@@ -186,15 +187,14 @@ const ToastContainer: React.FC<{
 
 export default function App() {
   return (
-    <><OfflineBanner /><Routes>
+    <><OfflineBanner /><StepUpDialog /><Routes>
       {/* No public store registration or sign-up route exists: accounts are created by invitation only. */}
       <Route path="/login" element={<Guest><LoginPage /></Guest>} />
       <Route path="/invitations/accept" element={<AcceptInvitationPage />} />
       <Route path="/forgot-password" element={<Guest><ForgotPasswordPage /></Guest>} />
       <Route path="/password/reset" element={<ResetPasswordPage />} />
       <Route path="/session-expired" element={<SessionExpiredPage />} />
-      <Route path="/mfa/setup" element={<Guest allow="mfa_setup_required"><MfaSetupPage /></Guest>} />
-      <Route path="/mfa/verify" element={<Guest allow="mfa_required"><MfaVerifyPage /></Guest>} />
+      <Route path={AUTHENTICATOR_SETUP_PATH} element={<Guest allow="authenticator_setup_required"><AuthenticatorSetupPage /></Guest>} />
       {RETIRED_PATHS.map((path) => <Route key={path} path={path} element={<Navigate to={pathFor('dashboard')} replace />} />)}
       <Route
         path="/*"

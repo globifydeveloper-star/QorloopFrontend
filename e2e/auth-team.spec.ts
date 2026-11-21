@@ -1,9 +1,11 @@
 import { expect, test, type Page, type BrowserContext } from '@playwright/test';
-import { PASSWORD, emailedToken, provision, totp } from './support';
+import { PASSWORD, emailedCode, emailedToken, provision } from './support';
 
 /**
- * Task 9, flows 1-5 against the real backend, plus the security-relevant edges of Tasks 1 and 2.
- * One fresh store per run (unique slug) so the suite can be re-run against the same database.
+ * Task 9, flows 1-5 against the real backend, plus the security-relevant edges of Tasks 1 and 2, on the sign-in of
+ * ADR 021: emailed codes on a new browser, trusted devices, shared computers and "Confirm it's you" for sensitive actions.
+ * One fresh store per run (unique slug) so the suite can be re-run against the same database. Every test gets a fresh
+ * browser context, so every test starts on an unknown device.
  */
 const run = Date.now().toString(36);
 const slug = 'e2e' + run;
@@ -13,9 +15,9 @@ const adminEmail = `admin@${slug}.test`;
 const analystEmail = `analyst@${slug}.test`;
 
 let baseURL: string;
-let ownerSecret: string;
-let recoveryCodes: string[] = [];
 let newPassword = PASSWORD + '!2';
+/** Who is signed in on the current page: the "Confirm it's you" handler reads their newest emailed code. */
+let currentEmail = '';
 
 const host = (s: string) => `http://${s}.localhost:3000`;
 let inviteToken: string;
@@ -23,22 +25,42 @@ test.beforeAll(() => { baseURL = host(slug); inviteToken = provision(slug, owner
 
 async function open(page: Page, path: string) { await page.goto(baseURL + path); }
 
-async function signIn(page: Page, email: string, password = PASSWORD) {
+/** Password step only. On a new browser this ends on the code step. */
+async function signIn(page: Page, email: string, password = PASSWORD, { shared = false } = {}) {
+  currentEmail = email;
   await open(page, '/login');
   await page.getByLabel('Work email').fill(email);
   await page.getByLabel('Password', { exact: true }).fill(password);
+  if (shared) await page.getByLabel(/This is a shared computer/).check();
   await page.getByRole('button', { name: /sign in/i }).click();
 }
-async function enterTotp(page: Page) {
-  await page.getByLabel('6-digit code').fill(await totp(ownerSecret));
+async function enterEmailedCode(page: Page, email = currentEmail) {
+  await expect(page.getByText(/Enter the 6-digit code we emailed to/)).toBeVisible();
+  await page.getByLabel('6-digit code').fill(emailedCode(slug, email));
   await page.getByRole('button', { name: 'Verify', exact: true }).click();
 }
+/** Password, then the emailed code (every test is a new browser, so the code is always asked for). */
+async function signInWithCode(page: Page, email: string, password = PASSWORD) {
+  await signIn(page, email, password);
+  await enterEmailedCode(page, email);
+}
 async function ownerLogin(page: Page) {
-  await signIn(page, ownerEmail);
-  await enterTotp(page);
+  await signInWithCode(page, ownerEmail);
   await expect(page).toHaveURL(baseURL + '/');
 }
-async function acceptInvite(page: Page, token: string, name: string) {
+const stepUpDialog = (page: Page) => page.getByRole('dialog', { name: "Confirm it's you" });
+/** Any sensitive action may ask "Confirm it's you": answer it with the signed-in user's newest emailed code. */
+async function confirmItsYou(page: Page) {
+  const dialog = stepUpDialog(page);
+  await expect(dialog.getByText(/we emailed to/)).toBeVisible();
+  await dialog.getByLabel('6-digit code').fill(emailedCode(slug, currentEmail));
+  await dialog.getByRole('button', { name: 'Confirm' }).click();
+  await expect(dialog).toHaveCount(0);
+}
+test.beforeEach(async ({ page }) => { await page.addLocatorHandler(stepUpDialog(page), () => confirmItsYou(page)); });
+
+async function acceptInvite(page: Page, token: string, name: string, email: string) {
+  currentEmail = email;
   await open(page, `/invitations/accept#token=${token}`);
   await page.getByLabel('Your name').fill(name);
   await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
@@ -78,69 +100,74 @@ test('there is no public sign-up or store registration anywhere', async ({ page 
   }
 });
 
-test('1. the Owner accepts the invitation and sets a password', async ({ page }) => {
-  await acceptInvite(page, inviteToken, 'Olivia Owner');
-  // Owners cannot reach the app until two-step verification is on
-  await expect(page).toHaveURL(/\/mfa\/setup/);
+test('1. the Owner accepts the invitation and is signed straight in', async ({ page }) => {
+  await acceptInvite(page, inviteToken, 'Olivia Owner', ownerEmail);
+  // No authenticator app is forced on Owners any more: accepting signs in, and this browser becomes a trusted device
+  await expect(page).toHaveURL(baseURL + '/');
   expect(page.url()).not.toContain('token='); // the token is removed from the address bar
   await open(page, '/settings/team');
-  await expect(page).toHaveURL(/\/mfa\/setup/);
+  await expect(page.getByTestId(`member-${ownerEmail}`)).toContainText('Olivia Owner');
 });
 
-test('2. the Owner sets up two-step verification and receives recovery codes once', async ({ page }) => {
-  await signIn(page, ownerEmail); // no TOTP yet, so login lands on setup again
-  await expect(page).toHaveURL(/\/mfa\/setup/);
-  await page.getByLabel('Confirm your password').fill('wrong password here');
-  await page.getByRole('button', { name: 'Continue' }).click();
+test('2. a new browser asks for the emailed code: wrong codes show the tries left, the right one signs in', async ({ page }) => {
+  await signIn(page, ownerEmail, 'wrong password here');
   await expect(page.getByRole('alert')).toBeVisible();
-  await page.getByLabel('Confirm your password').fill(PASSWORD);
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByAltText('Authenticator QR code')).toBeVisible();
-  await page.locator('summary', { hasText: 'enter the key manually' }).click();
-  ownerSecret = (await page.getByTestId('totp-secret').innerText()).trim();
+  await expect(page.getByLabel('6-digit code')).toHaveCount(0); // a wrong password never reaches the code step
 
-  await page.getByLabel('6-digit code').fill('000000');
-  await page.getByRole('button', { name: /verify and turn on/i }).click();
-  await expect(page.getByRole('alert')).toBeVisible();
-  await page.getByLabel('6-digit code').fill(await totp(ownerSecret));
-  await page.getByRole('button', { name: /verify and turn on/i }).click();
+  await signIn(page, ownerEmail);
+  await expect(page.getByText(/Enter the 6-digit code we emailed to/)).toBeVisible();
+  await expect(page.getByText(ownerEmail)).toHaveCount(0); // the address is shown masked
+  // nothing in the app is reachable with only the password
+  expect(await apiStatus(page, 'GET', '/api/team/members')).toBe(401);
+  await page.getByLabel('6-digit code').fill(emailedCode(slug, ownerEmail) === '000000' ? '111111' : '000000');
+  await page.getByRole('button', { name: 'Verify', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText(/Wrong code, \d tries? left/);
+  await expect(page).toHaveURL(/\/login/); // still on the code step, not sent to "session expired"
+  await expect(page.getByRole('button', { name: /Send a new code/ })).toBeVisible();
 
-  const codes = page.getByTestId('recovery-codes').locator('li');
-  await expect(codes).toHaveCount(10);
-  recoveryCodes = await codes.allInnerTexts();
-  await expect(page.getByRole('button', { name: 'Continue to Qorloop' })).toBeDisabled();
-  await page.getByLabel(/stored these codes/i).check();
-  await page.getByRole('button', { name: 'Continue to Qorloop' }).click();
+  await enterEmailedCode(page, ownerEmail);
   await expect(page).toHaveURL(baseURL + '/');
   await expect(page.getByRole('link', { name: /team/i }).or(page.getByRole('button', { name: 'Team' }))).toBeVisible();
 });
 
-test('3. the Owner logs out and back in with a code, and with a recovery code', async ({ page }) => {
-  await signIn(page, ownerEmail);
-  await expect(page).toHaveURL(/\/mfa\/verify/);
-  // the restricted session gives no access to the app
-  await open(page, '/settings/team');
-  await expect(page).toHaveURL(/\/mfa\/verify/);
-  await page.getByLabel('6-digit code').fill('123456');
-  await page.getByRole('button', { name: 'Verify', exact: true }).click();
-  await expect(page.getByRole('alert')).toBeVisible();
-  await enterTotp(page);
-  await expect(page).toHaveURL(baseURL + '/');
+test('3. a trusted browser signs in without a code after sign-out; a shared computer asks every time', async ({ page }) => {
+  await ownerLogin(page);
   await page.getByTitle('Sign out').click();
   await expect(page).toHaveURL(/\/login/);
-
-  // recovery code, once
-  await signIn(page, ownerEmail);
-  await page.getByRole('button', { name: /recovery code instead/i }).click();
-  await page.getByLabel('Recovery code').fill(recoveryCodes[0]);
-  await page.getByRole('button', { name: 'Verify', exact: true }).click();
+  await signIn(page, ownerEmail); // same browser: trusted since the code sign-in above
   await expect(page).toHaveURL(baseURL + '/');
   await page.getByTitle('Sign out').click();
-  await signIn(page, ownerEmail);
-  await page.getByRole('button', { name: /recovery code instead/i }).click();
-  await page.getByLabel('Recovery code').fill(recoveryCodes[0]);
-  await page.getByRole('button', { name: 'Verify', exact: true }).click();
-  await expect(page.getByRole('alert')).toBeVisible(); // already used
+
+  await signIn(page, ownerEmail, PASSWORD, { shared: true });
+  await expect(page.getByText(/Enter the 6-digit code we emailed to/)).toBeVisible();
+  await enterEmailedCode(page, ownerEmail);
+  await expect(page).toHaveURL(baseURL + '/');
+});
+
+test('4a. on a session without a fresh code, inviting asks "Confirm it\'s you" first; cancelling changes nothing', async ({ page }) => {
+  await page.removeLocatorHandler(stepUpDialog(page)); // this test answers the dialog itself
+  await ownerLogin(page);
+  await page.getByTitle('Sign out').click();
+  await signIn(page, ownerEmail); // trusted browser: no code, so the step-up windows are closed
+  await expect(page).toHaveURL(baseURL + '/');
+  const email = `stepup@${slug}.test`;
+  await open(page, '/settings/team');
+  await page.getByRole('button', { name: 'Invite member' }).click();
+  await page.getByLabel('Email').fill(email);
+  await page.getByLabel('Role', { exact: true }).selectOption({ label: 'Analyst' });
+  await page.getByRole('button', { name: 'Send invitation' }).click();
+  await expect(stepUpDialog(page)).toBeVisible();
+  await expect(stepUpDialog(page)).toContainText('10 minutes');
+  await page.keyboard.press('Escape');
+  await expect(stepUpDialog(page)).toHaveCount(0);
+  await expect(page.getByTestId(`invite-${email}`)).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Send invitation' }).click();
+  await confirmItsYou(page);
+  await expect(page.getByTestId(`invite-${email}`)).toContainText('Analyst'); // the original request was sent again
+  await page.getByTestId(`invite-${email}`).getByRole('button', { name: 'Revoke' }).click(); // window still open: no second dialog
+  await page.getByRole('dialog').getByRole('button', { name: 'Revoke' }).click();
+  await expect(page.getByTestId(`invite-${email}`)).toHaveCount(0);
 });
 
 test('4. the Owner invites a Catalogue Manager; roles offered include Owner only for Owners', async ({ page }) => {
@@ -164,8 +191,8 @@ test('4. the Owner invites a Catalogue Manager; roles offered include Owner only
 });
 
 test('5. the Catalogue Manager signs in and sees only what the role allows', async ({ page }) => {
-  await acceptInvite(page, emailedToken(slug, managerEmail), 'Carla Manager');
-  await expect(page).toHaveURL(baseURL + '/'); // no MFA enrolment forced on non-Owners by default
+  await acceptInvite(page, emailedToken(slug, managerEmail), 'Carla Manager', managerEmail);
+  await expect(page).toHaveURL(baseURL + '/'); // accepting signs in straight away
   await open(page, '/settings/team');
   await expect(page.getByTestId(`member-${managerEmail}`)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Invite member' })).toHaveCount(0);
@@ -183,7 +210,7 @@ test('an Admin cannot grant Owner (UI and server)', async ({ page }) => {
   await invite(page, adminEmail, 'Admin');
   await page.getByTitle('Sign out').click();
   await expect(page).toHaveURL(/\/login/);
-  await acceptInvite(page, emailedToken(slug, adminEmail), 'Adam Admin');
+  await acceptInvite(page, emailedToken(slug, adminEmail), 'Adam Admin', adminEmail);
   await expect(page).toHaveURL(baseURL + '/');
   await open(page, '/settings/team');
   await page.getByRole('button', { name: 'Invite member' }).click();
@@ -234,7 +261,7 @@ test('forgot and reset password, then sign in with the new password', async ({ p
   await expect(page).toHaveURL(/\/login\?reset=1/);
   await signIn(page, adminEmail, PASSWORD);
   await expect(page.getByRole('alert')).toBeVisible(); // old password no longer works
-  await signIn(page, adminEmail, newPassword);
+  await signInWithCode(page, adminEmail, newPassword); // the reset signed out every device, so this browser needs a code
   await expect(page).toHaveURL(baseURL + '/');
 });
 
@@ -244,11 +271,13 @@ test('a deep link returns to the same page after sign-in', async ({ page }) => {
   await page.getByLabel('Work email').fill(adminEmail);
   await page.getByLabel('Password', { exact: true }).fill(newPassword);
   await page.getByRole('button', { name: /sign in/i }).click();
+  currentEmail = adminEmail;
+  await enterEmailedCode(page, adminEmail);
   await expect(page).toHaveURL(baseURL + '/settings/team');
 });
 
 test('when the session ends mid-task the user sees the session-expired screen', async ({ page, context }: { page: Page; context: BrowserContext }) => {
-  await signIn(page, adminEmail, newPassword);
+  await signInWithCode(page, adminEmail, newPassword);
   await expect(page).toHaveURL(baseURL + '/');
   await open(page, '/settings/team');
   await page.getByRole('button', { name: 'Invite member' }).click();

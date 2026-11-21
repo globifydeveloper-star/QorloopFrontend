@@ -27,18 +27,28 @@ describe('authoritative session-state branching', () => {
     mount(); expect(screen.getByTestId('status').textContent).toBe('loading'); await screen.findByText('Sara'); expect(screen.getByText('Can view settings')).toBeTruthy();
     expect(fetchMock.mock.calls.map(([u]) => u)).toEqual(['/api/auth/session', '/api/auth/me']);
   });
-  it.each(['mfa_required', 'mfa_setup_required'] as const)('uses API %s and ignores an opposite browser hint', async state => {
-    sessionStorage.setItem('qorloop.auth-state', state === 'mfa_required' ? 'mfa_setup_required' : 'mfa_required');
-    handler = () => ok({ ...SESSION, state, nextAction: state === 'mfa_required' ? 'verify_mfa' : 'setup_mfa' });
-    mount(); await waitFor(() => expect(screen.getByTestId('status').textContent).toBe(state)); expect(fetchMock).toHaveBeenCalledTimes(1); expect(screen.getByText('No permissions')).toBeTruthy();
+  it('uses API authenticator_setup_required and ignores an opposite browser hint', async () => {
+    sessionStorage.setItem('qorloop.auth-state', 'authenticated');
+    handler = () => ok({ ...SESSION, state: 'authenticator_setup_required', nextAction: 'setup_authenticator' });
+    mount(); await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('authenticator_setup_required')); expect(fetchMock).toHaveBeenCalledTimes(1); expect(screen.getByText('No permissions')).toBeTruthy();
+  });
+  it.each(['mfa_required', 'mfa_setup_required', 'something_new'])('fails closed on an unknown session state %s: an error, never a signed-in app without a profile', async state => {
+    handler = () => ok({ ...SESSION, state });
+    await expect(loadSession()).rejects.toMatchObject({ code: 'UNSUPPORTED_SIGN_IN' });
+    mount(); await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('error'));
+    expect(screen.getByText('No permissions')).toBeTruthy();
+    expect(fetchMock.mock.calls.some(([u]) => u === '/api/auth/me')).toBe(false);
   });
   it.each([['UNAUTHENTICATED', 'unauthenticated'], ['SESSION_EXPIRED', 'expired']] as const)('distinguishes 401 %s as %s', async (code, state) => {
     handler = () => fail(401, code); expect(await loadSession()).toEqual({ status: state });
   });
-  it.each([['MFA_REQUIRED', 'mfa_required'], ['MFA_SETUP_REQUIRED', 'mfa_setup_required']] as const)('handles a protected me %s with the exact MFA step', async (code, state) => {
-    handler = u => u === '/api/auth/session' ? ok(SESSION) : fail(403, code); expect(await loadSession()).toEqual({ status: state });
+  it('handles a protected me AUTHENTICATOR_SETUP_REQUIRED with the authenticator setup step', async () => {
+    handler = u => u === '/api/auth/session' ? ok(SESSION) : fail(403, 'AUTHENTICATOR_SETUP_REQUIRED'); expect(await loadSession()).toEqual({ status: 'authenticator_setup_required' });
   });
-  it.each([[403, 'FORBIDDEN'], [500, 'INTERNAL_ERROR'], [404, 'NOT_FOUND']] as const)('does not mistake %s %s for sign-out or MFA', async (status, code) => {
+  it.each(['MFA_REQUIRED', 'MFA_SETUP_REQUIRED', 'STEP_UP_REQUIRED'])('gives 403 %s no session state (the MFA codes are gone; step-up is the dialog)', code => {
+    expect(sessionErrorState(new ApiError(403, code, code))).toBeUndefined();
+  });
+  it.each([[403, 'FORBIDDEN'], [500, 'INTERNAL_ERROR'], [404, 'NOT_FOUND']] as const)('does not mistake %s %s for sign-out or a sign-in step', async (status, code) => {
     handler = u => u === '/api/auth/session' ? ok(SESSION) : fail(status, code);
     await expect(loadSession()).rejects.toMatchObject({ status, code, requestId: 'session-request' });
     expect(sessionErrorState(new ApiError(status, code, 'Error'))).toBeUndefined();
@@ -54,15 +64,25 @@ describe('authoritative session-state branching', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Protected request' })); await waitFor(() => expect(sessionCalls()).toBe(2));
     expect(fetchMock.mock.calls.filter(([u]) => u === '/api/protected')).toHaveLength(1); expect(screen.getByTestId('status').textContent).toBe('authenticated');
   });
-  it('keeps ordinary forbidden responses out of global MFA handling', async () => {
+  it('keeps ordinary forbidden responses out of global sign-in handling', async () => {
     mount(); await screen.findByText('Sara'); handler = () => fail(403, 'FORBIDDEN');
     fireEvent.click(screen.getByRole('button', { name: 'Protected request' })); await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => u === '/api/protected')).toBe(true));
     expect(screen.getByTestId('status').textContent).toBe('authenticated');
   });
-  it('keeps rejected login and MFA credentials out of the global session flow', async () => {
+  it('keeps rejected login and sign-in codes out of the global session flow', async () => {
     const listener = vi.fn(); const off = onAuthIssue(listener); handler = () => fail(401, 'UNAUTHENTICATED');
-    await authApi.login('fixture@example.test', 'fixture-only').catch(() => undefined); await authApi.mfaVerify('000000').catch(() => undefined); await authApi.mfaRecovery('fixture-code').catch(() => undefined);
+    await authApi.login('fixture@example.test', 'fixture-only').catch(() => undefined); await authApi.verifyCode('000000').catch(() => undefined); await authApi.verifyRecoveryCode('fixture-code').catch(() => undefined);
+    for (const [status, code] of [[401, 'OTP_INVALID'], [401, 'OTP_LOCKED'], [401, 'CHALLENGE_EXPIRED'], [429, 'OTP_SEND_LIMIT']] as const) {
+      handler = () => fail(status, code);
+      await authApi.verifyCode('000000').catch(() => undefined); await authApi.resendCode().catch(() => undefined);
+      await authApi.startStepUp().catch(() => undefined); await authApi.verifyStepUp({ code: '000000' }).catch(() => undefined);
+    }
     expect(listener).not.toHaveBeenCalled(); off();
+  });
+  it("still signs out when the session itself ended during \"Confirm it's you\"", async () => {
+    const listener = vi.fn(); const off = onAuthIssue(listener); handler = () => fail(401, 'SESSION_EXPIRED');
+    await authApi.verifyStepUp({ code: '000000' }).catch(() => undefined);
+    expect(listener).toHaveBeenCalledTimes(1); off();
   });
   it('clears the session and store data on logout', async () => {
     const qc = mount(); await screen.findByText('Sara'); qc.setQueryData(['activity'], { items: ['private'] });

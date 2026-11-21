@@ -8,25 +8,36 @@ export type AuthStatus = 'loading' | 'unauthenticated' | 'expired' | 'error' | A
 interface AuthValue {
   status: AuthStatus; me: Me | null; error: ApiError | null;
   can: (permission: string) => boolean;
-  establish: (session: SessionResponse) => Promise<void>;
+  /** Re-reads the session after a sign-in step (the response itself is not needed: cookies carry the session). */
+  establish: (session?: SessionResponse) => Promise<void>;
   logout: () => Promise<void>; retry: () => void;
 }
 const AuthContext = createContext<AuthValue | undefined>(undefined);
-export type SessionResult = { status: 'authenticated'; me: Me } | { status: 'unauthenticated' | 'expired' | 'mfa_required' | 'mfa_setup_required' };
+export type SessionResult = { status: 'authenticated'; me: Me } | { status: 'unauthenticated' | 'expired' | 'authenticator_setup_required' };
 
 export function sessionErrorState(e: unknown): Exclude<SessionResult['status'], 'authenticated'> | undefined {
   if (!(e instanceof ApiError)) return undefined;
   if (e.status === 401 && e.code === 'SESSION_EXPIRED') return 'expired';
   if (e.status === 401 && e.code === 'UNAUTHENTICATED') return 'unauthenticated';
-  if (e.status === 403 && e.code === 'MFA_REQUIRED') return 'mfa_required';
-  if (e.status === 403 && e.code === 'MFA_SETUP_REQUIRED') return 'mfa_setup_required';
+  // Only when the store requires an authenticator app for everyone and this user has none yet.
+  if (e.status === 403 && e.code === 'AUTHENTICATOR_SETUP_REQUIRED') return 'authenticator_setup_required';
   return undefined;
 }
 
-/** The API is the authority for expiry and the exact MFA step; no browser hint is used. */
+/** The session states this app knows. Anything else (e.g. an older server's mfa_required) is not a sign-in. */
+const KNOWN_STATES: readonly string[] = ['authenticated', 'authenticator_setup_required'] satisfies AuthState[];
+export const UNSUPPORTED_SIGN_IN = 'UNSUPPORTED_SIGN_IN';
+/** Fail closed: a sign-in step this app cannot complete never opens the app (it would run with no profile or permissions). */
+export function assertKnownState(state: string): void {
+  if (!KNOWN_STATES.includes(state))
+    throw new ApiError(409, UNSUPPORTED_SIGN_IN, `The server asked for a sign-in step this version of Qorloop does not support (${state}). The app and the server are on different versions; contact support.`);
+}
+
+/** The API is the authority for expiry and the next sign-in step; no browser hint is used. Sessions last up to 20 days (7 days unused): the app runs no idle timer of its own. */
 export async function loadSession(): Promise<SessionResult> {
   try {
     const session = await authApi.session();
+    assertKnownState(session.state);
     if (session.state !== 'authenticated') return { status: session.state };
     return { status: 'authenticated', me: await authApi.me() };
   } catch (e) {
@@ -61,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (status !== 'authenticated' && status !== 'loading' && status !== 'error') clearWorkspace();
   }, [status, clearWorkspace]);
 
-  const establish = useCallback(async (_session: SessionResponse) => {
+  const establish = useCallback(async (_session?: SessionResponse) => {
     await qc.cancelQueries({ queryKey: ['me'] });
     clearWorkspace();
     await qc.invalidateQueries({ queryKey: ['me'] });

@@ -283,6 +283,8 @@ describe('confirm and apply (real mode)', () => {
     expect(calls(u => u.includes('/review') || u.includes('/errors'))).toHaveLength(0);
     // Opening an applied upload does not bounce to the Dashboard.
     expect(screen.getByTestId('where').textContent).toBe('/uploads/review?upload=up_1');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to uploads' }));
+    expect(screen.getByTestId('where').textContent).toBe('/uploads');
   });
 });
 
@@ -633,6 +635,12 @@ describe('column mapping (real mode)', () => {
     handler = url => (url === '/api/uploads/up_1' ? json(200, { data: mappingUpload(0.3) }) : undefined);
     renderAt('/uploads/mapping?upload=up_1', <ColumnMappingView />);
     expect(await screen.findByText(/Check this mapping/)).toBeTruthy();
+  });
+
+  it('an upload that no longer needs mapping goes straight to its review page', async () => {
+    handler = url => (url === '/api/uploads/up_1' ? json(200, { data: rec('needs_review', { summary }) }) : undefined);
+    renderAt('/uploads/mapping?upload=up_1', <ColumnMappingView />);
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/uploads/review?upload=up_1'));
   });
 });
 

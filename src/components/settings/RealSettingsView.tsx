@@ -11,6 +11,7 @@ import { PRICING_SETTINGS_KEY, FieldError, inputCls, invalidatePriced } from '..
 import { expectRecompute, marketplaceName } from '../recon/shared';
 import { NoAccessPage } from '../auth/SystemPages';
 import { settingsChanges, settingsDraft } from './form';
+import { StoreResetSection } from './StoreResetSection';
 
 export const RealSettingsView: React.FC = () => {
   const { can } = useAuth();
@@ -58,6 +59,7 @@ const Settings: React.FC = () => {
       </section>
     </>}
     <Marketplaces />
+    {can('store.reset') && <StoreResetSection />}
   </div>;
 };
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
@@ -7,7 +7,7 @@ import { uploadsApi } from '../../api/uploads';
 import { ApiError } from '../../api/client';
 import { ColumnMappingPanel } from '../common/ColumnMappingPanel';
 import { ErrorState } from '../common/States';
-import { SOURCE_LABELS, StatusBadge, StatusProgress, UPLOADS_LIST_KEY, errorText, uploadKey, uploadPath, useUploadStatus } from './shared';
+import { SOURCE_LABELS, StatusProgress, UPLOADS_LIST_KEY, errorText, uploadKey, uploadPath, useUploadStatus } from './shared';
 
 /** Below this suggestion confidence (0..1) the user is asked to double-check the pre-filled columns. */
 const LOW_CONFIDENCE = 0.5;
@@ -33,16 +33,9 @@ export const RealColumnMappingView: React.FC = () => {
   if (upload.status === 'uploading' || upload.status === 'processing') {
     return <Shell title={upload.fileName}><div className="bg-white border border-gray-200 rounded-xl p-4"><StatusProgress upload={upload} /></div></Shell>;
   }
-  if (upload.status !== 'needs_mapping') {
-    return (
-      <Shell title={upload.fileName}>
-        <p className="text-sm text-gray-600 flex items-center gap-2">
-          This upload does not need column mapping (<StatusBadge status={upload.status} />).
-          <Link to={uploadPath(upload)} className="text-[#027864] hover:underline font-medium">Open it</Link>
-        </p>
-      </Shell>
-    );
-  }
+  // Mapping is done (or never needed): an old link, Back, or a refresh after saving lands here, so go straight to
+  // the upload's own page instead of a dead end. `replace` keeps Back from bouncing into this screen again.
+  if (upload.status !== 'needs_mapping') return <Navigate to={uploadPath(upload)} replace />;
 
   const headers = upload.headers ?? [];
   const fields = upload.fields ?? [];
